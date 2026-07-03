@@ -1,0 +1,9 @@
+name,category_slugs,address,phone,website,source,source_url,date_collected,last_verified,notes
+Carbonara,italian,"3865 Wilson Blvd, Arlington, VA 22203",,,Google Places (landscape check - re-verify before publishing),,2026-06-29,,Fine dining; broad Italian menu not specialized in one dish
+Pines of Florence,pasta,"2109 N Pollard St, Arlington, VA 22207",,,Google Places (landscape check - re-verify before publishing),,2026-06-29,,Family-style; reviews emphasize pasta specifically
+Corso Italian,pasta,"4024 Campbell Ave, Arlington, VA 22206",,,Google Places (landscape check - re-verify before publishing),,2026-06-29,,Handmade pasta focus; also a small grocery/cheese shop on site
+Guapo's Cocina & Bar,"mexican,bar","4028 Campbell Ave, Arlington, VA 22206",,,Google Places (landscape check - re-verify before publishing),,2026-06-29,,Genuinely both a Tex-Mex kitchen and a full bar scene
+Tortas Y Tacos La Chiquita lll,mexican,"3811 Fairfax Dr Ste 175, Arlington, VA 22203",,,Google Places (landscape check - re-verify before publishing),,2026-06-29,,Counter-service tacos and tortas
+Yume Sushi,sushi,"2121 N Westmoreland St A-2, Arlington, VA 22213",,,Google Places (landscape check - re-verify before publishing),,2026-06-29,,Sushi-only menu
+Sushi Rock,"sushi,bar","1900 Clarendon Blvd, Arlington, VA 22201",,,Google Places (landscape check - re-verify before publishing),,2026-06-29,,Sushi restaurant with a real bar/nightlife side
+Kusshi Arlington,asian,"1201 S Joyce St, Arlington, VA 22202",,,Google Places (landscape check - re-verify before publishing),,2026-06-29,,"Spans ramen + sushi + bar evenly - no single leaf fits, tagged at parent"
