@@ -1,7 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { supabase } from "@/lib/supabase";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import type { User } from "@supabase/supabase-js";
+import { createClient } from "@/lib/supabase/client";
 
 type Category = {
   id: string;
@@ -14,6 +17,7 @@ type SearchResult = {
   name: string;
   address: string;
   miles: number;
+  is_starred: boolean;
 };
 
 type SortMode = "nearest" | "az";
@@ -31,7 +35,31 @@ function sortButtonClass(active: boolean) {
   }`;
 }
 
+function StarIcon({ filled }: { filled: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width={20}
+      height={20}
+      fill={filled ? "currentColor" : "none"}
+      stroke="currentColor"
+      strokeWidth={1.5}
+      className={filled ? "text-amber-400" : "text-zinc-400"}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M12 3.5l2.6 5.27 5.82.85-4.21 4.1.99 5.8L12 16.9l-5.2 2.62.99-5.8-4.21-4.1 5.82-.85L12 3.5z"
+      />
+    </svg>
+  );
+}
+
 export default function Home() {
+  const router = useRouter();
+  const supabase = useMemo(() => createClient(), []);
+
+  const [user, setUser] = useState<User | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [location, setLocation] = useState("");
   const [radius, setRadius] = useState(10);
@@ -40,6 +68,17 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<SearchResult[] | null>(null);
   const [sortMode, setSortMode] = useState<SortMode>("nearest");
+  const [starredIds, setStarredIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setUser(data.user));
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+    return () => subscription.unsubscribe();
+  }, [supabase]);
 
   useEffect(() => {
     async function loadCategories() {
@@ -50,7 +89,7 @@ export default function Home() {
       if (data) setCategories(data);
     }
     loadCategories();
-  }, []);
+  }, [supabase]);
 
   const sortedResults = useMemo(() => {
     if (!results) return [];
@@ -93,7 +132,9 @@ export default function Home() {
         return;
       }
 
-      setResults(data ?? []);
+      const searchResults: SearchResult[] = data ?? [];
+      setResults(searchResults);
+      setStarredIds(new Set(searchResults.filter((r) => r.is_starred).map((r) => r.id)));
     } catch {
       setError("Something went wrong. Please check your connection and try again.");
     } finally {
@@ -101,16 +142,58 @@ export default function Home() {
     }
   }
 
+  async function toggleStar(entityId: string) {
+    if (!user) {
+      router.push("/sign-in");
+      return;
+    }
+
+    const isStarred = starredIds.has(entityId);
+
+    if (isStarred) {
+      const { error: deleteError } = await supabase
+        .from("stars")
+        .delete()
+        .eq("user_id", user.id)
+        .eq("entity_id", entityId);
+      if (!deleteError) {
+        setStarredIds((prev) => {
+          const next = new Set(prev);
+          next.delete(entityId);
+          return next;
+        });
+      }
+    } else {
+      const { error: insertError } = await supabase
+        .from("stars")
+        .insert({ user_id: user.id, entity_id: entityId });
+      if (!insertError) {
+        setStarredIds((prev) => new Set(prev).add(entityId));
+      }
+    }
+  }
+
   return (
     <main className="flex min-h-screen flex-1 flex-col items-center bg-zinc-50 px-6 py-16 dark:bg-black">
       <div className="flex w-full max-w-xl flex-col gap-10">
-        <div className="flex flex-col gap-2">
-          <h1 className="text-2xl font-semibold text-zinc-950 dark:text-zinc-50">
-            So Much Sushi
-          </h1>
-          <p className="text-zinc-600 dark:text-zinc-400">
-            Find restaurants near you. No ads, no accounts, just search.
-          </p>
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex flex-col gap-2">
+            <h1 className="text-2xl font-semibold text-zinc-950 dark:text-zinc-50">
+              So Much Sushi
+            </h1>
+            <p className="text-zinc-600 dark:text-zinc-400">
+              Find restaurants near you. No ads, no accounts, just search.
+            </p>
+          </div>
+          <div className="shrink-0 pt-1 text-sm text-zinc-500 dark:text-zinc-400">
+            {user ? (
+              <span>{user.email}</span>
+            ) : (
+              <Link href="/sign-in" className="underline hover:text-zinc-900 dark:hover:text-zinc-100">
+                Sign in
+              </Link>
+            )}
+          </div>
         </div>
 
         <form onSubmit={handleSearch} className="flex flex-col gap-8">
@@ -225,7 +308,7 @@ export default function Home() {
             ) : (
               <ul className="flex flex-col divide-y divide-zinc-200 dark:divide-zinc-800">
                 {sortedResults.map((r) => (
-                  <li key={r.id} className="flex items-baseline justify-between gap-4 py-4">
+                  <li key={r.id} className="flex items-center justify-between gap-4 py-4">
                     <div className="flex flex-col gap-0.5">
                       <span className="font-medium text-zinc-950 dark:text-zinc-50">
                         {r.name}
@@ -234,9 +317,20 @@ export default function Home() {
                         {r.address}
                       </span>
                     </div>
-                    <span className="shrink-0 text-sm text-zinc-500 dark:text-zinc-400">
-                      {r.miles.toFixed(1)} mi
-                    </span>
+                    <div className="flex shrink-0 items-center gap-3">
+                      <span className="text-sm text-zinc-500 dark:text-zinc-400">
+                        {r.miles.toFixed(1)} mi
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => toggleStar(r.id)}
+                        aria-label={starredIds.has(r.id) ? "Unstar" : "Star"}
+                        aria-pressed={starredIds.has(r.id)}
+                        className="rounded p-1 transition-colors hover:bg-zinc-200 dark:hover:bg-zinc-800"
+                      >
+                        <StarIcon filled={starredIds.has(r.id)} />
+                      </button>
+                    </div>
                   </li>
                 ))}
               </ul>
