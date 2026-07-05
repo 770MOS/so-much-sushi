@@ -69,6 +69,8 @@ export default function Home() {
   const [results, setResults] = useState<SearchResult[] | null>(null);
   const [sortMode, setSortMode] = useState<SortMode>("nearest");
   const [starredIds, setStarredIds] = useState<Set<string>>(new Set());
+  const [recommendedOnly, setRecommendedOnly] = useState(false);
+  const [lastCoords, setLastCoords] = useState<{ lat: number; lng: number } | null>(null);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUser(data.user));
@@ -99,6 +101,25 @@ export default function Home() {
     return results;
   }, [results, sortMode]);
 
+  async function runSearch(lat: number, lng: number, recommendedOnlyValue: boolean) {
+    const { data, error: rpcError } = await supabase.rpc("search_entities", {
+      ref_lat: lat,
+      ref_lng: lng,
+      radius_miles: radius,
+      category_path: categoryPath || null,
+      recommended_only: recommendedOnlyValue,
+    });
+
+    if (rpcError) {
+      setError("Something went wrong while searching. Please try again.");
+      return;
+    }
+
+    const searchResults: SearchResult[] = data ?? [];
+    setResults(searchResults);
+    setStarredIds(new Set(searchResults.filter((r) => r.is_starred).map((r) => r.id)));
+  }
+
   async function handleSearch(e: FormEvent) {
     e.preventDefault();
     if (!location.trim() || loading) return;
@@ -119,22 +140,31 @@ export default function Home() {
       }
 
       const { lat, lon } = geocodeData[0];
+      const coords = { lat: parseFloat(lat), lng: parseFloat(lon) };
+      setLastCoords(coords);
+      await runSearch(coords.lat, coords.lng, recommendedOnly);
+    } catch {
+      setError("Something went wrong. Please check your connection and try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
 
-      const { data, error: rpcError } = await supabase.rpc("search_entities", {
-        ref_lat: parseFloat(lat),
-        ref_lng: parseFloat(lon),
-        radius_miles: radius,
-        category_path: categoryPath || null,
-      });
+  async function toggleRecommendedOnly() {
+    if (!user) {
+      router.push("/sign-in");
+      return;
+    }
 
-      if (rpcError) {
-        setError("Something went wrong while searching. Please try again.");
-        return;
-      }
+    const next = !recommendedOnly;
+    setRecommendedOnly(next);
 
-      const searchResults: SearchResult[] = data ?? [];
-      setResults(searchResults);
-      setStarredIds(new Set(searchResults.filter((r) => r.is_starred).map((r) => r.id)));
+    if (!lastCoords || loading) return;
+
+    setLoading(true);
+    setError(null);
+    try {
+      await runSearch(lastCoords.lat, lastCoords.lng, next);
     } catch {
       setError("Something went wrong. Please check your connection and try again.");
     } finally {
@@ -281,25 +311,45 @@ export default function Home() {
               <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
                 {results.length} {results.length === 1 ? "result" : "results"}
               </h2>
-              {results.length > 0 && (
-                <div className="flex gap-1 rounded-lg border border-zinc-300 p-0.5 dark:border-zinc-700">
-                  <button
-                    type="button"
-                    onClick={() => setSortMode("nearest")}
-                    className={sortButtonClass(sortMode === "nearest")}
-                  >
-                    Nearest
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSortMode("az")}
-                    className={sortButtonClass(sortMode === "az")}
-                  >
-                    A&ndash;Z
-                  </button>
-                </div>
-              )}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={toggleRecommendedOnly}
+                  aria-pressed={recommendedOnly}
+                  className={`rounded-lg border px-3 py-1 text-sm font-medium transition-colors ${
+                    recommendedOnly
+                      ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
+                      : "border-zinc-300 text-zinc-600 hover:text-zinc-900 dark:border-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-100"
+                  }`}
+                >
+                  Recommended only
+                </button>
+                {results.length > 0 && (
+                  <div className="flex gap-1 rounded-lg border border-zinc-300 p-0.5 dark:border-zinc-700">
+                    <button
+                      type="button"
+                      onClick={() => setSortMode("nearest")}
+                      className={sortButtonClass(sortMode === "nearest")}
+                    >
+                      Nearest
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSortMode("az")}
+                      className={sortButtonClass(sortMode === "az")}
+                    >
+                      A&ndash;Z
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
+
+            {recommendedOnly && (
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                Showing places starred by your connections
+              </p>
+            )}
 
             {results.length === 0 ? (
               <p className="py-8 text-center text-sm text-zinc-500 dark:text-zinc-400">
