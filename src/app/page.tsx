@@ -109,7 +109,7 @@ export default function Home() {
 
     try {
       const geocodeRes = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(location)}`
+        `https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=us&q=${encodeURIComponent(location)}`
       );
       const geocodeData = await geocodeRes.json();
 
