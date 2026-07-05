@@ -18,6 +18,8 @@ type SearchResult = {
   address: string;
   miles: number;
   is_starred: boolean;
+  recommended_by: (string | null)[] | null;
+  recommended_count: number;
 };
 
 type SortMode = "nearest" | "az";
@@ -33,6 +35,28 @@ function sortButtonClass(active: boolean) {
       ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
       : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
   }`;
+}
+
+function HeartIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width={14} height={14} fill="currentColor" className="text-rose-400">
+      <path d="M12 21s-6.716-4.35-9.428-8.06C.85 10.42 1.2 7.03 3.79 5.3 6.02 3.8 8.94 4.4 10.5 6.3 12.06 4.4 14.98 3.8 17.21 5.3c2.59 1.73 2.94 5.12 1.22 7.64C18.72 16.65 12 21 12 21z" />
+    </svg>
+  );
+}
+
+function recommendationLabel(
+  recommendedBy: (string | null)[] | null,
+  recommendedCount: number
+): string | null {
+  if (!recommendedCount) return null;
+
+  const names = (recommendedBy ?? []).map((n) => (n && n.trim() ? n : "a friend"));
+  const first = names[0] ?? "a friend";
+
+  if (recommendedCount === 1) return `Starred by ${first}`;
+  if (recommendedCount === 2) return `Starred by ${first} and ${names[1] ?? "a friend"}`;
+  return `Starred by ${first} and ${recommendedCount - 1} others`;
 }
 
 function StarIcon({ filled }: { filled: boolean }) {
@@ -357,7 +381,9 @@ export default function Home() {
               </p>
             ) : (
               <ul className="flex flex-col divide-y divide-zinc-200 dark:divide-zinc-800">
-                {sortedResults.map((r) => (
+                {sortedResults.map((r) => {
+                  const recLabel = recommendationLabel(r.recommended_by, r.recommended_count);
+                  return (
                   <li key={r.id} className="flex items-center justify-between gap-4 py-4">
                     <div className="flex flex-col gap-0.5">
                       <span className="font-medium text-zinc-950 dark:text-zinc-50">
@@ -366,6 +392,12 @@ export default function Home() {
                       <span className="text-sm text-zinc-500 dark:text-zinc-400">
                         {r.address}
                       </span>
+                      {recLabel && (
+                        <span className="flex items-center gap-1 text-xs text-zinc-500 dark:text-zinc-400">
+                          <HeartIcon />
+                          {recLabel}
+                        </span>
+                      )}
                     </div>
                     <div className="flex shrink-0 items-center gap-3">
                       <span className="text-sm text-zinc-500 dark:text-zinc-400">
@@ -382,7 +414,8 @@ export default function Home() {
                       </button>
                     </div>
                   </li>
-                ))}
+                  );
+                })}
               </ul>
             )}
           </div>
