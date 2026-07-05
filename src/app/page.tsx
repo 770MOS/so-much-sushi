@@ -239,9 +239,17 @@ export default function Home() {
               Find restaurants near you. No ads, no accounts, just search.
             </p>
           </div>
-          <div className="shrink-0 pt-1 text-sm text-zinc-500 dark:text-zinc-400">
+          <div className="flex shrink-0 items-center gap-3 pt-1 text-sm text-zinc-500 dark:text-zinc-400">
             {user ? (
-              <span>{user.email}</span>
+              <>
+                <Link
+                  href="/profile"
+                  className="underline hover:text-zinc-900 dark:hover:text-zinc-100"
+                >
+                  Profile
+                </Link>
+                <span>{user.email}</span>
+              </>
             ) : (
               <Link href="/sign-in" className="underline hover:text-zinc-900 dark:hover:text-zinc-100">
                 Sign in
