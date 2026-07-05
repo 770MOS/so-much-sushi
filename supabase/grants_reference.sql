@@ -151,6 +151,12 @@ GRANT EXECUTE ON FUNCTION search_entities(
   double precision, double precision, double precision, ltree, boolean, boolean
 ) TO anon, authenticated;
 
+-- get_my_starred_entities: powers the /profile page (Map/Browse tabs). Takes
+-- no arguments (reads auth.uid() internally), so only needs a signed-in
+-- caller - SECURITY DEFINER, defined in
+-- supabase/add_city_and_starred_lookup.sql.
+GRANT EXECUTE ON FUNCTION get_my_starred_entities() TO authenticated;
+
 -- text2ltree: built-in Postgres ltree extension function, not app-specific.
 -- Not covered here - extensions manage their own default privileges.
 
