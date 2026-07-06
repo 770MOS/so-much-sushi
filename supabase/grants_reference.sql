@@ -137,11 +137,14 @@ GRANT ALL ON TABLE friendships TO service_role;
 -- =============================================================================
 -- lists, list_items - user-created visibility-scoped collections (private/
 --   friends/public). Full RLS policies (not bare grants) defined in
---   supabase/lists.sql, since visibility scoping needs real per-row logic,
---   unlike friendships' current stopgap above. Grants repeated here per
---   this file's own policy of tracking every table.
+--   supabase/lists.sql (SELECT/INSERT/DELETE) and
+--   supabase/update_lists_policy.sql (UPDATE, for owner-editable
+--   name/description/visibility), since visibility scoping needs real
+--   per-row logic, unlike friendships' current stopgap above. Grants
+--   repeated here per this file's own policy of tracking every table.
 -- =============================================================================
-GRANT SELECT, INSERT, DELETE ON TABLE lists, list_items TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE lists TO authenticated;
+GRANT SELECT, INSERT, DELETE ON TABLE list_items TO authenticated;
 GRANT ALL ON TABLE lists, list_items TO service_role;
 
 -- =============================================================================
