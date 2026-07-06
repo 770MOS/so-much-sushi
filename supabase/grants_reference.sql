@@ -135,6 +135,16 @@ GRANT ALL ON TABLE friendships TO service_role;
 --   USING (requester_id = auth.uid() OR addressee_id = auth.uid());
 
 -- =============================================================================
+-- lists, list_items - user-created visibility-scoped collections (private/
+--   friends/public). Full RLS policies (not bare grants) defined in
+--   supabase/lists.sql, since visibility scoping needs real per-row logic,
+--   unlike friendships' current stopgap above. Grants repeated here per
+--   this file's own policy of tracking every table.
+-- =============================================================================
+GRANT SELECT, INSERT, DELETE ON TABLE lists, list_items TO authenticated;
+GRANT ALL ON TABLE lists, list_items TO service_role;
+
+-- =============================================================================
 -- Functions callable over the REST API (PostgREST /rpc/*)
 -- =============================================================================
 
@@ -156,6 +166,13 @@ GRANT EXECUTE ON FUNCTION search_entities(
 -- caller - SECURITY DEFINER, defined in
 -- supabase/add_city_and_starred_lookup.sql.
 GRANT EXECUTE ON FUNCTION get_my_starred_entities() TO authenticated;
+
+-- get_list_meta, get_list_entities: power the /lists/[id] detail page.
+-- Both SECURITY DEFINER, defined in supabase/lists.sql - each re-implements
+-- the lists visibility check inline (private/friends/public), since running
+-- as owner bypasses lists'/list_items' own RLS policies above.
+GRANT EXECUTE ON FUNCTION get_list_meta(uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION get_list_entities(uuid) TO authenticated;
 
 -- text2ltree: built-in Postgres ltree extension function, not app-specific.
 -- Not covered here - extensions manage their own default privileges.

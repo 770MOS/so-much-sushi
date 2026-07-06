@@ -12,6 +12,7 @@ export type MapMarkerEntity = {
   lat: number;
   lng: number;
   matchesFilter: boolean;
+  isStarred: boolean;
   recommendedCount: number;
 };
 
@@ -24,8 +25,9 @@ export type MapBounds = {
 
 type Props = {
   entities: MapMarkerEntity[];
-  jumpTo: { lat: number; lng: number } | null;
-  onBoundsChange: (bounds: MapBounds) => void;
+  jumpTo?: { lat: number; lng: number } | null;
+  onBoundsChange?: (bounds: MapBounds) => void;
+  className?: string;
 };
 
 function escapeHtml(s: string) {
@@ -46,12 +48,14 @@ const PIN_SVG = `
   </svg>
 `;
 
-function createMarkerElement(recommendedCount: number): HTMLDivElement {
+function createMarkerElement(isStarred: boolean, recommendedCount: number): HTMLDivElement {
   const wrapper = document.createElement("div");
   wrapper.style.position = "relative";
   wrapper.style.width = "28px";
   wrapper.style.height = "36px";
-  wrapper.style.color = "#fbbf24"; // amber-400 - matches the star icon elsewhere in the app
+  // amber-400 for starred (matches the star icon elsewhere in the app),
+  // zinc-400 plain pin otherwise.
+  wrapper.style.color = isStarred ? "#fbbf24" : "#a1a1aa";
   wrapper.innerHTML = PIN_SVG;
 
   if (recommendedCount > 0) {
@@ -70,7 +74,7 @@ function createMarkerElement(recommendedCount: number): HTMLDivElement {
   return wrapper;
 }
 
-export default function StarredMap({ entities, jumpTo, onBoundsChange }: Props) {
+export default function EntityMap({ entities, jumpTo, onBoundsChange, className }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markersRef = useRef<Map<string, maplibregl.Marker>>(new Map());
@@ -101,6 +105,7 @@ export default function StarredMap({ entities, jumpTo, onBoundsChange }: Props) 
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-left");
 
     function emitBounds() {
+      if (!onBoundsChangeRef.current) return;
       const b = map.getBounds();
       onBoundsChangeRef.current({
         north: b.getNorth(),
@@ -139,7 +144,7 @@ export default function StarredMap({ entities, jumpTo, onBoundsChange }: Props) 
 
       let marker = markersRef.current.get(entity.id);
       if (!marker) {
-        const element = createMarkerElement(entity.recommendedCount);
+        const element = createMarkerElement(entity.isStarred, entity.recommendedCount);
         marker = new maplibregl.Marker({ element })
           .setLngLat([entity.lng, entity.lat])
           .setPopup(
@@ -165,5 +170,5 @@ export default function StarredMap({ entities, jumpTo, onBoundsChange }: Props) 
     }
   }, [jumpTo]);
 
-  return <div ref={containerRef} className="h-96 w-full rounded-lg" />;
+  return <div ref={containerRef} className={className ?? "h-96 w-full rounded-lg"} />;
 }

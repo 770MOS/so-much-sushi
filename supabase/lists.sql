@@ -17,6 +17,17 @@
 -- integer) for future manual notes/ordering - present in the live schema,
 -- unused by the app for now.
 --
+-- Both functions below need `SET search_path = public, extensions` (not
+-- just `public`) - PostGIS's ST_Y/ST_X live in the extensions schema here,
+-- not public, so a public-only search_path fails to resolve them.
+--
+-- Also: pasting this whole file into the Supabase SQL Editor runs it as a
+-- single transaction, so an error partway through (e.g. the owner_id/
+-- search_path issues hit while first building this feature) silently rolls
+-- back everything already applied in that same paste, including statements
+-- that looked like they'd succeeded. If something in here ever fails again,
+-- assume nothing after the DROP FUNCTION IF EXISTS statements landed either.
+--
 -- Safe to re-run (idempotent) if replayed against a fresh database.
 
 CREATE TABLE IF NOT EXISTS lists (
@@ -123,7 +134,7 @@ CREATE FUNCTION public.get_list_meta(p_list_id uuid)
  RETURNS TABLE(id uuid, name text, description text, visibility text, owner_id uuid, owner_name text, is_owner boolean)
  LANGUAGE sql
  STABLE SECURITY DEFINER
- SET search_path = public
+ SET search_path = public, extensions
 AS $function$
     SELECT l.id, l.name, l.description, l.visibility, l.owner_id,
            COALESCE(p.display_name, p.handle) AS owner_name,
@@ -152,7 +163,7 @@ CREATE FUNCTION public.get_list_entities(p_list_id uuid)
  RETURNS TABLE(entity_id uuid, name text, address text, city text, state text, lat double precision, lng double precision, added_at timestamptz)
  LANGUAGE sql
  STABLE SECURITY DEFINER
- SET search_path = public
+ SET search_path = public, extensions
 AS $function$
     SELECT e.id AS entity_id, e.name, e.address, e.city, e.state,
            ST_Y(e.location::geometry) AS lat, ST_X(e.location::geometry) AS lng,

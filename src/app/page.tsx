@@ -3,8 +3,13 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
+import AddToListMenu from "@/components/AddToListMenu";
+import type { MapMarkerEntity } from "@/components/EntityMap";
+
+const EntityMap = dynamic(() => import("@/components/EntityMap"), { ssr: false });
 
 type Category = {
   id: string;
@@ -17,12 +22,15 @@ type SearchResult = {
   name: string;
   address: string;
   miles: number;
+  lat: number;
+  lng: number;
   is_starred: boolean;
   recommended_by: (string | null)[] | null;
   recommended_count: number;
 };
 
 type SortMode = "nearest" | "az";
+type ViewMode = "list" | "map";
 
 function categoryIndent(path: string) {
   const depth = (path.match(/\./g) ?? []).length;
@@ -92,6 +100,7 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<SearchResult[] | null>(null);
   const [sortMode, setSortMode] = useState<SortMode>("nearest");
+  const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [starredIds, setStarredIds] = useState<Set<string>>(new Set());
   const [recommendedOnly, setRecommendedOnly] = useState(false);
   const [lastCoords, setLastCoords] = useState<{ lat: number; lng: number } | null>(null);
@@ -124,6 +133,19 @@ export default function Home() {
     }
     return results;
   }, [results, sortMode]);
+
+  const mapMarkerEntities: MapMarkerEntity[] = useMemo(() => {
+    return sortedResults.map((r) => ({
+      id: r.id,
+      name: r.name,
+      address: r.address,
+      lat: r.lat,
+      lng: r.lng,
+      matchesFilter: true,
+      isStarred: starredIds.has(r.id),
+      recommendedCount: r.recommended_count,
+    }));
+  }, [sortedResults, starredIds]);
 
   async function runSearch(lat: number, lng: number, recommendedOnlyValue: boolean) {
     const { data, error: rpcError } = await supabase.rpc("search_entities", {
@@ -356,7 +378,23 @@ export default function Home() {
                 >
                   Recommended only
                 </button>
-                {results.length > 0 && (
+                <div className="flex gap-1 rounded-lg border border-zinc-300 p-0.5 dark:border-zinc-700">
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("list")}
+                    className={sortButtonClass(viewMode === "list")}
+                  >
+                    List
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setViewMode("map")}
+                    className={sortButtonClass(viewMode === "map")}
+                  >
+                    Map
+                  </button>
+                </div>
+                {results.length > 0 && viewMode === "list" && (
                   <div className="flex gap-1 rounded-lg border border-zinc-300 p-0.5 dark:border-zinc-700">
                     <button
                       type="button"
@@ -387,6 +425,8 @@ export default function Home() {
               <p className="py-8 text-center text-sm text-zinc-500 dark:text-zinc-400">
                 No restaurants found nearby. Try a larger radius or a different category.
               </p>
+            ) : viewMode === "map" ? (
+              <EntityMap entities={mapMarkerEntities} />
             ) : (
               <ul className="flex flex-col divide-y divide-zinc-200 dark:divide-zinc-800">
                 {sortedResults.map((r) => {
@@ -411,6 +451,7 @@ export default function Home() {
                       <span className="text-sm text-zinc-500 dark:text-zinc-400">
                         {r.miles.toFixed(1)} mi
                       </span>
+                      {user && <AddToListMenu userId={user.id} entityId={r.id} />}
                       <button
                         type="button"
                         onClick={() => toggleStar(r.id)}
