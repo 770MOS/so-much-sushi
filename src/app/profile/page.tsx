@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import dynamic from "next/dynamic";
@@ -39,10 +39,7 @@ type StarredEntity = {
 type ListRow = {
   id: string;
   name: string;
-  description: string | null;
   visibility: "private" | "friends" | "public";
-  created_at: string;
-  list_items: { count: number }[];
 };
 
 type TopTab = "starred" | "lists";
@@ -63,9 +60,6 @@ function tabButtonClass(active: boolean) {
 
 const selectClass =
   "w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-950 focus:outline-none focus:ring-2 focus:ring-zinc-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50";
-
-const inputClass =
-  "w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-950 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50";
 
 export default function Profile() {
   const router = useRouter();
@@ -90,12 +84,15 @@ export default function Profile() {
 
   const [lists, setLists] = useState<ListRow[] | null>(null);
   const [listsError, setListsError] = useState<string | null>(null);
-  const [newListName, setNewListName] = useState("");
-  const [newListDescription, setNewListDescription] = useState("");
-  const [newListVisibility, setNewListVisibility] = useState<"private" | "friends" | "public">(
-    "private"
-  );
-  const [creatingList, setCreatingList] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      await Promise.resolve();
+      if (new URLSearchParams(window.location.search).get("tab") === "lists") {
+        setTopTab("lists");
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUser(data.user ?? null));
@@ -135,7 +132,7 @@ export default function Profile() {
     if (!user) return;
     const { data, error } = await supabase
       .from("lists")
-      .select("id, name, description, visibility, created_at, list_items(count)")
+      .select("id, name, visibility")
       .eq("owner_id", user.id)
       .order("created_at", { ascending: false });
     if (error) {
@@ -158,33 +155,6 @@ export default function Profile() {
     };
   }, [topTab, lists, loadLists]);
 
-  async function handleCreateList(e: FormEvent) {
-    e.preventDefault();
-    if (!user || !newListName.trim() || creatingList) return;
-
-    setCreatingList(true);
-    const { error } = await supabase.from("lists").insert({
-      owner_id: user.id,
-      name: newListName.trim(),
-      description: newListDescription.trim() || null,
-      visibility: newListVisibility,
-    });
-    setCreatingList(false);
-
-    if (!error) {
-      setNewListName("");
-      setNewListDescription("");
-      setNewListVisibility("private");
-      loadLists();
-    }
-  }
-
-  async function handleDeleteList(listId: string) {
-    const { error } = await supabase.from("lists").delete().eq("id", listId);
-    if (!error) {
-      setLists((prev) => (prev ? prev.filter((l) => l.id !== listId) : prev));
-    }
-  }
 
   const entities = useMemo<StarredEntity[]>(() => {
     if (!rows) return [];
@@ -563,45 +533,12 @@ export default function Profile() {
           )
         ) : (
           <div className="flex flex-col gap-6">
-            <form onSubmit={handleCreateList} className="flex flex-col gap-3">
-              <input
-                type="text"
-                placeholder="List name"
-                value={newListName}
-                onChange={(e) => setNewListName(e.target.value)}
-                className={inputClass}
-                aria-label="List name"
-              />
-              <input
-                type="text"
-                placeholder="Description (optional)"
-                value={newListDescription}
-                onChange={(e) => setNewListDescription(e.target.value)}
-                className={inputClass}
-                aria-label="List description"
-              />
-              <div className="flex gap-3">
-                <select
-                  value={newListVisibility}
-                  onChange={(e) =>
-                    setNewListVisibility(e.target.value as "private" | "friends" | "public")
-                  }
-                  className={selectClass}
-                  aria-label="Visibility"
-                >
-                  <option value="private">Private</option>
-                  <option value="friends">Friends</option>
-                  <option value="public">Public</option>
-                </select>
-                <button
-                  type="submit"
-                  disabled={!newListName.trim() || creatingList}
-                  className="shrink-0 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
-                >
-                  {creatingList ? "Creating…" : "Create list"}
-                </button>
-              </div>
-            </form>
+            <Link
+              href="/lists/new"
+              className="self-start rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+            >
+              Create list
+            </Link>
 
             {listsError && <p className="text-sm text-red-600 dark:text-red-400">{listsError}</p>}
 
@@ -614,23 +551,15 @@ export default function Profile() {
             ) : (
               <ul className="flex flex-col divide-y divide-zinc-200 dark:divide-zinc-800">
                 {lists.map((l) => (
-                  <li key={l.id} className="flex items-center justify-between gap-4 py-3">
+                  <li key={l.id} className="py-3">
                     <Link href={`/lists/${l.id}`} className="flex flex-col gap-0.5">
                       <span className="font-medium text-zinc-950 hover:underline dark:text-zinc-50">
                         {l.name}
                       </span>
                       <span className="text-sm text-zinc-500 dark:text-zinc-400">
-                        {l.visibility} · {l.list_items[0]?.count ?? 0}{" "}
-                        {(l.list_items[0]?.count ?? 0) === 1 ? "place" : "places"}
+                        {l.visibility}
                       </span>
                     </Link>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteList(l.id)}
-                      className="shrink-0 text-sm text-zinc-500 underline hover:text-red-600 dark:text-zinc-400 dark:hover:text-red-400"
-                    >
-                      Delete
-                    </button>
                   </li>
                 ))}
               </ul>
