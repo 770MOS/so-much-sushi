@@ -1,18 +1,9 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import L from "leaflet";
-import "leaflet/dist/leaflet.css";
-
-const DEFAULT_ICON = L.icon({
-  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-  iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41],
-});
+import maplibregl from "maplibre-gl";
+import "maplibre-gl/dist/maplibre-gl.css";
+import { getMapStyleUrl, DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM } from "@/lib/mapConfig";
 
 export type MapMarkerEntity = {
   id: string;
@@ -21,6 +12,7 @@ export type MapMarkerEntity = {
   lat: number;
   lng: number;
   matchesFilter: boolean;
+  recommendedCount: number;
 };
 
 export type MapBounds = {
@@ -47,10 +39,41 @@ function escapeHtml(s: string) {
   return s.replace(/[&<>"']/g, (c) => map[c]);
 }
 
+const PIN_SVG = `
+  <svg viewBox="0 0 24 32" width="28" height="36" xmlns="http://www.w3.org/2000/svg">
+    <path d="M12 0C5.373 0 0 5.373 0 12c0 9 12 20 12 20s12-11 12-20c0-6.627-5.373-12-12-12z" fill="currentColor"/>
+    <circle cx="12" cy="12" r="4.5" fill="white" fill-opacity="0.9"/>
+  </svg>
+`;
+
+function createMarkerElement(recommendedCount: number): HTMLDivElement {
+  const wrapper = document.createElement("div");
+  wrapper.style.position = "relative";
+  wrapper.style.width = "28px";
+  wrapper.style.height = "36px";
+  wrapper.style.color = "#fbbf24"; // amber-400 - matches the star icon elsewhere in the app
+  wrapper.innerHTML = PIN_SVG;
+
+  if (recommendedCount > 0) {
+    const badge = document.createElement("div");
+    badge.style.position = "absolute";
+    badge.style.top = "-2px";
+    badge.style.right = "-2px";
+    badge.style.width = "13px";
+    badge.style.height = "13px";
+    badge.style.borderRadius = "9999px";
+    badge.style.background = "#fb7185"; // rose-400 - matches the heart icon elsewhere in the app
+    badge.style.border = "1.5px solid white";
+    wrapper.appendChild(badge);
+  }
+
+  return wrapper;
+}
+
 export default function StarredMap({ entities, jumpTo, onBoundsChange }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<L.Map | null>(null);
-  const markersRef = useRef<Map<string, L.Marker>>(new Map());
+  const mapRef = useRef<maplibregl.Map | null>(null);
+  const markersRef = useRef<Map<string, maplibregl.Marker>>(new Map());
   const initialFitDoneRef = useRef(false);
   const onBoundsChangeRef = useRef(onBoundsChange);
 
@@ -63,20 +86,19 @@ export default function StarredMap({ entities, jumpTo, onBoundsChange }: Props) 
 
     // A fresh map instance means no markers actually exist on it yet, even if
     // markersRef (a plain ref) still remembers marker objects from a previous
-    // instance - this matters in dev because React Strict Mode destroys and
+    // instance - matters in dev because React Strict Mode destroys and
     // recreates the map once on mount, and refs survive that cycle.
     markersRef.current.forEach((m) => m.remove());
     markersRef.current.clear();
     initialFitDoneRef.current = false;
 
-    const map = L.map(containerRef.current);
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution:
-        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-      maxZoom: 19,
-    }).addTo(map);
-
-    map.setView([38.88, -77.1], 12);
+    const map = new maplibregl.Map({
+      container: containerRef.current,
+      style: getMapStyleUrl(),
+      center: DEFAULT_MAP_CENTER,
+      zoom: DEFAULT_MAP_ZOOM,
+    });
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-left");
 
     function emitBounds() {
       const b = map.getBounds();
@@ -90,8 +112,8 @@ export default function StarredMap({ entities, jumpTo, onBoundsChange }: Props) 
 
     map.on("moveend", emitBounds);
     map.on("zoomend", emitBounds);
+    map.on("load", emitBounds);
     mapRef.current = map;
-    emitBounds();
 
     return () => {
       map.remove();
@@ -111,30 +133,35 @@ export default function StarredMap({ entities, jumpTo, onBoundsChange }: Props) 
       }
     }
 
-    const boundsPoints: [number, number][] = [];
+    const bounds = new maplibregl.LngLatBounds();
     for (const entity of entities) {
-      boundsPoints.push([entity.lat, entity.lng]);
+      bounds.extend([entity.lng, entity.lat]);
+
       let marker = markersRef.current.get(entity.id);
       if (!marker) {
-        marker = L.marker([entity.lat, entity.lng], { icon: DEFAULT_ICON });
-        marker.bindPopup(
-          `<strong>${escapeHtml(entity.name)}</strong><br/>${escapeHtml(entity.address)}`
-        );
-        marker.addTo(map);
+        const element = createMarkerElement(entity.recommendedCount);
+        marker = new maplibregl.Marker({ element })
+          .setLngLat([entity.lng, entity.lat])
+          .setPopup(
+            new maplibregl.Popup({ offset: 20 }).setHTML(
+              `<strong>${escapeHtml(entity.name)}</strong><br/>${escapeHtml(entity.address)}`
+            )
+          )
+          .addTo(map);
         markersRef.current.set(entity.id, marker);
       }
-      marker.setOpacity(entity.matchesFilter ? 1 : 0.25);
+      marker.getElement().style.opacity = entity.matchesFilter ? "1" : "0.25";
     }
 
-    if (boundsPoints.length > 0 && !initialFitDoneRef.current) {
-      map.fitBounds(boundsPoints, { padding: [30, 30], maxZoom: 15 });
+    if (entities.length > 0 && !initialFitDoneRef.current) {
+      map.fitBounds(bounds, { padding: 40, maxZoom: 15, duration: 0 });
       initialFitDoneRef.current = true;
     }
   }, [entities]);
 
   useEffect(() => {
     if (jumpTo && mapRef.current) {
-      mapRef.current.flyTo([jumpTo.lat, jumpTo.lng], 13);
+      mapRef.current.flyTo({ center: [jumpTo.lng, jumpTo.lat], zoom: 13 });
     }
   }, [jumpTo]);
 

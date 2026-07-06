@@ -20,6 +20,8 @@ type StarredRow = {
   lng: number;
   type_name: string;
   cuisine_name: string;
+  recommended_by: (string | null)[] | null;
+  recommended_count: number;
 };
 
 type StarredEntity = {
@@ -30,6 +32,7 @@ type StarredEntity = {
   state: string | null;
   lat: number;
   lng: number;
+  recommendedCount: number;
   tags: { type_name: string; cuisine_name: string }[];
 };
 
@@ -118,6 +121,7 @@ export default function Profile() {
           state: r.state,
           lat: r.lat,
           lng: r.lng,
+          recommendedCount: r.recommended_count,
           tags: [],
         };
         byId.set(r.id, e);
@@ -160,6 +164,7 @@ export default function Profile() {
       lat: e.lat,
       lng: e.lng,
       matchesFilter: entityMatchesTypeCuisine(e, mapType, mapCuisine),
+      recommendedCount: e.recommendedCount,
     }));
   }, [entities, mapType, mapCuisine]);
 
