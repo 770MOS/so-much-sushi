@@ -8,7 +8,7 @@ import { getMapStyleUrl, DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM } from "@/lib/mapC
 export type MapMarkerEntity = {
   id: string;
   name: string;
-  address: string;
+  address: string | null;
   lat: number;
   lng: number;
   matchesFilter: boolean;
@@ -30,7 +30,8 @@ type Props = {
   className?: string;
 };
 
-function escapeHtml(s: string) {
+function escapeHtml(s: string | null | undefined) {
+  if (!s) return "";
   const map: Record<string, string> = {
     "&": "&amp;",
     "<": "&lt;",
@@ -145,13 +146,12 @@ export default function EntityMap({ entities, jumpTo, onBoundsChange, className 
       let marker = markersRef.current.get(entity.id);
       if (!marker) {
         const element = createMarkerElement(entity.isStarred, entity.recommendedCount);
+        const popupHtml = entity.address
+          ? `<strong>${escapeHtml(entity.name)}</strong><br/>${escapeHtml(entity.address)}`
+          : `<strong>${escapeHtml(entity.name)}</strong>`;
         marker = new maplibregl.Marker({ element })
           .setLngLat([entity.lng, entity.lat])
-          .setPopup(
-            new maplibregl.Popup({ offset: 20 }).setHTML(
-              `<strong>${escapeHtml(entity.name)}</strong><br/>${escapeHtml(entity.address)}`
-            )
-          )
+          .setPopup(new maplibregl.Popup({ offset: 20 }).setHTML(popupHtml))
           .addTo(map);
         markersRef.current.set(entity.id, marker);
       }
