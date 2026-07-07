@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "load-restaurants": "node scripts/load-restaurants.mjs"
+    "load-restaurants": "node scripts/load-restaurants.mjs",
+    "bulk-import-overpass": "node scripts/bulk-import-overpass.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",
