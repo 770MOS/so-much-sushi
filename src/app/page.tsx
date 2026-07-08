@@ -44,7 +44,7 @@ function categoryIndent(path: string) {
 function sortButtonClass(active: boolean) {
   return `rounded-md px-3 py-1 text-sm font-medium transition-colors ${
     active
-      ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
+      ? "bg-primary text-white"
       : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
   }`;
 }
@@ -331,7 +331,7 @@ export default function Home() {
   }
 
   return (
-    <main className="flex min-h-screen flex-1 flex-col items-center bg-zinc-50 px-6 py-16 dark:bg-black">
+    <main className="flex min-h-screen flex-1 flex-col items-center bg-white px-6 py-16 dark:bg-black">
       <div className="flex w-full max-w-xl flex-col gap-10">
         <div className="flex items-start justify-between gap-4">
           <div className="flex flex-col gap-2">
@@ -426,7 +426,7 @@ export default function Home() {
           <button
             type="submit"
             disabled={loading || !location.trim()}
-            className="w-full rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+            className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
           >
             {loading ? "Searching…" : "Search"}
           </button>
@@ -453,7 +453,7 @@ export default function Home() {
                   aria-pressed={recommendedOnly}
                   className={`rounded-lg border px-3 py-1 text-sm font-medium transition-colors ${
                     recommendedOnly
-                      ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
+                      ? "border-primary bg-primary text-white"
                       : "border-zinc-300 text-zinc-600 hover:text-zinc-900 dark:border-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-100"
                   }`}
                 >
@@ -465,7 +465,7 @@ export default function Home() {
                   aria-pressed={showHidden}
                   className={`rounded-lg border px-3 py-1 text-sm font-medium transition-colors ${
                     showHidden
-                      ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
+                      ? "border-primary bg-primary text-white"
                       : "border-zinc-300 text-zinc-600 hover:text-zinc-900 dark:border-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-100"
                   }`}
                 >

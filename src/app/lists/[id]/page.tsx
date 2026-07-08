@@ -166,7 +166,7 @@ export default function ListDetail() {
 
   if (user === undefined || meta === undefined) {
     return (
-      <main className="flex min-h-screen flex-1 flex-col items-center justify-center bg-zinc-50 px-6 dark:bg-black">
+      <main className="flex min-h-screen flex-1 flex-col items-center justify-center bg-white px-6 dark:bg-black">
         {error ? (
           <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
         ) : (
@@ -178,7 +178,7 @@ export default function ListDetail() {
 
   if (meta === null) {
     return (
-      <main className="flex min-h-screen flex-1 flex-col items-center justify-center bg-zinc-50 px-6 text-center dark:bg-black">
+      <main className="flex min-h-screen flex-1 flex-col items-center justify-center bg-white px-6 text-center dark:bg-black">
         <p className="text-sm text-zinc-500 dark:text-zinc-400">
           This list doesn&apos;t exist or you don&apos;t have access to it.{" "}
           <Link href="/profile" className="underline">
@@ -191,7 +191,7 @@ export default function ListDetail() {
   }
 
   return (
-    <main className="flex min-h-screen flex-1 flex-col items-center bg-zinc-50 px-6 py-16 dark:bg-black">
+    <main className="flex min-h-screen flex-1 flex-col items-center bg-white px-6 py-16 dark:bg-black">
       <div className="flex w-full max-w-xl flex-col gap-8">
         {editing ? (
           <form onSubmit={handleSaveEdit} className="flex flex-col gap-3">
@@ -227,7 +227,7 @@ export default function ListDetail() {
               <button
                 type="submit"
                 disabled={!editName.trim() || saving}
-                className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+                className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {saving ? "Saving…" : "Save"}
               </button>

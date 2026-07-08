@@ -57,7 +57,7 @@ function locationKey(city: string | null, state: string | null) {
 function tabButtonClass(active: boolean) {
   return `rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
     active
-      ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
+      ? "bg-primary text-white"
       : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
   }`;
 }
@@ -305,7 +305,7 @@ export default function Profile() {
 
   if (user === undefined || rows === null) {
     return (
-      <main className="flex min-h-screen flex-1 flex-col items-center justify-center bg-zinc-50 px-6 dark:bg-black">
+      <main className="flex min-h-screen flex-1 flex-col items-center justify-center bg-white px-6 dark:bg-black">
         {loadError ? (
           <p className="text-sm text-red-600 dark:text-red-400">{loadError}</p>
         ) : (
@@ -316,7 +316,7 @@ export default function Profile() {
   }
 
   return (
-    <main className="flex min-h-screen flex-1 flex-col items-center bg-zinc-50 px-6 py-16 dark:bg-black">
+    <main className="flex min-h-screen flex-1 flex-col items-center bg-white px-6 py-16 dark:bg-black">
       <div className="flex w-full max-w-3xl flex-col gap-8">
         <div className="flex items-start justify-between gap-4">
           <div className="flex flex-col gap-2">
@@ -553,7 +553,7 @@ export default function Profile() {
           <div className="flex flex-col gap-6">
             <Link
               href="/lists/new"
-              className="self-start rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+              className="self-start rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-hover"
             >
               Create list
             </Link>

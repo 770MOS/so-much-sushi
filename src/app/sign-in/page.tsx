@@ -34,7 +34,7 @@ export default function SignIn() {
   }
 
   return (
-    <main className="flex min-h-screen flex-1 flex-col items-center bg-zinc-50 px-6 py-16 dark:bg-black">
+    <main className="flex min-h-screen flex-1 flex-col items-center bg-white px-6 py-16 dark:bg-black">
       <div className="flex w-full max-w-xl flex-col gap-10">
         <div className="flex flex-col gap-2">
           <h1 className="text-2xl font-semibold text-zinc-950 dark:text-zinc-50">Sign in</h1>
@@ -71,7 +71,7 @@ export default function SignIn() {
             <button
               type="submit"
               disabled={loading || !email.trim()}
-              className="w-full rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+              className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
             >
               {loading ? "Sending…" : "Send sign-in link"}
             </button>

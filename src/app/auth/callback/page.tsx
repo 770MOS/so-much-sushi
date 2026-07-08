@@ -32,7 +32,7 @@ export default function AuthCallback() {
   }, [router]);
 
   return (
-    <main className="flex min-h-screen flex-1 flex-col items-center justify-center bg-zinc-50 px-6 text-center dark:bg-black">
+    <main className="flex min-h-screen flex-1 flex-col items-center justify-center bg-white px-6 text-center dark:bg-black">
       {error ? (
         <p className="text-zinc-600 dark:text-zinc-400">
           That sign-in link is invalid or has expired.{" "}

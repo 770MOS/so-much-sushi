@@ -127,12 +127,12 @@ export default function AddToListMenu({ userId, entityId }: Props) {
                     <span
                       className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
                         membership.has(l.id)
-                          ? "border-zinc-900 bg-zinc-900 dark:border-zinc-100 dark:bg-zinc-100"
+                          ? "border-primary bg-primary"
                           : "border-zinc-400 dark:border-zinc-600"
                       }`}
                     >
                       {membership.has(l.id) && (
-                        <span className="text-[10px] leading-none text-white dark:text-zinc-900">
+                        <span className="text-[10px] leading-none text-white">
                           ✓
                         </span>
                       )}
