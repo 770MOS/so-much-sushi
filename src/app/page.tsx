@@ -26,6 +26,7 @@ type SearchResult = {
   lat: number;
   lng: number;
   is_starred: boolean;
+  is_hidden: boolean;
   recommended_by: (string | null)[] | null;
   recommended_count: number;
   status: string;
@@ -89,6 +90,26 @@ function StarIcon({ filled }: { filled: boolean }) {
   );
 }
 
+function EyeOffIcon({ filled }: { filled: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width={20}
+      height={20}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={filled ? 2 : 1.5}
+      className={filled ? "text-zinc-800 dark:text-zinc-100" : "text-zinc-400"}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M3 3l18 18M10.58 10.58a2 2 0 102.83 2.83M9.88 4.24A9.1 9.1 0 0112 4c5 0 9 4.5 10.5 8-.6 1.36-1.5 2.7-2.6 3.85M6.4 6.4C4.13 7.86 2.44 9.94 1.5 12c1.02 2.28 2.7 4.24 4.76 5.6A9.15 9.15 0 0012 20c1.13 0 2.21-.18 3.22-.51"
+      />
+    </svg>
+  );
+}
+
 export default function Home() {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
@@ -104,7 +125,9 @@ export default function Home() {
   const [sortMode, setSortMode] = useState<SortMode>("nearest");
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [starredIds, setStarredIds] = useState<Set<string>>(new Set());
+  const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
   const [recommendedOnly, setRecommendedOnly] = useState(false);
+  const [showHidden, setShowHidden] = useState(false);
   const [lastCoords, setLastCoords] = useState<{ lat: number; lng: number } | null>(null);
 
   useEffect(() => {
@@ -149,13 +172,19 @@ export default function Home() {
     }));
   }, [sortedResults, starredIds]);
 
-  async function runSearch(lat: number, lng: number, recommendedOnlyValue: boolean) {
+  async function runSearch(
+    lat: number,
+    lng: number,
+    recommendedOnlyValue: boolean,
+    showHiddenValue: boolean
+  ) {
     const { data, error: rpcError } = await supabase.rpc("search_entities", {
       ref_lat: lat,
       ref_lng: lng,
       radius_miles: radius,
       category_path: categoryPath || null,
       recommended_only: recommendedOnlyValue,
+      show_hidden: showHiddenValue,
     });
 
     if (rpcError) {
@@ -166,6 +195,7 @@ export default function Home() {
     const searchResults: SearchResult[] = data ?? [];
     setResults(searchResults);
     setStarredIds(new Set(searchResults.filter((r) => r.is_starred).map((r) => r.id)));
+    setHiddenIds(new Set(searchResults.filter((r) => r.is_hidden).map((r) => r.id)));
   }
 
   async function handleSearch(e: FormEvent) {
@@ -190,7 +220,7 @@ export default function Home() {
       const { lat, lon } = geocodeData[0];
       const coords = { lat: parseFloat(lat), lng: parseFloat(lon) };
       setLastCoords(coords);
-      await runSearch(coords.lat, coords.lng, recommendedOnly);
+      await runSearch(coords.lat, coords.lng, recommendedOnly, showHidden);
     } catch {
       setError("Something went wrong. Please check your connection and try again.");
     } finally {
@@ -212,7 +242,24 @@ export default function Home() {
     setLoading(true);
     setError(null);
     try {
-      await runSearch(lastCoords.lat, lastCoords.lng, next);
+      await runSearch(lastCoords.lat, lastCoords.lng, next, showHidden);
+    } catch {
+      setError("Something went wrong. Please check your connection and try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function toggleShowHidden() {
+    const next = !showHidden;
+    setShowHidden(next);
+
+    if (!lastCoords || loading) return;
+
+    setLoading(true);
+    setError(null);
+    try {
+      await runSearch(lastCoords.lat, lastCoords.lng, recommendedOnly, next);
     } catch {
       setError("Something went wrong. Please check your connection and try again.");
     } finally {
@@ -247,6 +294,37 @@ export default function Home() {
         .insert({ user_id: user.id, entity_id: entityId });
       if (!insertError) {
         setStarredIds((prev) => new Set(prev).add(entityId));
+      }
+    }
+  }
+
+  async function toggleHide(entityId: string) {
+    if (!user) {
+      router.push("/sign-in");
+      return;
+    }
+
+    const isHidden = hiddenIds.has(entityId);
+
+    if (isHidden) {
+      const { error: deleteError } = await supabase
+        .from("hidden_entities")
+        .delete()
+        .eq("user_id", user.id)
+        .eq("entity_id", entityId);
+      if (!deleteError) {
+        setHiddenIds((prev) => {
+          const next = new Set(prev);
+          next.delete(entityId);
+          return next;
+        });
+      }
+    } else {
+      const { error: insertError } = await supabase
+        .from("hidden_entities")
+        .insert({ user_id: user.id, entity_id: entityId });
+      if (!insertError) {
+        setHiddenIds((prev) => new Set(prev).add(entityId));
       }
     }
   }
@@ -380,6 +458,18 @@ export default function Home() {
                 >
                   Recommended only
                 </button>
+                <button
+                  type="button"
+                  onClick={toggleShowHidden}
+                  aria-pressed={showHidden}
+                  className={`rounded-lg border px-3 py-1 text-sm font-medium transition-colors ${
+                    showHidden
+                      ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
+                      : "border-zinc-300 text-zinc-600 hover:text-zinc-900 dark:border-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-100"
+                  }`}
+                >
+                  Show hidden
+                </button>
                 <div className="flex gap-1 rounded-lg border border-zinc-300 p-0.5 dark:border-zinc-700">
                   <button
                     type="button"
@@ -463,6 +553,15 @@ export default function Home() {
                         className="rounded p-1 transition-colors hover:bg-zinc-200 dark:hover:bg-zinc-800"
                       >
                         <StarIcon filled={starredIds.has(r.id)} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => toggleHide(r.id)}
+                        aria-label={hiddenIds.has(r.id) ? "Unhide" : "Hide"}
+                        aria-pressed={hiddenIds.has(r.id)}
+                        className="rounded p-1 transition-colors hover:bg-zinc-200 dark:hover:bg-zinc-800"
+                      >
+                        <EyeOffIcon filled={hiddenIds.has(r.id)} />
                       </button>
                     </div>
                   </li>
