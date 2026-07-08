@@ -30,6 +30,7 @@ type SearchResult = {
   recommended_by: (string | null)[] | null;
   recommended_count: number;
   status: string;
+  categories: string[] | null;
 };
 
 type SortMode = "nearest" | "az";
@@ -532,6 +533,11 @@ export default function Home() {
                       <span className="text-sm text-zinc-500 dark:text-zinc-400">
                         {r.address}
                       </span>
+                      {r.categories && r.categories.length > 0 && (
+                        <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                          {r.categories.join(", ")}
+                        </span>
+                      )}
                       <StatusBadge status={r.status} />
                       {recLabel && (
                         <span className="flex items-center gap-1 text-xs text-zinc-500 dark:text-zinc-400">
