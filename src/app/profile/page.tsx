@@ -7,6 +7,8 @@ import dynamic from "next/dynamic";
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import type { MapBounds, MapMarkerEntity } from "@/components/EntityMap";
+import StatusBadge from "@/components/StatusBadge";
+import { isNonActive } from "@/lib/entityStatus";
 
 const EntityMap = dynamic(() => import("@/components/EntityMap"), { ssr: false });
 
@@ -22,6 +24,7 @@ type StarredRow = {
   cuisine_name: string;
   recommended_by: (string | null)[] | null;
   recommended_count: number;
+  status: string;
 };
 
 type StarredEntity = {
@@ -33,6 +36,7 @@ type StarredEntity = {
   lat: number;
   lng: number;
   recommendedCount: number;
+  status: string;
   tags: { type_name: string; cuisine_name: string }[];
 };
 
@@ -171,6 +175,7 @@ export default function Profile() {
           lat: r.lat,
           lng: r.lng,
           recommendedCount: r.recommended_count,
+          status: r.status,
           tags: [],
         };
         byId.set(r.id, e);
@@ -215,6 +220,7 @@ export default function Profile() {
       matchesFilter: entityMatchesTypeCuisine(e, mapType, mapCuisine),
       isStarred: true,
       recommendedCount: e.recommendedCount,
+      status: e.status,
     }));
   }, [entities, mapType, mapCuisine]);
 
@@ -282,12 +288,12 @@ export default function Profile() {
 
     const byId = new Map<
       string,
-      { id: string; name: string; address: string; tags: Set<string> }
+      { id: string; name: string; address: string; status: string; tags: Set<string> }
     >();
     for (const r of filteredRows) {
       let entry = byId.get(r.id);
       if (!entry) {
-        entry = { id: r.id, name: r.name, address: r.address, tags: new Set() };
+        entry = { id: r.id, name: r.name, address: r.address, status: r.status, tags: new Set() };
         byId.set(r.id, entry);
       }
       entry.tags.add(r.cuisine_name);
@@ -435,13 +441,19 @@ export default function Profile() {
                     ) : (
                       <ul className="flex flex-col divide-y divide-zinc-200 dark:divide-zinc-800">
                         {mapViewportList.map((e) => (
-                          <li key={e.id} className="flex flex-col gap-0.5 py-3">
+                          <li
+                            key={e.id}
+                            className={`flex flex-col gap-0.5 py-3 ${
+                              isNonActive(e.status) ? "opacity-60" : ""
+                            }`}
+                          >
                             <span className="font-medium text-zinc-950 dark:text-zinc-50">
                               {e.name}
                             </span>
                             <span className="text-sm text-zinc-500 dark:text-zinc-400">
                               {e.address}
                             </span>
+                            <StatusBadge status={e.status} />
                           </li>
                         ))}
                       </ul>
@@ -512,7 +524,12 @@ export default function Profile() {
                     ) : (
                       <ul className="flex flex-col divide-y divide-zinc-200 dark:divide-zinc-800">
                         {browseList.map((e) => (
-                          <li key={e.id} className="flex flex-col gap-0.5 py-3">
+                          <li
+                            key={e.id}
+                            className={`flex flex-col gap-0.5 py-3 ${
+                              isNonActive(e.status) ? "opacity-60" : ""
+                            }`}
+                          >
                             <span className="font-medium text-zinc-950 dark:text-zinc-50">
                               {e.name}
                             </span>
@@ -522,6 +539,7 @@ export default function Profile() {
                             <span className="text-xs text-zinc-500 dark:text-zinc-400">
                               {e.tags.join(" · ")}
                             </span>
+                            <StatusBadge status={e.status} />
                           </li>
                         ))}
                       </ul>

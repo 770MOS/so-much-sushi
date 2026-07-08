@@ -7,6 +7,7 @@ import dynamic from "next/dynamic";
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import AddToListMenu from "@/components/AddToListMenu";
+import StatusBadge from "@/components/StatusBadge";
 import type { MapMarkerEntity } from "@/components/EntityMap";
 
 const EntityMap = dynamic(() => import("@/components/EntityMap"), { ssr: false });
@@ -27,6 +28,7 @@ type SearchResult = {
   is_starred: boolean;
   recommended_by: (string | null)[] | null;
   recommended_count: number;
+  status: string;
 };
 
 type SortMode = "nearest" | "az";
@@ -440,6 +442,7 @@ export default function Home() {
                       <span className="text-sm text-zinc-500 dark:text-zinc-400">
                         {r.address}
                       </span>
+                      <StatusBadge status={r.status} />
                       {recLabel && (
                         <span className="flex items-center gap-1 text-xs text-zinc-500 dark:text-zinc-400">
                           <HeartIcon />

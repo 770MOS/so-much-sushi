@@ -5,6 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
+import StatusBadge from "@/components/StatusBadge";
+import { isNonActive } from "@/lib/entityStatus";
 
 type ListMeta = {
   id: string;
@@ -25,6 +27,7 @@ type ListItem = {
   lat: number;
   lng: number;
   added_at: string;
+  status: string;
 };
 
 const inputClass =
@@ -280,7 +283,12 @@ export default function ListDetail() {
         ) : (
           <ul className="flex flex-col divide-y divide-zinc-200 dark:divide-zinc-800">
             {items.map((item) => (
-              <li key={item.entity_id} className="flex items-center justify-between gap-4 py-3">
+              <li
+                key={item.entity_id}
+                className={`flex items-center justify-between gap-4 py-3 ${
+                  isNonActive(item.status) ? "opacity-60" : ""
+                }`}
+              >
                 <div className="flex flex-col gap-0.5">
                   <span className="font-medium text-zinc-950 dark:text-zinc-50">
                     {item.name}
@@ -288,6 +296,7 @@ export default function ListDetail() {
                   <span className="text-sm text-zinc-500 dark:text-zinc-400">
                     {item.address}
                   </span>
+                  <StatusBadge status={item.status} />
                 </div>
                 {meta.is_owner && (
                   <button

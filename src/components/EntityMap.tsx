@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { getMapStyleUrl, DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM } from "@/lib/mapConfig";
+import { closedLabel } from "@/lib/entityStatus";
 
 export type MapMarkerEntity = {
   id: string;
@@ -14,6 +15,7 @@ export type MapMarkerEntity = {
   matchesFilter: boolean;
   isStarred: boolean;
   recommendedCount: number;
+  status?: string;
 };
 
 export type MapBounds = {
@@ -146,16 +148,20 @@ export default function EntityMap({ entities, jumpTo, onBoundsChange, className 
       let marker = markersRef.current.get(entity.id);
       if (!marker) {
         const element = createMarkerElement(entity.isStarred, entity.recommendedCount);
-        const popupHtml = entity.address
-          ? `<strong>${escapeHtml(entity.name)}</strong><br/>${escapeHtml(entity.address)}`
+        const label = entity.status ? closedLabel(entity.status) : null;
+        const nameLine = label
+          ? `<strong>${escapeHtml(entity.name)}</strong> <span style="color:#71717a;">(${label})</span>`
           : `<strong>${escapeHtml(entity.name)}</strong>`;
+        const popupHtml = entity.address ? `${nameLine}<br/>${escapeHtml(entity.address)}` : nameLine;
         marker = new maplibregl.Marker({ element })
           .setLngLat([entity.lng, entity.lat])
           .setPopup(new maplibregl.Popup({ offset: 20 }).setHTML(popupHtml))
           .addTo(map);
         markersRef.current.set(entity.id, marker);
       }
-      marker.getElement().style.opacity = entity.matchesFilter ? "1" : "0.25";
+      const filterOpacity = entity.matchesFilter ? 1 : 0.25;
+      const statusOpacity = entity.status && entity.status !== "active" ? 0.55 : 1;
+      marker.getElement().style.opacity = String(filterOpacity * statusOpacity);
     }
 
     if (entities.length > 0 && !initialFitDoneRef.current) {
