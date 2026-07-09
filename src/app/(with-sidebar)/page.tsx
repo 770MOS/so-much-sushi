@@ -9,6 +9,7 @@ import RadiusSlider from "@/components/RadiusSlider";
 import SearchResultsView from "@/components/SearchResultsView";
 import { useEntitySearch } from "@/lib/useEntitySearch";
 import { useGeolocation } from "@/lib/useGeolocation";
+import { reverseGeocode } from "@/lib/reverseGeocode";
 
 const CURRENT_LOCATION_LABEL = "Current location";
 const DEFAULT_RADIUS = 10;
@@ -116,6 +117,16 @@ export default function Home() {
 
     setLocation(CURRENT_LOCATION_LABEL);
     setLastCoords(coords);
+
+    // Best-effort label, resolved independently of the search below - a slow
+    // or failed reverse-geocode should never hold up or break results, since
+    // the coordinates already work for search on their own. Only replace the
+    // field if the user hasn't since typed something else into it.
+    reverseGeocode(coords).then((label) => {
+      if (label) {
+        setLocation((prev) => (prev === CURRENT_LOCATION_LABEL ? label : prev));
+      }
+    });
 
     search.setLoading(true);
     search.setError(null);
