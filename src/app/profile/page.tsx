@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabase/client";
 import type { MapBounds, MapMarkerEntity } from "@/components/EntityMap";
 import StatusBadge from "@/components/StatusBadge";
 import { isNonActive } from "@/lib/entityStatus";
+import ConnectionsTab from "@/components/ConnectionsTab";
 
 const EntityMap = dynamic(() => import("@/components/EntityMap"), { ssr: false });
 
@@ -46,7 +47,7 @@ type ListRow = {
   visibility: "private" | "friends" | "public";
 };
 
-type TopTab = "starred" | "lists";
+type TopTab = "starred" | "lists" | "connections";
 type StarredTab = "map" | "browse";
 
 function locationKey(city: string | null, state: string | null) {
@@ -348,6 +349,13 @@ export default function Profile() {
           >
             Lists
           </button>
+          <button
+            type="button"
+            onClick={() => setTopTab("connections")}
+            className={tabButtonClass(topTab === "connections")}
+          >
+            Connections
+          </button>
         </div>
 
         {topTab === "starred" ? (
@@ -549,7 +557,7 @@ export default function Profile() {
               )}
             </>
           )
-        ) : (
+        ) : topTab === "lists" ? (
           <div className="flex flex-col gap-6">
             <Link
               href="/lists/new"
@@ -583,6 +591,8 @@ export default function Profile() {
               </ul>
             )}
           </div>
+        ) : (
+          user && <ConnectionsTab userId={user.id} />
         )}
       </div>
     </main>

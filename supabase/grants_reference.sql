@@ -109,30 +109,25 @@ CREATE POLICY "Users can delete their own hidden entities" ON hidden_entities
   USING (user_id = auth.uid());
 
 -- =============================================================================
--- friendships - requester_id/addressee_id/status. Not a built feature yet,
---   but a bare `GRANT SELECT ... TO authenticated` was required today to
---   unblock inserting/deleting stars (a trigger or downstream check reads
---   friendships to compute is_recommended, running as the authenticated
---   caller, not as a SECURITY DEFINER owner). That bare grant is CONFIRMED
---   WORKING but currently lets any signed-in user read every row in the
---   table - fine for now (nothing in the app surfaces it), but revisit
---   before shipping a real friends feature.
+-- friendships - requester_id/addressee_id/status. Backs the Profile page's
+--   Connections tab (search by handle, send/accept/decline/cancel requests,
+--   remove connections) as well as search_entities()/get_my_starred_entities()'s
+--   recommendation labels, which read it as SECURITY DEFINER and so don't
+--   need these grants themselves.
 --
---   A tightened, self-scoped policy is included below but commented out:
---   it was NOT tested against whatever exactly reads friendships today, so
---   flipping it on could break starring again if that check needs to see
---   rows where the current user isn't requester or addressee. Test starring
---   again after enabling it.
+--   RLS is enabled with real self-scoped policies (requester/addressee must
+--   be auth.uid(), matching each of SELECT/INSERT/UPDATE/DELETE below) - this
+--   revisits the "revisit before shipping a real friends feature" note that
+--   used to be here. The policies were already live when the Connections tab
+--   was built, but the table-level GRANTs for INSERT/UPDATE/DELETE were not
+--   (RLS policies alone don't grant the underlying privilege - same class of
+--   gap this file exists to catch), which surfaced as a 42501 "permission
+--   denied for table friendships" the first time the tab tried to send a
+--   request. Confirm current policies with:
+--     SELECT policyname, cmd, qual, with_check FROM pg_policies WHERE tablename = 'friendships';
 -- =============================================================================
-GRANT SELECT ON TABLE friendships TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE friendships TO authenticated;
 GRANT ALL ON TABLE friendships TO service_role;
-
--- ALTER TABLE friendships ENABLE ROW LEVEL SECURITY;
---
--- DROP POLICY IF EXISTS "Users can view their own friendships" ON friendships;
--- CREATE POLICY "Users can view their own friendships" ON friendships
---   FOR SELECT TO authenticated
---   USING (requester_id = auth.uid() OR addressee_id = auth.uid());
 
 -- =============================================================================
 -- lists, list_items - user-created visibility-scoped collections (private/
