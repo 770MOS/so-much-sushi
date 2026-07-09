@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import dynamic from "next/dynamic";
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
@@ -11,6 +10,8 @@ import StatusBadge from "@/components/StatusBadge";
 import type { MapMarkerEntity } from "@/components/EntityMap";
 
 const EntityMap = dynamic(() => import("@/components/EntityMap"), { ssr: false });
+
+const CURRENT_LOCATION_LABEL = "Current location";
 
 type Category = {
   id: string;
@@ -91,6 +92,16 @@ function StarIcon({ filled }: { filled: boolean }) {
   );
 }
 
+function CrosshairIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width={16} height={16} fill="none" stroke="currentColor" strokeWidth={1.5}>
+      <circle cx="12" cy="12" r="7" strokeLinecap="round" strokeLinejoin="round" />
+      <path strokeLinecap="round" d="M12 2v3M12 19v3M2 12h3M19 12h3" />
+      <circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
 function EyeOffIcon({ filled }: { filled: boolean }) {
   return (
     <svg
@@ -130,6 +141,8 @@ export default function Home() {
   const [recommendedOnly, setRecommendedOnly] = useState(false);
   const [showHidden, setShowHidden] = useState(false);
   const [lastCoords, setLastCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [locating, setLocating] = useState(false);
+  const [geoError, setGeoError] = useState<string | null>(null);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUser(data.user));
@@ -208,6 +221,11 @@ export default function Home() {
     setResults(null);
 
     try {
+      if (location === CURRENT_LOCATION_LABEL && lastCoords) {
+        await runSearch(lastCoords.lat, lastCoords.lng, recommendedOnly, showHidden);
+        return;
+      }
+
       const geocodeRes = await fetch(
         `https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=us&q=${encodeURIComponent(location)}`
       );
@@ -227,6 +245,44 @@ export default function Home() {
     } finally {
       setLoading(false);
     }
+  }
+
+  function handleUseMyLocation() {
+    setGeoError(null);
+
+    if (!("geolocation" in navigator)) {
+      setGeoError("Geolocation isn't supported by your browser. Please enter a location manually.");
+      return;
+    }
+
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        setLocating(false);
+        const coords = { lat: position.coords.latitude, lng: position.coords.longitude };
+        setLocation(CURRENT_LOCATION_LABEL);
+        setLastCoords(coords);
+
+        setLoading(true);
+        setError(null);
+        setResults(null);
+        try {
+          await runSearch(coords.lat, coords.lng, recommendedOnly, showHidden);
+        } catch {
+          setError("Something went wrong. Please check your connection and try again.");
+        } finally {
+          setLoading(false);
+        }
+      },
+      (err) => {
+        setLocating(false);
+        if (err.code === err.PERMISSION_DENIED) {
+          setGeoError("Location access was denied. Please enter a location manually.");
+        } else {
+          setGeoError("We couldn't determine your location. Please enter a location manually.");
+        }
+      }
+    );
   }
 
   async function toggleRecommendedOnly() {
@@ -333,32 +389,13 @@ export default function Home() {
   return (
     <main className="flex min-h-screen flex-1 flex-col items-center bg-white px-6 py-16 dark:bg-black">
       <div className="flex w-full max-w-xl flex-col gap-10">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex flex-col gap-2">
-            <h1 className="text-2xl font-semibold text-zinc-950 dark:text-zinc-50">
-              So Much Sushi
-            </h1>
-            <p className="text-zinc-600 dark:text-zinc-400">
-              Find restaurants near you. No ads, no accounts, just search.
-            </p>
-          </div>
-          <div className="flex shrink-0 items-center gap-3 pt-1 text-sm text-zinc-500 dark:text-zinc-400">
-            {user ? (
-              <>
-                <Link
-                  href="/profile"
-                  className="underline hover:text-zinc-900 dark:hover:text-zinc-100"
-                >
-                  Profile
-                </Link>
-                <span>{user.email}</span>
-              </>
-            ) : (
-              <Link href="/sign-in" className="underline hover:text-zinc-900 dark:hover:text-zinc-100">
-                Sign in
-              </Link>
-            )}
-          </div>
+        <div className="flex flex-col gap-2">
+          <h1 className="text-2xl font-semibold text-zinc-950 dark:text-zinc-50">
+            So Much Sushi
+          </h1>
+          <p className="text-zinc-600 dark:text-zinc-400">
+            Find restaurants near you. No ads, no accounts, just search.
+          </p>
         </div>
 
         <form onSubmit={handleSearch} className="flex flex-col gap-8">
@@ -369,14 +406,31 @@ export default function Home() {
             >
               Location
             </label>
-            <input
-              id="location"
-              type="text"
-              placeholder="ZIP code or address"
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              className="w-full rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-zinc-950 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
-            />
+            <div className="flex gap-2">
+              <input
+                id="location"
+                type="text"
+                placeholder="ZIP code or address"
+                value={location}
+                onChange={(e) => {
+                  setGeoError(null);
+                  setLocation(e.target.value);
+                }}
+                className="w-full rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-zinc-950 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
+              />
+              <button
+                type="button"
+                onClick={handleUseMyLocation}
+                disabled={locating}
+                className="flex shrink-0 items-center gap-1.5 rounded-lg border border-zinc-300 px-3 py-2.5 text-sm font-medium text-zinc-600 transition-colors hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-100"
+              >
+                <CrosshairIcon />
+                <span className="whitespace-nowrap">{locating ? "Locating…" : "Use my location"}</span>
+              </button>
+            </div>
+            {geoError && (
+              <p className="text-xs text-red-600 dark:text-red-400">{geoError}</p>
+            )}
           </div>
 
           <div className="flex flex-col gap-2">
