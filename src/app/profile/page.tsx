@@ -10,6 +10,7 @@ import type { MapBounds, MapMarkerEntity } from "@/components/EntityMap";
 import StatusBadge from "@/components/StatusBadge";
 import { isNonActive } from "@/lib/entityStatus";
 import ConnectionsTab from "@/components/ConnectionsTab";
+import AccountSettings from "@/components/AccountSettings";
 
 const EntityMap = dynamic(() => import("@/components/EntityMap"), { ssr: false });
 
@@ -333,6 +334,8 @@ export default function Profile() {
             Back to search
           </Link>
         </div>
+
+        {user && <AccountSettings userId={user.id} />}
 
         <div className="flex gap-1 self-start rounded-lg border border-zinc-300 p-0.5 dark:border-zinc-700">
           <button

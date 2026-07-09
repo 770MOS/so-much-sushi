@@ -41,18 +41,33 @@ GRANT ALL ON TABLE entities, entity_categories TO service_role;
 
 -- =============================================================================
 -- profiles - mirrors auth.users (one row per signed-up user, auto-created by
---   a signup trigger). Not yet read directly by any client code; scoped to
---   each user's own row for when it is (e.g. a future profile/handle page).
+--   a signup trigger). Read by Header/AccountMenu (own row) and
+--   ConnectionsTab (handle search across all rows, hence the public-read
+--   policy below). Written directly by the Profile page's AccountSettings
+--   section (display_name/handle self-service editing) - this surfaced the
+--   same class of gap as friendships did: the "Users update their own
+--   profile" RLS policy was already live, but the table-level UPDATE grant
+--   was not, so the first save 42501'd. Granted below.
 -- =============================================================================
-GRANT SELECT ON TABLE profiles TO authenticated;
+GRANT SELECT, UPDATE ON TABLE profiles TO authenticated;
 GRANT ALL ON TABLE profiles TO service_role;
 
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Profiles are publicly readable" ON profiles;
+CREATE POLICY "Profiles are publicly readable" ON profiles
+  FOR SELECT
+  USING (true);
 
 DROP POLICY IF EXISTS "Users can view their own profile" ON profiles;
 CREATE POLICY "Users can view their own profile" ON profiles
   FOR SELECT TO authenticated
   USING (id = auth.uid());
+
+DROP POLICY IF EXISTS "Users update their own profile" ON profiles;
+CREATE POLICY "Users update their own profile" ON profiles
+  FOR UPDATE
+  USING (auth.uid() = id);
 
 -- =============================================================================
 -- stars - a signed-in user's saved/starred restaurants. Read back via
