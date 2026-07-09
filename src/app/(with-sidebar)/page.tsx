@@ -201,17 +201,8 @@ export default function Home() {
   }
 
   return (
-    <main className="flex min-h-screen flex-1 flex-col items-center bg-white px-6 py-16 dark:bg-black">
+    <main className="flex min-h-screen flex-1 flex-col items-center bg-white px-6 pt-10 pb-16 dark:bg-black">
       <div className="flex w-full max-w-xl flex-col gap-10">
-        <div className="flex flex-col gap-2">
-          <h1 className="text-2xl font-semibold text-zinc-950 dark:text-zinc-50">
-            So Much Sushi
-          </h1>
-          <p className="text-zinc-600 dark:text-zinc-400">
-            Find restaurants near you. No ads, no accounts, just search.
-          </p>
-        </div>
-
         <form onSubmit={handleSearch} className="flex flex-col gap-8">
           <div className="flex flex-col gap-2">
             <label
