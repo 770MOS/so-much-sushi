@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import { CrosshairIcon } from "@/components/icons";
+import RadiusSlider from "@/components/RadiusSlider";
 import SearchResultsView from "@/components/SearchResultsView";
 import { useEntitySearch } from "@/lib/useEntitySearch";
 import { useGeolocation } from "@/lib/useGeolocation";
@@ -218,7 +219,7 @@ export default function Home() {
                   geo.setGeoError(null);
                   setLocation(e.target.value);
                 }}
-                className="w-full rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-zinc-950 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
+                className="w-full rounded-none border border-zinc-300 bg-white px-4 py-2.5 text-zinc-950 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
               />
               <button
                 type="button"
@@ -236,24 +237,13 @@ export default function Home() {
           </div>
 
           <div className="flex flex-col gap-2">
-            <div className="flex items-baseline justify-between">
-              <label
-                htmlFor="radius"
-                className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
-              >
-                Radius
-              </label>
-              <span className="text-sm text-zinc-500 dark:text-zinc-400">{radius} mi</span>
-            </div>
-            <input
-              id="radius"
-              type="range"
-              min={1}
-              max={25}
-              value={radius}
-              onChange={(e) => setRadius(Number(e.target.value))}
-              className="w-full accent-zinc-900 dark:accent-zinc-100"
-            />
+            <label
+              htmlFor="radius"
+              className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
+            >
+              Radius
+            </label>
+            <RadiusSlider id="radius" value={radius} onChange={setRadius} min={1} max={25} />
           </div>
 
           <div className="flex flex-col gap-2">
