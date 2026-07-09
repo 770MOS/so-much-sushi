@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import type { User } from "@supabase/supabase-js";
@@ -67,12 +67,12 @@ function tabButtonClass(active: boolean) {
 const selectClass =
   "w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-950 focus:outline-none focus:ring-2 focus:ring-zinc-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50";
 
-export default function Profile() {
+function ProfileContent({ initialTab }: { initialTab: TopTab }) {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
 
   const [user, setUser] = useState<User | null | undefined>(undefined);
-  const [topTab, setTopTab] = useState<TopTab>("starred");
+  const [topTab, setTopTab] = useState<TopTab>(initialTab);
 
   const [rows, setRows] = useState<StarredRow[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -90,15 +90,6 @@ export default function Profile() {
 
   const [lists, setLists] = useState<ListRow[] | null>(null);
   const [listsError, setListsError] = useState<string | null>(null);
-
-  useEffect(() => {
-    (async () => {
-      await Promise.resolve();
-      if (new URLSearchParams(window.location.search).get("tab") === "lists") {
-        setTopTab("lists");
-      }
-    })();
-  }, []);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUser(data.user ?? null));
@@ -599,5 +590,30 @@ export default function Profile() {
         )}
       </div>
     </main>
+  );
+}
+
+function ProfileWithTabFromUrl() {
+  const searchParams = useSearchParams();
+  const tab = searchParams.get("tab");
+  const initialTab: TopTab = tab === "lists" || tab === "connections" ? tab : "starred";
+  // Keying on the tab forces a full remount whenever the sidebar links here
+  // with a different ?tab= via client-side navigation (no full page load),
+  // so the initial-state-from-URL logic above always re-runs cleanly instead
+  // of trying to sync stale state across the same mounted instance.
+  return <ProfileContent key={initialTab} initialTab={initialTab} />;
+}
+
+export default function Profile() {
+  return (
+    <Suspense
+      fallback={
+        <main className="flex min-h-screen flex-1 flex-col items-center justify-center bg-white px-6 dark:bg-black">
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">Loading…</p>
+        </main>
+      }
+    >
+      <ProfileWithTabFromUrl />
+    </Suspense>
   );
 }
