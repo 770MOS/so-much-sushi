@@ -56,6 +56,34 @@ export function EyeOffIcon({ filled }: { filled: boolean }) {
   );
 }
 
+// Password-visibility icons. Distinct from EyeOffIcon above (which takes a
+// `filled` prop tied to the hide-restaurant feature's muted/active color
+// semantics) - these are a plain two-state pair with no such distinction.
+export function EyeIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth={1.5}>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M1.5 12S5 5 12 5s10.5 7 10.5 7-3.5 7-10.5 7S1.5 12 1.5 12z"
+      />
+      <circle cx="12" cy="12" r="2.5" />
+    </svg>
+  );
+}
+
+export function EyeSlashIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth={1.5}>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M3 3l18 18M10.58 10.58a2 2 0 102.83 2.83M9.88 4.24A9.1 9.1 0 0112 4c5 0 9 4.5 10.5 8-.6 1.36-1.5 2.7-2.6 3.85M6.4 6.4C4.13 7.86 2.44 9.94 1.5 12c1.02 2.28 2.7 4.24 4.76 5.6A9.15 9.15 0 0012 20c1.13 0 2.21-.18 3.22-.51"
+      />
+    </svg>
+  );
+}
+
 // Sidebar nav icons - plain outline style, matching the stroke-based icons above.
 export function StarredNavIcon() {
   return (

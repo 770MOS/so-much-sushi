@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { HANDLE_PATTERN, HANDLE_HINT, handleTakenMessage } from "@/lib/handleValidation";
+import PasswordInput from "@/components/PasswordInput";
 
 const MIN_PASSWORD_LENGTH = 8;
 // Project's configured password policy also requires at least one of each
@@ -208,13 +209,12 @@ export default function SignUp() {
               >
                 Password
               </label>
-              <input
+              <PasswordInput
                 id="password"
-                type="password"
                 required
                 placeholder="Create a password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={setPassword}
                 className={inputClass}
               />
               <p className="text-xs text-zinc-500 dark:text-zinc-400">{PASSWORD_HINT}</p>
@@ -227,13 +227,12 @@ export default function SignUp() {
               >
                 Confirm password
               </label>
-              <input
+              <PasswordInput
                 id="confirm-password"
-                type="password"
                 required
                 placeholder="Re-enter your password"
                 value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
+                onChange={setConfirmPassword}
                 className={inputClass}
               />
             </div>
