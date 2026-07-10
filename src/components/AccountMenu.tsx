@@ -8,21 +8,30 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 type Props = {
   supabase: SupabaseClient;
   email: string;
+  firstName: string | null;
   displayName: string | null;
   handle: string | null;
   avatarUrl: string | null;
 };
 
-function firstNameOf(displayName: string | null, handle: string | null, email: string) {
+function resolveFirstName(
+  firstName: string | null,
+  displayName: string | null,
+  handle: string | null,
+  email: string
+) {
+  if (firstName && firstName.trim()) return firstName.trim();
+  // Fallback for accounts from before profiles.first_name existed - derive
+  // it the old way instead of leaving the greeting blank.
   const source = (displayName && displayName.trim()) || (handle && handle.trim()) || email;
   return source.includes(" ") ? source.split(" ")[0] : source;
 }
 
-export default function AccountMenu({ supabase, email, displayName, handle, avatarUrl }: Props) {
+export default function AccountMenu({ supabase, email, firstName, displayName, handle, avatarUrl }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
 
-  const name = firstNameOf(displayName, handle, email);
+  const name = resolveFirstName(firstName, displayName, handle, email);
   const initial = (name.charAt(0) || "?").toUpperCase();
 
   async function handleSignOut() {

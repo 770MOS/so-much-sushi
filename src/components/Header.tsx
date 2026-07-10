@@ -8,6 +8,7 @@ import AccountMenu from "@/components/AccountMenu";
 
 type Profile = {
   display_name: string | null;
+  first_name: string | null;
   handle: string | null;
   avatar_url: string | null;
 };
@@ -32,7 +33,7 @@ export default function Header() {
     let cancelled = false;
     supabase
       .from("profiles")
-      .select("display_name, handle, avatar_url")
+      .select("display_name, first_name, handle, avatar_url")
       .eq("id", user.id)
       .single()
       .then(({ data }) => {
@@ -54,6 +55,7 @@ export default function Header() {
           <AccountMenu
             supabase={supabase}
             email={user.email ?? ""}
+            firstName={profile?.first_name ?? null}
             displayName={profile?.display_name ?? null}
             handle={profile?.handle ?? null}
             avatarUrl={profile?.avatar_url ?? null}

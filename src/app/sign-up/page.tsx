@@ -31,7 +31,8 @@ const inputClass =
 export default function SignUp() {
   const router = useRouter();
   const [email, setEmail] = useState("");
-  const [name, setName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [handle, setHandle] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -45,9 +46,10 @@ export default function SignUp() {
 
     setError(null);
 
-    const trimmedName = name.trim();
-    if (!trimmedName) {
-      setError("Please enter your name.");
+    const trimmedFirstName = firstName.trim();
+    const trimmedLastName = lastName.trim();
+    if (!trimmedFirstName || !trimmedLastName) {
+      setError("Please enter your first and last name.");
       return;
     }
     const trimmedHandle = handle.trim().toLowerCase();
@@ -90,7 +92,7 @@ export default function SignUp() {
       email,
       password,
       options: {
-        data: { handle: trimmedHandle, display_name: trimmedName },
+        data: { handle: trimmedHandle, first_name: trimmedFirstName, last_name: trimmedLastName },
         emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
     });
@@ -160,23 +162,44 @@ export default function SignUp() {
               />
             </div>
 
-            <div className="flex flex-col gap-2">
-              <label
-                htmlFor="name"
-                className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
-              >
-                Name
-              </label>
-              <input
-                id="name"
-                type="text"
-                required
-                maxLength={80}
-                placeholder="Your name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className={inputClass}
-              />
+            <div className="flex flex-col gap-4 sm:flex-row">
+              <div className="flex flex-1 flex-col gap-2">
+                <label
+                  htmlFor="first-name"
+                  className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
+                >
+                  First name
+                </label>
+                <input
+                  id="first-name"
+                  type="text"
+                  required
+                  maxLength={80}
+                  placeholder="First name"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  className={inputClass}
+                />
+              </div>
+
+              <div className="flex flex-1 flex-col gap-2">
+                <label
+                  htmlFor="last-name"
+                  className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
+                >
+                  Last name
+                </label>
+                <input
+                  id="last-name"
+                  type="text"
+                  required
+                  maxLength={80}
+                  placeholder="Last name"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  className={inputClass}
+                />
+              </div>
             </div>
 
             <div className="flex flex-col gap-2">
@@ -242,7 +265,13 @@ export default function SignUp() {
             <button
               type="submit"
               disabled={
-                loading || !email.trim() || !name.trim() || !handle.trim() || !password || !confirmPassword
+                loading ||
+                !email.trim() ||
+                !firstName.trim() ||
+                !lastName.trim() ||
+                !handle.trim() ||
+                !password ||
+                !confirmPassword
               }
               className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
             >
