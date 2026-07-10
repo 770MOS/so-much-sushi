@@ -30,6 +30,7 @@ const inputClass =
 export default function SignUp() {
   const router = useRouter();
   const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
   const [handle, setHandle] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -43,6 +44,11 @@ export default function SignUp() {
 
     setError(null);
 
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      setError("Please enter your name.");
+      return;
+    }
     const trimmedHandle = handle.trim().toLowerCase();
     if (!HANDLE_PATTERN.test(trimmedHandle)) {
       setError(`Username doesn't meet the requirements. ${HANDLE_HINT}`);
@@ -83,7 +89,7 @@ export default function SignUp() {
       email,
       password,
       options: {
-        data: { handle: trimmedHandle },
+        data: { handle: trimmedHandle, display_name: trimmedName },
         emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
     });
@@ -155,6 +161,25 @@ export default function SignUp() {
 
             <div className="flex flex-col gap-2">
               <label
+                htmlFor="name"
+                className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
+              >
+                Name
+              </label>
+              <input
+                id="name"
+                type="text"
+                required
+                maxLength={80}
+                placeholder="Your name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className={inputClass}
+              />
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <label
                 htmlFor="handle"
                 className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
               >
@@ -217,7 +242,9 @@ export default function SignUp() {
 
             <button
               type="submit"
-              disabled={loading || !email.trim() || !handle.trim() || !password || !confirmPassword}
+              disabled={
+                loading || !email.trim() || !name.trim() || !handle.trim() || !password || !confirmPassword
+              }
               className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
             >
               {loading ? "Creating account…" : "Sign up"}

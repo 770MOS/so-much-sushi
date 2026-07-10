@@ -108,6 +108,7 @@ export default function AccountSettings({ userId }: Props) {
           <label htmlFor="display-name" className="text-xs text-zinc-500 dark:text-zinc-400">
             Display name
           </label>
+          <p className="text-xs text-zinc-400 dark:text-zinc-500">How you&apos;re shown to others.</p>
           <input
             id="display-name"
             type="text"
@@ -125,6 +126,7 @@ export default function AccountSettings({ userId }: Props) {
           <label htmlFor="handle" className="text-xs text-zinc-500 dark:text-zinc-400">
             Handle
           </label>
+          <p className="text-xs text-zinc-400 dark:text-zinc-500">How connections find you.</p>
           <div className="flex items-center gap-1">
             <span className="text-zinc-400">@</span>
             <input
