@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { HANDLE_PATTERN, HANDLE_HINT, isHandleTakenError, handleTakenMessage } from "@/lib/handleValidation";
 
 type Props = {
   userId: string;
@@ -11,9 +12,6 @@ type ProfileRow = {
   display_name: string | null;
   handle: string | null;
 };
-
-const HANDLE_PATTERN = /^[a-z0-9_]{3,20}$/;
-const HANDLE_HINT = "3-20 characters: lowercase letters, numbers, and underscores only.";
 
 const inputClass =
   "w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-950 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50";
@@ -80,8 +78,8 @@ export default function AccountSettings({ userId }: Props) {
     setSaving(false);
 
     if (error) {
-      if (error.code === "23505") {
-        setHandleError("That handle is already taken. Please choose another.");
+      if (isHandleTakenError(error)) {
+        setHandleError(handleTakenMessage());
       } else {
         setSaveError("Something went wrong saving your changes. Please try again.");
       }

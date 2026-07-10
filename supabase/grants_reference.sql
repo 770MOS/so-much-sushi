@@ -48,7 +48,14 @@ GRANT ALL ON TABLE entities, entity_categories TO service_role;
 --   same class of gap as friendships did: the "Users update their own
 --   profile" RLS policy was already live, but the table-level UPDATE grant
 --   was not, so the first save 42501'd. Granted below.
+--
+--   anon also needs SELECT: the sign-up form checks handle availability
+--   (`profiles.select(...).eq("handle", ...)`) before calling signUp(), and
+--   at that point the visitor has no session yet - runs as anon, not
+--   authenticated. The "Profiles are publicly readable" policy already
+--   allowed it; the anon grant didn't exist until this surfaced it as a 401.
 -- =============================================================================
+GRANT SELECT ON TABLE profiles TO anon;
 GRANT SELECT, UPDATE ON TABLE profiles TO authenticated;
 GRANT ALL ON TABLE profiles TO service_role;
 

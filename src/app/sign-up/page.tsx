@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { HANDLE_PATTERN, HANDLE_HINT, handleTakenMessage } from "@/lib/handleValidation";
 
 const MIN_PASSWORD_LENGTH = 8;
 // Project's configured password policy also requires at least one of each
@@ -29,6 +30,7 @@ const inputClass =
 export default function SignUp() {
   const router = useRouter();
   const [email, setEmail] = useState("");
+  const [handle, setHandle] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -41,6 +43,11 @@ export default function SignUp() {
 
     setError(null);
 
+    const trimmedHandle = handle.trim().toLowerCase();
+    if (!HANDLE_PATTERN.test(trimmedHandle)) {
+      setError(`Username doesn't meet the requirements. ${HANDLE_HINT}`);
+      return;
+    }
     if (!passwordMeetsPolicy(password)) {
       setError(`Password doesn't meet the requirements. ${PASSWORD_HINT}`);
       return;
@@ -52,10 +59,31 @@ export default function SignUp() {
 
     setLoading(true);
     const supabase = createClient();
+
+    // signUp() sets profiles.handle via a DB trigger during account
+    // creation (see supabase/add_handle_to_signup_trigger.sql), so a
+    // collision fails inside that trigger rather than as a normal PostgREST
+    // update - the auth-js SDK doesn't parse that error shape into a usable
+    // .code the way it does for a direct table update. Pre-checking
+    // availability here catches the common case with a proper friendly
+    // message and avoids that ambiguity, rather than trying to detect it
+    // after the fact.
+    const { data: existingHandle } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("handle", trimmedHandle)
+      .maybeSingle();
+    if (existingHandle) {
+      setLoading(false);
+      setError(handleTakenMessage());
+      return;
+    }
+
     const { data, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
       options: {
+        data: { handle: trimmedHandle },
         emailRedirectTo: `${window.location.origin}/auth/callback`,
       },
     });
@@ -127,6 +155,29 @@ export default function SignUp() {
 
             <div className="flex flex-col gap-2">
               <label
+                htmlFor="handle"
+                className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
+              >
+                Username
+              </label>
+              <div className="flex items-center gap-1">
+                <span className="text-zinc-400">@</span>
+                <input
+                  id="handle"
+                  type="text"
+                  required
+                  maxLength={20}
+                  placeholder="username"
+                  value={handle}
+                  onChange={(e) => setHandle(e.target.value)}
+                  className={inputClass}
+                />
+              </div>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">{HANDLE_HINT}</p>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <label
                 htmlFor="password"
                 className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
               >
@@ -166,7 +217,7 @@ export default function SignUp() {
 
             <button
               type="submit"
-              disabled={loading || !email.trim() || !password || !confirmPassword}
+              disabled={loading || !email.trim() || !handle.trim() || !password || !confirmPassword}
               className="w-full rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
             >
               {loading ? "Creating account…" : "Sign up"}
