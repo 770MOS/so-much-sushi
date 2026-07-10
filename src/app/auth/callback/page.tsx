@@ -11,7 +11,7 @@ export default function AuthCallback() {
   useEffect(() => {
     let cancelled = false;
 
-    async function completeSignIn() {
+    async function completeConfirmation() {
       await Promise.resolve();
       const code = new URLSearchParams(window.location.search).get("code");
       const supabase = createClient();
@@ -24,7 +24,7 @@ export default function AuthCallback() {
       else router.replace("/");
     }
 
-    completeSignIn();
+    completeConfirmation();
 
     return () => {
       cancelled = true;
@@ -35,14 +35,14 @@ export default function AuthCallback() {
     <main className="flex min-h-screen flex-1 flex-col items-center justify-center bg-white px-6 text-center dark:bg-black">
       {error ? (
         <p className="text-zinc-600 dark:text-zinc-400">
-          That sign-in link is invalid or has expired.{" "}
-          <a href="/sign-in" className="underline">
-            Try again
+          That confirmation link is invalid or has expired.{" "}
+          <a href="/sign-up" className="underline">
+            Try signing up again
           </a>
           .
         </p>
       ) : (
-        <p className="text-zinc-600 dark:text-zinc-400">Signing you in…</p>
+        <p className="text-zinc-600 dark:text-zinc-400">Confirming your email…</p>
       )}
     </main>
   );
