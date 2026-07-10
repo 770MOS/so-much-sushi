@@ -20,6 +20,31 @@ type Category = {
   path: string;
 };
 
+const TYPE_OPTIONS = [
+  { key: "all", label: "All" },
+  { key: "restaurants", label: "Restaurants" },
+  { key: "bars", label: "Bars" },
+  { key: "coffee", label: "Coffee" },
+  { key: "bakeries", label: "Bakeries" },
+  { key: "breweries", label: "Breweries" },
+] as const;
+
+type EntityType = (typeof TYPE_OPTIONS)[number]["key"];
+
+// Bakeries/Breweries aren't root categories in the tree - they're specific
+// descendants (restaurants.bakery, bars.brewery) - so their type button sets
+// category_path straight to that path rather than a root. Bars deliberately
+// stays broad ("bars", not "bars.bar"): the ltree `<@` match already pulls
+// in Brewery as a descendant, same is-a inclusion used everywhere else in
+// the tree, so a brewery can surface under both the Bars and Breweries
+// buttons - that's expected, not a bug.
+const FIXED_CATEGORY_PATH: Partial<Record<EntityType, string>> = {
+  bars: "bars",
+  coffee: "coffee",
+  bakeries: "restaurants.bakery",
+  breweries: "bars.brewery",
+};
+
 function categoryIndent(path: string) {
   const depth = (path.match(/\./g) ?? []).length;
   return "    ".repeat(depth);
@@ -33,6 +58,7 @@ export default function Home() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [location, setLocation] = useState("");
   const [radius, setRadius] = useState(DEFAULT_RADIUS);
+  const [entityType, setEntityType] = useState<EntityType>("all");
   const [categoryPath, setCategoryPath] = useState("");
   const [recommendedOnly, setRecommendedOnly] = useState(false);
   const [showHidden, setShowHidden] = useState(false);
@@ -61,6 +87,17 @@ export default function Home() {
     }
     loadCategories();
   }, [supabase]);
+
+  function handleTypeSelect(type: EntityType) {
+    setEntityType(type);
+    if (type === "all") {
+      setCategoryPath("");
+    } else if (type === "restaurants") {
+      setCategoryPath("restaurants");
+    } else {
+      setCategoryPath(FIXED_CATEGORY_PATH[type]!);
+    }
+  }
 
   async function handleSearch(e: FormEvent) {
     e.preventDefault();
@@ -247,27 +284,56 @@ export default function Home() {
           </div>
 
           <div className="flex flex-col gap-2">
-            <label
-              htmlFor="category"
-              className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
-            >
-              Category
-            </label>
-            <select
-              id="category"
-              value={categoryPath}
-              onChange={(e) => setCategoryPath(e.target.value)}
-              className="w-full rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-zinc-950 focus:outline-none focus:ring-2 focus:ring-zinc-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
-            >
-              <option value="">All categories</option>
-              {categories.map((c) => (
-                <option key={c.id} value={c.path}>
-                  {categoryIndent(c.path)}
-                  {c.name}
-                </option>
+            <span className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Type</span>
+            <div className="flex flex-wrap gap-2">
+              {TYPE_OPTIONS.map((opt) => (
+                <button
+                  key={opt.key}
+                  type="button"
+                  onClick={() => handleTypeSelect(opt.key)}
+                  aria-pressed={entityType === opt.key}
+                  className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors ${
+                    entityType === opt.key
+                      ? "border-primary bg-primary text-white"
+                      : "border-zinc-300 text-zinc-600 hover:text-zinc-900 dark:border-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-100"
+                  }`}
+                >
+                  {opt.label}
+                </button>
               ))}
-            </select>
+            </div>
           </div>
+
+          {(entityType === "all" || entityType === "restaurants") && (
+            <div className="flex flex-col gap-2">
+              <label
+                htmlFor="category"
+                className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
+              >
+                Category
+              </label>
+              <select
+                id="category"
+                value={categoryPath}
+                onChange={(e) => setCategoryPath(e.target.value)}
+                className="w-full rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-zinc-950 focus:outline-none focus:ring-2 focus:ring-zinc-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
+              >
+                <option value={entityType === "restaurants" ? "restaurants" : ""}>
+                  {entityType === "restaurants" ? "All restaurants" : "All categories"}
+                </option>
+                {categories
+                  .filter((c) =>
+                    entityType === "restaurants" ? c.path.startsWith("restaurants.") : true
+                  )
+                  .map((c) => (
+                    <option key={c.id} value={c.path}>
+                      {categoryIndent(c.path)}
+                      {c.name}
+                    </option>
+                  ))}
+              </select>
+            </div>
+          )}
 
           <button
             type="submit"
