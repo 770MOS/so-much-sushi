@@ -16,6 +16,7 @@ type RunSearchOptions = {
   recommendedOnly?: boolean;
   showHidden?: boolean;
   starredOnly?: boolean;
+  nameQuery?: string | null;
 };
 
 export function useEntitySearch(user: User | null) {
@@ -61,6 +62,7 @@ export function useEntitySearch(user: User | null) {
       recommended_only: opts.recommendedOnly ?? false,
       show_hidden: opts.showHidden ?? false,
       starred_only: opts.starredOnly ?? false,
+      name_query: opts.nameQuery || null,
     });
 
     if (rpcError) {

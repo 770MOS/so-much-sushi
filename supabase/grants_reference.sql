@@ -173,12 +173,17 @@ GRANT ALL ON TABLE lists, list_items TO service_role;
 -- none of which anon/authenticated are granted directly - see above). If you
 -- ever CREATE OR REPLACE this function, re-add both clauses:
 --   SECURITY DEFINER
---   SET search_path = public
+--   SET search_path = public, extensions   -- extensions: PostGIS lives there
 -- Confirm with:
 --   SELECT proname, prosecdef FROM pg_proc WHERE proname = 'search_entities';
 --   -- prosecdef must be `t`
+-- Also: CREATE OR REPLACE only replaces a function whose parameter list
+-- matches exactly - changing the parameter list (as when name_query was
+-- added) registers a second overload instead, and PostgREST can no longer
+-- resolve calls to the old shape (PGRST203). DROP FUNCTION the old
+-- signature first when this happens.
 GRANT EXECUTE ON FUNCTION search_entities(
-  double precision, double precision, double precision, ltree, boolean, boolean
+  double precision, double precision, double precision, ltree, boolean, boolean, boolean, text
 ) TO anon, authenticated;
 
 -- get_my_starred_entities: powers the /profile page (Map/Browse tabs). Takes
