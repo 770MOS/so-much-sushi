@@ -8,6 +8,7 @@ import {
   ListsNavIcon,
   RecommendedNavIcon,
   ConnectionsNavIcon,
+  SearchNavIcon,
 } from "@/components/icons";
 
 type NavItem = {
@@ -21,6 +22,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/profile?tab=lists", label: "Lists", Icon: ListsNavIcon },
   { href: "/recommended", label: "Recommended", Icon: RecommendedNavIcon },
   { href: "/profile?tab=connections", label: "Connections", Icon: ConnectionsNavIcon },
+  { href: "/search", label: "Search", Icon: SearchNavIcon },
 ];
 
 function desktopItemClass(active: boolean) {

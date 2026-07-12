@@ -120,6 +120,15 @@ export function RecommendedNavIcon() {
   );
 }
 
+export function SearchNavIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width={20} height={20} fill="none" stroke="currentColor" strokeWidth={1.5}>
+      <circle cx="10.5" cy="10.5" r="6.5" />
+      <path strokeLinecap="round" d="M19.5 19.5l-4.7-4.7" />
+    </svg>
+  );
+}
+
 export function ConnectionsNavIcon() {
   return (
     <svg viewBox="0 0 24 24" width={20} height={20} fill="none" stroke="currentColor" strokeWidth={1.5}>
