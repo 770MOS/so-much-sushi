@@ -192,6 +192,17 @@ GRANT EXECUTE ON FUNCTION search_entities(
 -- supabase/add_city_and_starred_lookup.sql.
 GRANT EXECUTE ON FUNCTION get_my_starred_entities() TO authenticated;
 
+-- get_profile_starred_entities, get_profile_lists: power the public-facing
+-- connection profile page (/u/[handle]). Unlike every other SECURITY
+-- DEFINER function above, these are granted to `anon` as well as
+-- `authenticated` - confirmed live: a fully unauthenticated caller still
+-- gets the target's public lists back (and correctly gets zero starred
+-- entities and zero non-public lists, since auth.uid() is NULL for anon and
+-- matches no friendship/ownership). Defined in
+-- supabase/add_connection_profile_functions.sql.
+GRANT EXECUTE ON FUNCTION get_profile_starred_entities(uuid) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION get_profile_lists(uuid) TO anon, authenticated;
+
 -- get_list_meta, get_list_entities: power the /lists/[id] detail page.
 -- Both SECURITY DEFINER, defined in supabase/lists.sql - each re-implements
 -- the lists visibility check inline (private/friends/public), since running
