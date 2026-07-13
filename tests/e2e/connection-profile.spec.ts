@@ -182,12 +182,22 @@ test("a public list shows to everyone regardless of connection status", async ({
   await expect(listLink).toHaveAttribute("href", `/lists/${publicListId}`);
 });
 
-test("an unauthenticated visitor also sees the public list", async ({ browser }) => {
+test("an unauthenticated visitor sees the profile header but not the public list", async ({
+  browser,
+}) => {
+  // "Public" means "any signed-in user," not the open internet - matching
+  // list visibility everywhere else in the app. get_profile_lists/
+  // get_profile_starred_entities are authenticated-only (PUBLIC's implicit
+  // execute grant explicitly revoked), so a fully anonymous caller should
+  // see the name/avatar but nothing from either section.
   const context = await browser.newContext();
   const page = await context.newPage();
 
   await page.goto(`/u/${ownerB.handle}`);
-  await expect(page.getByRole("link", { name: "PW Public List" })).toBeVisible();
+
+  await expect(page.getByRole("heading", { name: "Owner B" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "PW Public List" })).toHaveCount(0);
+  await expect(page.getByText("Nothing to show")).toHaveCount(2);
 
   await context.close();
 });

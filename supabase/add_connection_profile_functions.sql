@@ -22,9 +22,17 @@
 --     friends-visibility lists and the real starred list; the target
 --     viewing themselves (target_user_id = auth.uid()) sees everything,
 --     including private lists.
---   - GRANT EXECUTE was confirmed to include `anon`, not just
---     `authenticated` - both functions returned correct (not
---     permission-denied) results when called with no session at all.
+-- CORRECTION (2026-07-13, same day): this originally granted EXECUTE to
+-- anon as well as authenticated, on the theory that a "public-facing"
+-- profile page needed it. Confirmed live that this let a fully
+-- unauthenticated caller read another user's public-list/starred data
+-- with zero session at all - "public" here means "any signed-in user,"
+-- matching how list visibility works everywhere else in the app, not the
+-- open internet. Fixed below: authenticated only, with PUBLIC explicitly
+-- revoked (CREATE FUNCTION grants EXECUTE to PUBLIC by default, which
+-- anon inherits regardless of what's explicitly granted - see the
+-- standing rule in grants_reference.sql).
+--
 -- If this ever needs to be byte-exact, re-pull via
 -- `SELECT pg_get_functiondef(oid) FROM pg_proc WHERE proname IN
 -- ('get_profile_starred_entities', 'get_profile_lists');` and replace this
@@ -90,7 +98,9 @@ AS $function$
     ORDER BY l.created_at DESC;
 $function$;
 
-GRANT EXECUTE ON FUNCTION public.get_profile_starred_entities(uuid) TO anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.get_profile_lists(uuid) TO anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.get_profile_starred_entities(uuid) FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION public.get_profile_lists(uuid) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.get_profile_starred_entities(uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_profile_lists(uuid) TO authenticated;
 
 NOTIFY pgrst, 'reload schema';

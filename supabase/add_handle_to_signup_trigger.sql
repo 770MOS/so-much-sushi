@@ -17,3 +17,12 @@ BEGIN
     RETURN new;
 END;
 $function$;
+
+-- Not reachable via PostgREST's RPC surface regardless of grants (functions
+-- returning `trigger` aren't exposed as /rpc/* endpoints), so this REVOKE
+-- is defense-in-depth rather than a fix for something exploitable - added
+-- for consistency with the standing rule in grants_reference.sql (every
+-- SECURITY DEFINER function should explicitly revoke the implicit PUBLIC
+-- execute grant CREATE FUNCTION leaves behind, unless anon access is
+-- genuinely intended).
+REVOKE EXECUTE ON FUNCTION public.handle_new_user() FROM PUBLIC;

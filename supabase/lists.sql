@@ -188,6 +188,16 @@ AS $function$
     ORDER BY li.added_at DESC;
 $function$;
 
+-- CREATE FUNCTION grants EXECUTE to PUBLIC by default - without this
+-- REVOKE, anon inherits it regardless of the explicit `TO authenticated`
+-- below and can call these directly, bypassing the visibility check's
+-- intent that "public" means "any signed-in user," not the open internet.
+-- This was live and exploitable (confirmed via a real anonymous call
+-- returning a public list's name/description/owner_name with no session
+-- at all) until this REVOKE was added - see the standing rule in
+-- grants_reference.sql.
+REVOKE EXECUTE ON FUNCTION public.get_list_meta(uuid) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.get_list_entities(uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.get_list_meta(uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_list_entities(uuid) TO authenticated;
 

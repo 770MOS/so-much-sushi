@@ -78,6 +78,11 @@ $function$;
 -- authenticated on entities/entity_categories/categories/stars/friendships
 -- because of this function (see supabase/grants_reference.sql for what IS
 -- needed directly, e.g. stars INSERT/DELETE for the star toggle button).
+--
+-- CREATE FUNCTION grants EXECUTE to PUBLIC by default - explicitly revoked
+-- so anon can't invoke this via that implicit grant (see the standing rule
+-- in grants_reference.sql).
+REVOKE EXECUTE ON FUNCTION public.get_my_starred_entities() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.get_my_starred_entities() TO authenticated;
 
 NOTIFY pgrst, 'reload schema';

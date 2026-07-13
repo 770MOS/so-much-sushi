@@ -166,6 +166,38 @@ GRANT ALL ON TABLE lists, list_items TO service_role;
 
 -- =============================================================================
 -- Functions callable over the REST API (PostgREST /rpc/*)
+--
+-- >>> STANDING RULE: every SECURITY DEFINER function must explicitly     <<<
+-- >>> REVOKE EXECUTE ... FROM PUBLIC, unless anonymous access is         <<<
+-- >>> genuinely intended (as it is for search_entities, on purpose).     <<<
+--
+-- CREATE FUNCTION grants EXECUTE to the PUBLIC pseudo-role by default,
+-- silently, unless revoked. Every role - including anon - inherits
+-- whatever PUBLIC has, so `GRANT EXECUTE ... TO authenticated` alone does
+-- NOT lock a function to signed-in callers: anon can still invoke it via
+-- the implicit PUBLIC grant underneath, regardless of what's explicitly
+-- granted. `REVOKE EXECUTE ... FROM anon` doesn't fix this either, for the
+-- same reason - it only removes anon's own (redundant) grant, not the
+-- PUBLIC one anon also inherits through.
+--
+-- This bit get_profile_starred_entities/get_profile_lists on 2026-07-13
+-- (anon could read another user's private-by-default data through them
+-- despite only `authenticated` ever being explicitly granted) and, once
+-- audited, turned out to already be live on get_list_meta: a fully
+-- unauthenticated caller could read a public list's name/description/
+-- owner_name with zero session at all - confirmed via a real anonymous
+-- curl call before the fix, not just inferred from the SQL. Same
+-- audit found get_my_starred_entities, get_list_entities, and the
+-- handle_new_user() signup trigger all missing the same REVOKE (the
+-- trigger function isn't reachable via REST regardless, since PostgREST
+-- doesn't expose functions returning `trigger` as RPC endpoints - revoked
+-- anyway for defense-in-depth, not because it was exploitable).
+--
+-- Confirm any function's real grants with:
+--   SELECT grantee, privilege_type FROM information_schema.routine_privileges
+--   WHERE routine_name = '<function_name>';
+-- `PUBLIC` should never appear there unless the function is meant to be
+-- callable by anyone, signed in or not.
 -- =============================================================================
 
 -- search_entities: the main search RPC. Must stay SECURITY DEFINER with a
@@ -182,6 +214,9 @@ GRANT ALL ON TABLE lists, list_items TO service_role;
 -- added) registers a second overload instead, and PostgREST can no longer
 -- resolve calls to the old shape (PGRST203). DROP FUNCTION the old
 -- signature first when this happens.
+-- search_entities is the one function here that's SUPPOSED to be callable
+-- by anon - it powers the logged-out-visible Discover/Search/home pages.
+-- PUBLIC is deliberately left alone here, not revoked.
 GRANT EXECUTE ON FUNCTION search_entities(
   double precision, double precision, double precision, ltree, boolean, boolean, boolean, text
 ) TO anon, authenticated;
@@ -190,25 +225,41 @@ GRANT EXECUTE ON FUNCTION search_entities(
 -- no arguments (reads auth.uid() internally), so only needs a signed-in
 -- caller - SECURITY DEFINER, defined in
 -- supabase/add_city_and_starred_lookup.sql.
+REVOKE EXECUTE ON FUNCTION get_my_starred_entities() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION get_my_starred_entities() TO authenticated;
 
 -- get_profile_starred_entities, get_profile_lists: power the public-facing
--- connection profile page (/u/[handle]). Unlike every other SECURITY
--- DEFINER function above, these are granted to `anon` as well as
--- `authenticated` - confirmed live: a fully unauthenticated caller still
--- gets the target's public lists back (and correctly gets zero starred
--- entities and zero non-public lists, since auth.uid() is NULL for anon and
--- matches no friendship/ownership). Defined in
+-- connection profile page (/u/[handle]). "Public-facing" means viewable by
+-- any signed-in user without a friendship, matching how list visibility
+-- works everywhere else in this app - NOT the open internet. Originally
+-- shipped granted to anon as well as authenticated (a misreading of "public
+-- profile page"); confirmed live that anon could read another user's data
+-- through them, corrected same day. Defined in
 -- supabase/add_connection_profile_functions.sql.
-GRANT EXECUTE ON FUNCTION get_profile_starred_entities(uuid) TO anon, authenticated;
-GRANT EXECUTE ON FUNCTION get_profile_lists(uuid) TO anon, authenticated;
+REVOKE EXECUTE ON FUNCTION get_profile_starred_entities(uuid) FROM PUBLIC, anon;
+REVOKE EXECUTE ON FUNCTION get_profile_lists(uuid) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION get_profile_starred_entities(uuid) TO authenticated;
+GRANT EXECUTE ON FUNCTION get_profile_lists(uuid) TO authenticated;
 
 -- get_list_meta, get_list_entities: power the /lists/[id] detail page.
 -- Both SECURITY DEFINER, defined in supabase/lists.sql - each re-implements
 -- the lists visibility check inline (private/friends/public), since running
--- as owner bypasses lists'/list_items' own RLS policies above.
+-- as owner bypasses lists'/list_items' own RLS policies above. The implicit
+-- PUBLIC grant meant a fully unauthenticated caller could read a public
+-- list's metadata with zero session at all until this REVOKE was added -
+-- confirmed live before the fix, not just inferred from the SQL.
+REVOKE EXECUTE ON FUNCTION get_list_meta(uuid) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION get_list_entities(uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION get_list_meta(uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION get_list_entities(uuid) TO authenticated;
+
+-- handle_new_user: the on_auth_user_created signup trigger. Not reachable
+-- via PostgREST's RPC surface regardless of grants (functions returning
+-- `trigger` aren't exposed as /rpc/* endpoints), so this REVOKE is
+-- defense-in-depth rather than a fix for something exploitable - included
+-- for consistency with the standing rule above. Defined in
+-- supabase/add_handle_to_signup_trigger.sql.
+REVOKE EXECUTE ON FUNCTION handle_new_user() FROM PUBLIC;
 
 -- text2ltree: built-in Postgres ltree extension function, not app-specific.
 -- Not covered here - extensions manage their own default privileges.
