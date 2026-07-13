@@ -84,6 +84,30 @@ export function EyeSlashIcon() {
   );
 }
 
+// Location-input dropdown row icons - small inline size, matching
+// CrosshairIcon's footprint since they share the same input context.
+export function LocationPinIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width={16} height={16} fill="none" stroke="currentColor" strokeWidth={1.5}>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M12 21s7-6.5 7-12a7 7 0 10-14 0c0 5.5 7 12 7 12z"
+      />
+      <circle cx="12" cy="9" r="2.5" />
+    </svg>
+  );
+}
+
+export function HistoryIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width={16} height={16} fill="none" stroke="currentColor" strokeWidth={1.5}>
+      <circle cx="12" cy="12" r="8.5" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 7.5V12l3 2" />
+    </svg>
+  );
+}
+
 // Sidebar nav icons - plain outline style, matching the stroke-based icons above.
 export function StarredNavIcon() {
   return (

@@ -4,12 +4,13 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
-import { CrosshairIcon } from "@/components/icons";
+import LocationInput from "@/components/LocationInput";
 import RadiusSlider from "@/components/RadiusSlider";
 import SearchResultsView from "@/components/SearchResultsView";
 import { useEntitySearch } from "@/lib/useEntitySearch";
 import { useGeolocation } from "@/lib/useGeolocation";
 import { reverseGeocode } from "@/lib/reverseGeocode";
+import { addSearchHistory } from "@/lib/searchHistory";
 
 const CURRENT_LOCATION_LABEL = "Current location";
 const DEFAULT_RADIUS = 10;
@@ -141,6 +142,7 @@ export default function Home() {
         recommendedOnly,
         showHidden,
       });
+      addSearchHistory(location);
     } catch {
       search.setError("Something went wrong. Please check your connection and try again.");
     } finally {
@@ -248,28 +250,16 @@ export default function Home() {
             >
               Location
             </label>
-            <div className="flex gap-2">
-              <input
-                id="location"
-                type="text"
-                placeholder="ZIP code or address"
-                value={location}
-                onChange={(e) => {
-                  geo.setGeoError(null);
-                  setLocation(e.target.value);
-                }}
-                className="w-full rounded-none border border-zinc-300 bg-white px-4 py-2.5 text-zinc-950 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
-              />
-              <button
-                type="button"
-                onClick={handleUseMyLocation}
-                disabled={geo.locating}
-                aria-label={geo.locating ? "Locating…" : "Use my location"}
-                className="flex shrink-0 items-center justify-center rounded-lg border border-zinc-300 p-2.5 text-zinc-600 transition-colors hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-100"
-              >
-                <CrosshairIcon />
-              </button>
-            </div>
+            <LocationInput
+              id="location"
+              value={location}
+              onChange={(v) => {
+                geo.setGeoError(null);
+                setLocation(v);
+              }}
+              onUseMyLocation={handleUseMyLocation}
+              locating={geo.locating}
+            />
             {geo.geoError && <p className="text-xs text-red-600 dark:text-red-400">{geo.geoError}</p>}
           </div>
 
