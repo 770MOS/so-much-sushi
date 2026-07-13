@@ -115,9 +115,9 @@ test.describe("Search page", () => {
   });
 });
 
-test.describe("Discover (home) page is unaffected", () => {
+test.describe("Discover page is unaffected", () => {
   test("still has location, radius, category, and type controls", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/discover");
 
     await expect(page.locator("#location")).toBeVisible();
     await expect(page.locator("#radius")).toBeVisible();

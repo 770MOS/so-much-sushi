@@ -79,7 +79,7 @@ test.afterAll(async () => {
 });
 
 test("All and Restaurants show the category dropdown", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/discover");
 
   // "All" is the default type on load.
   await expect(page.locator("#category")).toBeVisible();
@@ -89,7 +89,7 @@ test("All and Restaurants show the category dropdown", async ({ page }) => {
 });
 
 test("Bars, Coffee, Bakeries, and Breweries hide the category dropdown", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/discover");
 
   for (const label of ["Bars", "Coffee", "Bakeries", "Breweries"]) {
     await page.getByRole("button", { name: label, exact: true }).click();
@@ -98,7 +98,7 @@ test("Bars, Coffee, Bakeries, and Breweries hide the category dropdown", async (
 });
 
 test("selecting a type does not auto-run search - only the Search button does", async ({ page }) => {
-  await page.goto("/");
+  await page.goto("/discover");
 
   const searchRequests: string[] = [];
   page.on("request", (req) => {
@@ -124,7 +124,7 @@ test("a Bars search returns Cocktail Bar and Wine Bar tagged places with no sub-
   // it gets renamed before the second, explicit Search click).
   await page.route("**/nominatim.openstreetmap.org/reverse**", (route) => route.abort());
 
-  await page.goto("/");
+  await page.goto("/discover");
 
   await page.getByRole("button", { name: "Use my location" }).click();
   await expect(page.locator("#location")).toHaveValue("Current location");

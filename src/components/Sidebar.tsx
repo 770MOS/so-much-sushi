@@ -9,6 +9,7 @@ import {
   RecommendedNavIcon,
   ConnectionsNavIcon,
   SearchNavIcon,
+  DiscoverNavIcon,
 } from "@/components/icons";
 
 type NavItem = {
@@ -18,11 +19,12 @@ type NavItem = {
 };
 
 const NAV_ITEMS: NavItem[] = [
+  { href: "/search", label: "Search", Icon: SearchNavIcon },
+  { href: "/discover", label: "Discover", Icon: DiscoverNavIcon },
   { href: "/starred", label: "Starred", Icon: StarredNavIcon },
   { href: "/profile?tab=lists", label: "Lists", Icon: ListsNavIcon },
   { href: "/recommended", label: "Recommended", Icon: RecommendedNavIcon },
   { href: "/profile?tab=connections", label: "Connections", Icon: ConnectionsNavIcon },
-  { href: "/search", label: "Search", Icon: SearchNavIcon },
 ];
 
 function desktopItemClass(active: boolean) {

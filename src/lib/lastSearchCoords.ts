@@ -1,5 +1,11 @@
 const KEY = "sms:lastSearchCoords";
 
+// Shared sentinel for the location field: pages that let a user pick
+// coordinates via "Use my location" fill the field with this label rather
+// than a real address, so a subsequent submit knows to reuse the cached
+// coords instead of re-geocoding the label text itself.
+export const CURRENT_LOCATION_LABEL = "Current location";
+
 export type Coords = { lat: number; lng: number };
 
 // sessionStorage, not localStorage - "the last-used coordinates from this
