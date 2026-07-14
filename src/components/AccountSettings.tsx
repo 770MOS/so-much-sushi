@@ -3,6 +3,11 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { HANDLE_PATTERN, HANDLE_HINT, isHandleTakenError, handleTakenMessage } from "@/lib/handleValidation";
+import LocationInput from "@/components/LocationInput";
+import { useGeolocation } from "@/lib/useGeolocation";
+import { CURRENT_LOCATION_LABEL, type Coords } from "@/lib/lastSearchCoords";
+import { reverseGeocodeCityState } from "@/lib/reverseGeocode";
+import { forwardGeocodeCityState } from "@/lib/forwardGeocode";
 
 type Props = {
   userId: string;
@@ -11,6 +16,11 @@ type Props = {
 type ProfileRow = {
   display_name: string | null;
   handle: string | null;
+};
+
+type HomeLocation = {
+  home_city: string | null;
+  home_state: string | null;
 };
 
 const inputClass =
@@ -28,6 +38,15 @@ export default function AccountSettings({ userId }: Props) {
   const [handleError, setHandleError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+
+  const [homeLocation, setHomeLocation] = useState<HomeLocation | null | undefined>(undefined);
+  const [editingLocation, setEditingLocation] = useState(false);
+  const [locationValue, setLocationValue] = useState("");
+  const [locationCoords, setLocationCoords] = useState<Coords | null>(null);
+  const [locationSaving, setLocationSaving] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
+  const [locationSaved, setLocationSaved] = useState(false);
+  const locationGeo = useGeolocation("Try entering an address instead.");
 
   useEffect(() => {
     let cancelled = false;
@@ -52,6 +71,22 @@ export default function AccountSettings({ userId }: Props) {
       cancelled = true;
     };
   }, [supabase, userId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase.rpc("get_my_home_location");
+      if (cancelled) return;
+      if (error) {
+        setHomeLocation(null);
+        return;
+      }
+      setHomeLocation(data?.[0] ?? { home_city: null, home_state: null });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase]);
 
   async function handleSave(e: FormEvent) {
     e.preventDefault();
@@ -89,6 +124,89 @@ export default function AccountSettings({ userId }: Props) {
     setProfile({ display_name: displayName.trim() || null, handle: trimmedHandle || null });
     setHandle(trimmedHandle);
     setSaved(true);
+  }
+
+  function startEditingLocation() {
+    setLocationValue(
+      homeLocation?.home_city || homeLocation?.home_state
+        ? [homeLocation.home_city, homeLocation.home_state].filter(Boolean).join(", ")
+        : ""
+    );
+    setLocationCoords(null);
+    setLocationError(null);
+    setLocationSaved(false);
+    setEditingLocation(true);
+  }
+
+  function cancelEditingLocation() {
+    setEditingLocation(false);
+    setLocationError(null);
+  }
+
+  async function handleUseMyLocationForHome() {
+    const coords = await locationGeo.requestLocation();
+    if (!coords) return;
+    setLocationCoords(coords);
+    setLocationValue(CURRENT_LOCATION_LABEL);
+  }
+
+  async function handleSaveLocation() {
+    if (locationSaving) return;
+    if (!locationValue.trim()) return;
+
+    setLocationSaving(true);
+    setLocationError(null);
+    setLocationSaved(false);
+
+    try {
+      let cityState: { city: string | null; state: string | null } | null;
+      if (locationValue === CURRENT_LOCATION_LABEL && locationCoords) {
+        cityState = await reverseGeocodeCityState(locationCoords);
+      } else {
+        cityState = await forwardGeocodeCityState(locationValue);
+      }
+
+      if (!cityState || (!cityState.city && !cityState.state)) {
+        setLocationError("We couldn't find a city and state for that location. Try a ZIP code or a fuller address.");
+        return;
+      }
+
+      const { error } = await supabase
+        .from("profiles")
+        .update({ home_city: cityState.city, home_state: cityState.state })
+        .eq("id", userId);
+      if (error) {
+        setLocationError("Something went wrong saving your home location. Please try again.");
+        return;
+      }
+
+      setHomeLocation({ home_city: cityState.city, home_state: cityState.state });
+      setEditingLocation(false);
+      setLocationSaved(true);
+    } finally {
+      setLocationSaving(false);
+    }
+  }
+
+  async function handleClearLocation() {
+    setLocationSaving(true);
+    setLocationError(null);
+    setLocationSaved(false);
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ home_city: null, home_state: null })
+        .eq("id", userId);
+      if (error) {
+        setLocationError("Something went wrong clearing your home location. Please try again.");
+        return;
+      }
+      setHomeLocation({ home_city: null, home_state: null });
+      setEditingLocation(false);
+      setLocationSaved(true);
+    } finally {
+      setLocationSaving(false);
+    }
   }
 
   return (
@@ -160,6 +278,82 @@ export default function AccountSettings({ userId }: Props) {
 
       {saveError && <p className="text-sm text-red-600 dark:text-red-400">{saveError}</p>}
       {saved && <p className="text-sm text-green-600 dark:text-green-400">Saved.</p>}
+
+      <div className="flex flex-col gap-2 border-t border-zinc-200 pt-3 dark:border-zinc-800">
+        {!editingLocation ? (
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm text-zinc-700 dark:text-zinc-300">
+              Home location:{" "}
+              <span className="text-zinc-500 dark:text-zinc-400">
+                {homeLocation === undefined
+                  ? "Loading…"
+                  : homeLocation?.home_city || homeLocation?.home_state
+                    ? [homeLocation.home_city, homeLocation.home_state].filter(Boolean).join(", ")
+                    : "Not set"}
+              </span>
+            </p>
+            <div className="flex shrink-0 items-center gap-3">
+              <button
+                type="button"
+                onClick={startEditingLocation}
+                className="text-sm text-zinc-500 underline hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+              >
+                {homeLocation?.home_city || homeLocation?.home_state ? "Change" : "Set"}
+              </button>
+              {(homeLocation?.home_city || homeLocation?.home_state) && (
+                <button
+                  type="button"
+                  onClick={handleClearLocation}
+                  disabled={locationSaving}
+                  className="text-sm text-zinc-500 underline hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50 dark:text-zinc-400 dark:hover:text-zinc-100"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            <label htmlFor="home-location" className="text-xs text-zinc-500 dark:text-zinc-400">
+              Home location
+            </label>
+            <LocationInput
+              id="home-location"
+              value={locationValue}
+              onChange={(v) => {
+                setLocationValue(v);
+                setLocationCoords(null);
+              }}
+              onUseMyLocation={handleUseMyLocationForHome}
+              locating={locationGeo.locating}
+            />
+            {locationGeo.geoError && (
+              <p className="text-xs text-red-600 dark:text-red-400">{locationGeo.geoError}</p>
+            )}
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={handleSaveLocation}
+                disabled={locationSaving || !locationValue.trim()}
+                className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {locationSaving ? "Saving…" : "Save"}
+              </button>
+              <button
+                type="button"
+                onClick={cancelEditingLocation}
+                disabled={locationSaving}
+                className="text-sm text-zinc-500 underline hover:text-zinc-900 disabled:cursor-not-allowed disabled:opacity-50 dark:text-zinc-400 dark:hover:text-zinc-100"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {locationError && <p className="text-sm text-red-600 dark:text-red-400">{locationError}</p>}
+        {locationSaved && <p className="text-sm text-green-600 dark:text-green-400">Saved.</p>}
+      </div>
     </div>
   );
 }

@@ -54,9 +54,38 @@ GRANT ALL ON TABLE entities, entity_categories TO service_role;
 --   at that point the visitor has no session yet - runs as anon, not
 --   authenticated. The "Profiles are publicly readable" policy already
 --   allowed it; the anon grant didn't exist until this surfaced it as a 401.
+--
+--   home_city/home_state (added in supabase/add_home_location.sql) are the
+--   one exception to "this whole table is publicly readable" - a personal
+--   convenience setting, never meant to be visible to anyone but the
+--   owner. RLS restricts rows, not columns, so a blanket table-level
+--   SELECT grant would otherwise let anyone read anyone's
+--   home_city/home_state directly
+--   (`profiles?select=home_city,home_state&handle=eq.anyone`), same as
+--   any other column, regardless of what the app's own queries choose to
+--   select.
+--
+--   IMPORTANT GOTCHA: `REVOKE SELECT (home_city, home_state) ON TABLE
+--   profiles FROM anon, authenticated` does NOT work here and was
+--   confirmed live to still leak both columns - column-level and
+--   table-level privileges are independent ACL mechanisms in Postgres. A
+--   role holding a table-level SELECT grant (below) already covers every
+--   column; a column-specific REVOKE only affects privileges that were
+--   granted at the column level in the first place, and can't narrow a
+--   broader table-level grant. The only way to actually restrict specific
+--   columns for a role that otherwise has full table access is to flip
+--   it: revoke the table-level grant entirely, then re-grant SELECT on an
+--   explicit column allowlist that excludes the sensitive ones - which is
+--   what's below instead of a plain `GRANT SELECT ON TABLE profiles`.
+--   The owner reads their own home_city/home_state via
+--   get_my_home_location() instead, a SECURITY DEFINER function that
+--   bypasses column grants entirely (same as every other RPC here
+--   bypasses table-level grants).
 -- =============================================================================
-GRANT SELECT ON TABLE profiles TO anon;
-GRANT SELECT, UPDATE ON TABLE profiles TO authenticated;
+REVOKE SELECT ON TABLE profiles FROM anon, authenticated;
+GRANT SELECT (id, handle, display_name, avatar_url, first_name, last_name, created_at)
+  ON TABLE profiles TO anon, authenticated;
+GRANT UPDATE ON TABLE profiles TO authenticated;
 GRANT ALL ON TABLE profiles TO service_role;
 
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
@@ -227,6 +256,15 @@ GRANT EXECUTE ON FUNCTION search_entities(
 -- supabase/add_city_and_starred_lookup.sql.
 REVOKE EXECUTE ON FUNCTION get_my_starred_entities() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION get_my_starred_entities() TO authenticated;
+
+-- get_my_home_location: lets the owner read their own home_city/home_state
+-- back, since those two columns have SELECT revoked from anon/authenticated
+-- at the column level above (a personal setting, not publicly readable
+-- like the rest of profiles) - this SECURITY DEFINER function bypasses
+-- that column-level REVOKE the same way every other RPC here bypasses
+-- table-level grants. Defined in supabase/add_home_location.sql.
+REVOKE EXECUTE ON FUNCTION get_my_home_location() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION get_my_home_location() TO authenticated;
 
 -- get_profile_starred_entities, get_profile_lists: power the public-facing
 -- connection profile page (/u/[handle]). "Public-facing" means viewable by

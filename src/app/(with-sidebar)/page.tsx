@@ -39,6 +39,27 @@ export default function HomePage() {
     return () => subscription.unsubscribe();
   }, [supabase]);
 
+  // Pre-fill from the signed-in user's home location, if set - still just
+  // the starting value, not locked in: the user can clear or overwrite it
+  // for this specific search like any other typed text. Only pre-fills an
+  // untouched, empty field, so it never clobbers something already typed.
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase.rpc("get_my_home_location");
+      if (cancelled) return;
+      const row = data?.[0];
+      const home = [row?.home_city, row?.home_state].filter(Boolean).join(", ");
+      if (home) {
+        setLocation((prev) => (prev.trim() ? prev : home));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user, supabase]);
+
   // Resolves the coordinates to search from, honoring whatever's in the
   // (optional) location field: a typed address gets geocoded, "Current
   // location" reuses the coords already captured via geolocation, and an
