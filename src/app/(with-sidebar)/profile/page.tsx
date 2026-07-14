@@ -9,7 +9,6 @@ import { createClient } from "@/lib/supabase/client";
 import type { MapBounds, MapMarkerEntity } from "@/components/EntityMap";
 import StatusBadge from "@/components/StatusBadge";
 import { isNonActive } from "@/lib/entityStatus";
-import ConnectionsTab from "@/components/ConnectionsTab";
 import AccountSettings from "@/components/AccountSettings";
 
 const EntityMap = dynamic(() => import("@/components/EntityMap"), { ssr: false });
@@ -48,7 +47,7 @@ type ListRow = {
   visibility: "private" | "friends" | "public";
 };
 
-type TopTab = "starred" | "lists" | "connections";
+type TopTab = "starred" | "lists";
 type StarredTab = "map" | "browse";
 
 function locationKey(city: string | null, state: string | null) {
@@ -343,13 +342,6 @@ function ProfileContent({ initialTab }: { initialTab: TopTab }) {
           >
             Lists
           </button>
-          <button
-            type="button"
-            onClick={() => setTopTab("connections")}
-            className={tabButtonClass(topTab === "connections")}
-          >
-            Connections
-          </button>
         </div>
 
         {topTab === "starred" ? (
@@ -551,7 +543,7 @@ function ProfileContent({ initialTab }: { initialTab: TopTab }) {
               )}
             </>
           )
-        ) : topTab === "lists" ? (
+        ) : (
           <div className="flex flex-col gap-6">
             <Link
               href="/lists/new"
@@ -585,8 +577,6 @@ function ProfileContent({ initialTab }: { initialTab: TopTab }) {
               </ul>
             )}
           </div>
-        ) : (
-          user && <ConnectionsTab userId={user.id} />
         )}
       </div>
     </main>
@@ -596,7 +586,7 @@ function ProfileContent({ initialTab }: { initialTab: TopTab }) {
 function ProfileWithTabFromUrl() {
   const searchParams = useSearchParams();
   const tab = searchParams.get("tab");
-  const initialTab: TopTab = tab === "lists" || tab === "connections" ? tab : "starred";
+  const initialTab: TopTab = tab === "lists" ? tab : "starred";
   // Keying on the tab forces a full remount whenever the sidebar links here
   // with a different ?tab= via client-side navigation (no full page load),
   // so the initial-state-from-URL logic above always re-runs cleanly instead

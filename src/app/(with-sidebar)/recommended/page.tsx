@@ -90,7 +90,7 @@ export default function RecommendedQuickView() {
             </p>
           </div>
           <Link
-            href="/profile?tab=connections"
+            href="/connections"
             className="shrink-0 pt-1 text-sm text-zinc-500 underline hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
           >
             Manage connections

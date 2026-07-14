@@ -24,7 +24,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/starred", label: "Starred", Icon: StarredNavIcon },
   { href: "/profile?tab=lists", label: "Lists", Icon: ListsNavIcon },
   { href: "/recommended", label: "Recommended", Icon: RecommendedNavIcon },
-  { href: "/profile?tab=connections", label: "Connections", Icon: ConnectionsNavIcon },
+  { href: "/connections", label: "Connections", Icon: ConnectionsNavIcon },
 ];
 
 function desktopItemClass(active: boolean) {

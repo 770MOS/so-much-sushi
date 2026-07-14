@@ -103,7 +103,7 @@ test.describe("sidebar", () => {
       ["Starred", "/starred"],
       ["Lists", "/profile?tab=lists"],
       ["Recommended", "/recommended"],
-      ["Connections", "/profile?tab=connections"],
+      ["Connections", "/connections"],
     ];
 
     for (const [label, href] of destinations) {
