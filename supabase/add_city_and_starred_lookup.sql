@@ -17,6 +17,14 @@
 -- both "Mexican" and "Bar") produces one row per category tag, joined
 -- through entity_categories - callers need to de-duplicate by entity id
 -- when not filtering to a specific cuisine.
+--
+-- UPDATE: recommended_by is now jsonb (an array of {name, handle} objects)
+-- rather than text[] of already-resolved display strings, so the
+-- frontend's "Starred by X" label can link each name to /u/[handle] - see
+-- supabase/add_handle_to_recommended_by.sql, which is also the tracked
+-- record of *when* this changed (this file mirrors the current live
+-- shape, confirmed via pg_get_functiondef, same convention as
+-- search_entities.sql).
 
 ALTER TABLE entities ADD COLUMN IF NOT EXISTS city text;
 ALTER TABLE entities ADD COLUMN IF NOT EXISTS state text;
@@ -28,7 +36,7 @@ ALTER TABLE entities ADD COLUMN IF NOT EXISTS state text;
 DROP FUNCTION IF EXISTS public.get_my_starred_entities();
 
 CREATE OR REPLACE FUNCTION public.get_my_starred_entities()
- RETURNS TABLE(id uuid, name text, address text, city text, state text, lat double precision, lng double precision, type_name text, cuisine_name text, recommended_by text[], recommended_count integer)
+ RETURNS TABLE(id uuid, name text, address text, city text, state text, lat double precision, lng double precision, type_name text, cuisine_name text, recommended_by jsonb, recommended_count integer)
  LANGUAGE sql
  STABLE SECURITY DEFINER
 AS $function$
@@ -41,9 +49,9 @@ AS $function$
         -- Identical logic to search_entities' recommended_by/recommended_count,
         -- so the profile badge and search-page label can never disagree.
         (
-            SELECT array_agg(name ORDER BY starred_at)
+            SELECT jsonb_agg(jsonb_build_object('name', name, 'handle', handle) ORDER BY starred_at)
             FROM (
-                SELECT COALESCE(p.display_name, p.handle) AS name, fs.created_at AS starred_at
+                SELECT COALESCE(p.display_name, p.handle) AS name, p.handle AS handle, fs.created_at AS starred_at
                 FROM stars fs
                 JOIN profiles p ON p.id = fs.user_id
                 JOIN friendships f ON (

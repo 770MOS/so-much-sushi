@@ -1,13 +1,14 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import type { User } from "@supabase/supabase-js";
 import type { ReactNode } from "react";
 import AddToListMenu from "@/components/AddToListMenu";
 import StatusBadge from "@/components/StatusBadge";
 import { HeartIcon, StarIcon, EyeOffIcon } from "@/components/icons";
 import type { MapMarkerEntity } from "@/components/EntityMap";
-import type { SearchResult, SortMode, ViewMode } from "@/lib/searchTypes";
+import type { Recommender, SearchResult, SortMode, ViewMode } from "@/lib/searchTypes";
 
 const EntityMap = dynamic(() => import("@/components/EntityMap"), { ssr: false });
 
@@ -19,18 +20,48 @@ function sortButtonClass(active: boolean) {
   }`;
 }
 
+const UNKNOWN_RECOMMENDER: Recommender = { name: "a friend", handle: null };
+
+function RecommenderName({ recommender }: { recommender: Recommender }) {
+  const label = recommender.name?.trim() || "a friend";
+  if (!recommender.handle) return <>{label}</>;
+  return (
+    <Link href={`/u/${recommender.handle}`} className="hover:underline">
+      {label}
+    </Link>
+  );
+}
+
 function recommendationLabel(
-  recommendedBy: (string | null)[] | null,
+  recommendedBy: Recommender[] | null,
   recommendedCount: number
-): string | null {
+): ReactNode | null {
   if (!recommendedCount) return null;
 
-  const names = (recommendedBy ?? []).map((n) => (n && n.trim() ? n : "a friend"));
-  const first = names[0] ?? "a friend";
+  const people = recommendedBy ?? [];
+  const first = people[0] ?? UNKNOWN_RECOMMENDER;
 
-  if (recommendedCount === 1) return `Starred by ${first}`;
-  if (recommendedCount === 2) return `Starred by ${first} and ${names[1] ?? "a friend"}`;
-  return `Starred by ${first} and ${recommendedCount - 1} others`;
+  if (recommendedCount === 1) {
+    return (
+      <>
+        Starred by <RecommenderName recommender={first} />
+      </>
+    );
+  }
+  if (recommendedCount === 2) {
+    const second = people[1] ?? UNKNOWN_RECOMMENDER;
+    return (
+      <>
+        Starred by <RecommenderName recommender={first} /> and{" "}
+        <RecommenderName recommender={second} />
+      </>
+    );
+  }
+  return (
+    <>
+      Starred by <RecommenderName recommender={first} /> and {recommendedCount - 1} others
+    </>
+  );
 }
 
 type Props = {

@@ -41,6 +41,7 @@ export default function ListsPage() {
   const [myLists, setMyLists] = useState<MyListRow[] | null>(null);
   const [sharedLists, setSharedLists] = useState<SharedListRow[] | null>(null);
   const [savedLists, setSavedLists] = useState<SavedListRow[] | null>(null);
+  const [ownerHandles, setOwnerHandles] = useState<Map<string, string>>(new Map());
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -76,9 +77,29 @@ export default function ListsPage() {
       if (mineRes.error || sharedRes.error || savedRes.error) {
         setError("Something went wrong loading your lists.");
       }
+      const shared: SharedListRow[] = sharedRes.data ?? [];
+      const saved: SavedListRow[] = savedRes.data ?? [];
       setMyLists((mineRes.data as MyListRow[]) ?? []);
-      setSharedLists(sharedRes.data ?? []);
-      setSavedLists(savedRes.data ?? []);
+      setSharedLists(shared);
+      setSavedLists(saved);
+
+      // Neither RPC returns the owner's handle (just owner_id/owner_name),
+      // so their /u/[handle] link needs one extra lookup - profiles.handle
+      // is in the publicly-readable column allowlist, so this is a plain
+      // client-side query, no RPC changes needed.
+      const ownerIds = [...new Set([...shared, ...saved].map((l) => l.owner_id))];
+      if (ownerIds.length > 0) {
+        const { data: owners } = await supabase.from("profiles").select("id, handle").in("id", ownerIds);
+        if (!cancelled && owners) {
+          setOwnerHandles(
+            new Map(
+              owners
+                .filter((o: { id: string; handle: string | null }) => o.handle)
+                .map((o: { id: string; handle: string | null }) => [o.id, o.handle as string])
+            )
+          );
+        }
+      }
     })();
     return () => {
       cancelled = true;
@@ -93,6 +114,17 @@ export default function ListsPage() {
   // in "Shared with me" doesn't contradict the one in "Saved" for the same
   // list.
   const savedIds = useMemo(() => new Set((savedLists ?? []).map((l) => l.id)), [savedLists]);
+
+  function OwnerName({ ownerId, ownerName }: { ownerId: string; ownerName: string | null }) {
+    const label = ownerName ?? "Unknown";
+    const handle = ownerHandles.get(ownerId);
+    if (!handle) return <>{label}</>;
+    return (
+      <Link href={`/u/${handle}`} className="hover:underline">
+        {label}
+      </Link>
+    );
+  }
 
   if (user === undefined || myLists === null || sharedLists === null || savedLists === null) {
     return (
@@ -168,15 +200,18 @@ export default function ListsPage() {
             <ul className="flex flex-col divide-y divide-zinc-200 dark:divide-zinc-800">
               {sharedLists.map((l) => (
                 <li key={l.id} className="flex items-center justify-between gap-4 py-3">
-                  <Link href={`/lists/${l.id}`} className="flex flex-col gap-0.5">
-                    <span className="font-medium text-zinc-950 hover:underline dark:text-zinc-50">
+                  <div className="flex flex-col gap-0.5">
+                    <Link
+                      href={`/lists/${l.id}`}
+                      className="font-medium text-zinc-950 hover:underline dark:text-zinc-50"
+                    >
                       {l.name}
-                    </span>
+                    </Link>
                     <span className="text-sm text-zinc-500 dark:text-zinc-400">
-                      by {l.owner_name ?? "Unknown"} · {l.item_count}{" "}
-                      {l.item_count === 1 ? "place" : "places"}
+                      by <OwnerName ownerId={l.owner_id} ownerName={l.owner_name} /> ·{" "}
+                      {l.item_count} {l.item_count === 1 ? "place" : "places"}
                     </span>
-                  </Link>
+                  </div>
                   {user && (
                     <SaveListButton
                       userId={user.id}
@@ -203,15 +238,18 @@ export default function ListsPage() {
             <ul className="flex flex-col divide-y divide-zinc-200 dark:divide-zinc-800">
               {savedLists.map((l) => (
                 <li key={l.id} className="flex items-center justify-between gap-4 py-3">
-                  <Link href={`/lists/${l.id}`} className="flex flex-col gap-0.5">
-                    <span className="font-medium text-zinc-950 hover:underline dark:text-zinc-50">
+                  <div className="flex flex-col gap-0.5">
+                    <Link
+                      href={`/lists/${l.id}`}
+                      className="font-medium text-zinc-950 hover:underline dark:text-zinc-50"
+                    >
                       {l.name}
-                    </span>
+                    </Link>
                     <span className="text-sm text-zinc-500 dark:text-zinc-400">
-                      by {l.owner_name ?? "Unknown"} · {l.visibility} · {l.item_count}{" "}
-                      {l.item_count === 1 ? "place" : "places"}
+                      by <OwnerName ownerId={l.owner_id} ownerName={l.owner_name} /> ·{" "}
+                      {l.visibility} · {l.item_count} {l.item_count === 1 ? "place" : "places"}
                     </span>
-                  </Link>
+                  </div>
                   {user && (
                     <SaveListButton
                       userId={user.id}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
 type PersonProfile = {
@@ -25,6 +26,24 @@ type Props = {
 
 function personLabel(p: PersonProfile) {
   return p.display_name?.trim() || p.handle?.trim() || "Unknown";
+}
+
+// Links to the person's public profile using their handle (the unique
+// lookup key /u/[handle] resolves by) - falls back to plain text if they
+// don't have one set.
+function PersonName({ person }: { person: PersonProfile }) {
+  const label = personLabel(person);
+  if (!person.handle) {
+    return <span className="font-medium text-zinc-950 dark:text-zinc-50">{label}</span>;
+  }
+  return (
+    <Link
+      href={`/u/${person.handle}`}
+      className="font-medium text-zinc-950 hover:underline dark:text-zinc-50"
+    >
+      {label}
+    </Link>
+  );
 }
 
 function otherPerson(row: FriendshipRow, userId: string): PersonProfile {
@@ -193,9 +212,7 @@ export default function ConnectionsTab({ userId }: Props) {
                 return (
                   <li key={p.id} className={rowClass}>
                     <div className="flex flex-col gap-0.5">
-                      <span className="font-medium text-zinc-950 dark:text-zinc-50">
-                        {personLabel(p)}
-                      </span>
+                      <PersonName person={p} />
                       {p.handle && (
                         <span className="text-sm text-zinc-500 dark:text-zinc-400">@{p.handle}</span>
                       )}
@@ -235,9 +252,7 @@ export default function ConnectionsTab({ userId }: Props) {
               return (
                 <li key={`${row.requester_id}-${row.addressee_id}`} className={rowClass}>
                   <div className="flex flex-col gap-0.5">
-                    <span className="font-medium text-zinc-950 dark:text-zinc-50">
-                      {personLabel(other)}
-                    </span>
+                    <PersonName person={other} />
                     {other.handle && (
                       <span className="text-sm text-zinc-500 dark:text-zinc-400">@{other.handle}</span>
                     )}
@@ -270,9 +285,7 @@ export default function ConnectionsTab({ userId }: Props) {
               return (
                 <li key={`${row.requester_id}-${row.addressee_id}`} className={rowClass}>
                   <div className="flex flex-col gap-0.5">
-                    <span className="font-medium text-zinc-950 dark:text-zinc-50">
-                      {personLabel(other)}
-                    </span>
+                    <PersonName person={other} />
                     {other.handle && (
                       <span className="text-sm text-zinc-500 dark:text-zinc-400">@{other.handle}</span>
                     )}
@@ -302,9 +315,7 @@ export default function ConnectionsTab({ userId }: Props) {
               return (
                 <li key={`${row.requester_id}-${row.addressee_id}`} className={rowClass}>
                   <div className="flex flex-col gap-0.5">
-                    <span className="font-medium text-zinc-950 dark:text-zinc-50">
-                      {personLabel(other)}
-                    </span>
+                    <PersonName person={other} />
                     {other.handle && (
                       <span className="text-sm text-zinc-500 dark:text-zinc-400">@{other.handle}</span>
                     )}

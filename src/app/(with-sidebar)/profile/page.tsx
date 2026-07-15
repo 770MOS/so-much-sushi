@@ -10,6 +10,7 @@ import type { MapBounds, MapMarkerEntity } from "@/components/EntityMap";
 import StatusBadge from "@/components/StatusBadge";
 import { isNonActive } from "@/lib/entityStatus";
 import AccountSettings from "@/components/AccountSettings";
+import type { Recommender } from "@/lib/searchTypes";
 
 const EntityMap = dynamic(() => import("@/components/EntityMap"), { ssr: false });
 
@@ -23,7 +24,7 @@ type StarredRow = {
   lng: number;
   type_name: string;
   cuisine_name: string;
-  recommended_by: (string | null)[] | null;
+  recommended_by: Recommender[] | null;
   recommended_count: number;
   status: string;
 };
