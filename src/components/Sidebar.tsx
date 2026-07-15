@@ -22,7 +22,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/search", label: "Search", Icon: SearchNavIcon },
   { href: "/discover", label: "Discover", Icon: DiscoverNavIcon },
   { href: "/starred", label: "Starred", Icon: StarredNavIcon },
-  { href: "/profile?tab=lists", label: "Lists", Icon: ListsNavIcon },
+  { href: "/lists", label: "Lists", Icon: ListsNavIcon },
   { href: "/recommended", label: "Recommended", Icon: RecommendedNavIcon },
   { href: "/connections", label: "Connections", Icon: ConnectionsNavIcon },
 ];

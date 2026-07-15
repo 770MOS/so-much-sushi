@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
+import SaveListButton from "@/components/SaveListButton";
 
 type Profile = {
   id: string;
@@ -44,6 +45,7 @@ export default function ConnectionProfilePage() {
   const [profile, setProfile] = useState<Profile | null | undefined>(undefined);
   const [starred, setStarred] = useState<StarredEntity[] | null>(null);
   const [lists, setLists] = useState<ProfileList[] | null>(null);
+  const [savedListIds, setSavedListIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUser(data.user ?? null));
@@ -84,13 +86,17 @@ export default function ConnectionProfilePage() {
 
     let cancelled = false;
     (async () => {
-      const [{ data: starredData }, { data: listsData }] = await Promise.all([
+      const [{ data: starredData }, { data: listsData }, savedRes] = await Promise.all([
         supabase.rpc("get_profile_starred_entities", { target_user_id: profile.id }),
         supabase.rpc("get_profile_lists", { target_user_id: profile.id }),
+        user
+          ? supabase.from("saved_lists").select("list_id").eq("user_id", user.id)
+          : Promise.resolve({ data: null }),
       ]);
       if (!cancelled) {
         setStarred(starredData ?? []);
         setLists(listsData ?? []);
+        setSavedListIds(new Set((savedRes.data ?? []).map((r: { list_id: string }) => r.list_id)));
       }
     })();
     return () => {
@@ -171,16 +177,22 @@ export default function ConnectionProfilePage() {
           ) : (
             <ul className="flex flex-col divide-y divide-zinc-200 dark:divide-zinc-800">
               {lists.map((l) => (
-                <li key={l.id} className="py-3">
-                  <Link
-                    href={`/lists/${l.id}`}
-                    className="font-medium text-zinc-950 hover:underline dark:text-zinc-50"
-                  >
-                    {l.name}
+                <li key={l.id} className="flex items-center justify-between gap-4 py-3">
+                  <Link href={`/lists/${l.id}`} className="flex flex-col gap-0.5">
+                    <span className="font-medium text-zinc-950 hover:underline dark:text-zinc-50">
+                      {l.name}
+                    </span>
+                    <span className="text-sm text-zinc-500 dark:text-zinc-400">
+                      {l.item_count} {l.item_count === 1 ? "place" : "places"}
+                    </span>
                   </Link>
-                  <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                    {l.item_count} {l.item_count === 1 ? "place" : "places"}
-                  </p>
+                  {user && (
+                    <SaveListButton
+                      userId={user.id}
+                      listId={l.id}
+                      initiallySaved={savedListIds.has(l.id)}
+                    />
+                  )}
                 </li>
               ))}
             </ul>

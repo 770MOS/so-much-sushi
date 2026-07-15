@@ -57,7 +57,7 @@ export default function NewList() {
       setError("Something went wrong creating the list. Please try again.");
       return;
     }
-    router.push("/profile?tab=lists");
+    router.push("/lists");
   }
 
   if (user === undefined) {
@@ -76,7 +76,7 @@ export default function NewList() {
             Create a list
           </h1>
           <Link
-            href="/profile?tab=lists"
+            href="/lists"
             className="shrink-0 pt-1 text-sm text-zinc-500 underline hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
           >
             Cancel

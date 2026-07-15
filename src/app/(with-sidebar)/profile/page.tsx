@@ -1,7 +1,7 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import type { User } from "@supabase/supabase-js";
@@ -41,13 +41,6 @@ type StarredEntity = {
   tags: { type_name: string; cuisine_name: string }[];
 };
 
-type ListRow = {
-  id: string;
-  name: string;
-  visibility: "private" | "friends" | "public";
-};
-
-type TopTab = "starred" | "lists";
 type StarredTab = "map" | "browse";
 
 function locationKey(city: string | null, state: string | null) {
@@ -66,12 +59,11 @@ function tabButtonClass(active: boolean) {
 const selectClass =
   "w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-950 focus:outline-none focus:ring-2 focus:ring-zinc-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50";
 
-function ProfileContent({ initialTab }: { initialTab: TopTab }) {
+export default function Profile() {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
 
   const [user, setUser] = useState<User | null | undefined>(undefined);
-  const [topTab, setTopTab] = useState<TopTab>(initialTab);
 
   const [rows, setRows] = useState<StarredRow[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -86,9 +78,6 @@ function ProfileContent({ initialTab }: { initialTab: TopTab }) {
   const [browseCity, setBrowseCity] = useState("");
   const [browseType, setBrowseType] = useState("");
   const [browseCuisine, setBrowseCuisine] = useState("");
-
-  const [lists, setLists] = useState<ListRow[] | null>(null);
-  const [listsError, setListsError] = useState<string | null>(null);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUser(data.user ?? null));
@@ -123,34 +112,6 @@ function ProfileContent({ initialTab }: { initialTab: TopTab }) {
       cancelled = true;
     };
   }, [user, supabase]);
-
-  const loadLists = useCallback(async () => {
-    if (!user) return;
-    const { data, error } = await supabase
-      .from("lists")
-      .select("id, name, visibility")
-      .eq("owner_id", user.id)
-      .order("created_at", { ascending: false });
-    if (error) {
-      setListsError("Something went wrong loading your lists.");
-      return;
-    }
-    setLists((data as ListRow[]) ?? []);
-  }, [user, supabase]);
-
-  useEffect(() => {
-    if (topTab !== "lists" || lists !== null) return;
-    let cancelled = false;
-    (async () => {
-      await Promise.resolve();
-      if (cancelled) return;
-      await loadLists();
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [topTab, lists, loadLists]);
-
 
   const entities = useMemo<StarredEntity[]>(() => {
     if (!rows) return [];
@@ -313,9 +274,7 @@ function ProfileContent({ initialTab }: { initialTab: TopTab }) {
         <div className="flex items-start justify-between gap-4">
           <div className="flex flex-col gap-2">
             <h1 className="text-2xl font-semibold text-zinc-950 dark:text-zinc-50">Profile</h1>
-            <p className="text-zinc-600 dark:text-zinc-400">
-              Your starred places and your lists.
-            </p>
+            <p className="text-zinc-600 dark:text-zinc-400">Your starred places.</p>
           </div>
           <Link
             href="/"
@@ -327,283 +286,205 @@ function ProfileContent({ initialTab }: { initialTab: TopTab }) {
 
         {user && <AccountSettings userId={user.id} />}
 
-        <div className="flex gap-1 self-start rounded-lg border border-zinc-300 p-0.5 dark:border-zinc-700">
-          <button
-            type="button"
-            onClick={() => setTopTab("starred")}
-            className={tabButtonClass(topTab === "starred")}
-          >
-            Starred
-          </button>
-          <button
-            type="button"
-            onClick={() => setTopTab("lists")}
-            className={tabButtonClass(topTab === "lists")}
-          >
-            Lists
-          </button>
-        </div>
-
-        {topTab === "starred" ? (
-          rows.length === 0 ? (
-            <p className="py-16 text-center text-sm text-zinc-500 dark:text-zinc-400">
-              You haven&apos;t starred any restaurants yet. Head back to search and tap the star
-              on a place you like.
-            </p>
-          ) : (
-            <>
-              <div className="flex gap-1 self-start rounded-lg border border-zinc-300 p-0.5 dark:border-zinc-700">
-                <button
-                  type="button"
-                  onClick={() => setStarredTab("map")}
-                  className={tabButtonClass(starredTab === "map")}
-                >
-                  Map
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setStarredTab("browse")}
-                  className={tabButtonClass(starredTab === "browse")}
-                >
-                  Browse
-                </button>
-              </div>
-
-              {starredTab === "map" ? (
-                <div className="flex flex-col gap-4">
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                    <select
-                      value={mapType}
-                      onChange={(e) => {
-                        setMapType(e.target.value);
-                        setMapCuisine("");
-                      }}
-                      className={selectClass}
-                      aria-label="Type"
-                    >
-                      <option value="">All types</option>
-                      {mapTypeOptions.map((t) => (
-                        <option key={t} value={t}>
-                          {t}
-                        </option>
-                      ))}
-                    </select>
-
-                    <select
-                      value={mapCuisine}
-                      onChange={(e) => setMapCuisine(e.target.value)}
-                      className={selectClass}
-                      aria-label="Cuisine"
-                    >
-                      <option value="">All cuisines</option>
-                      {mapCuisineOptions.map((c) => (
-                        <option key={c} value={c}>
-                          {c}
-                        </option>
-                      ))}
-                    </select>
-
-                    <select
-                      value={jumpToKey}
-                      onChange={(e) => handleJumpTo(e.target.value)}
-                      className={selectClass}
-                      aria-label="Jump to"
-                    >
-                      <option value="">Jump to…</option>
-                      {jumpToOptions.map((k) => (
-                        <option key={k} value={k}>
-                          {k}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <EntityMap
-                    entities={mapMarkerEntities}
-                    jumpTo={jumpTarget}
-                    onBoundsChange={handleBoundsChange}
-                  />
-
-                  <div className="flex flex-col gap-2">
-                    <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                      {mapViewportList.length} in view
-                    </h2>
-                    {mapViewportList.length === 0 ? (
-                      <p className="py-8 text-center text-sm text-zinc-500 dark:text-zinc-400">
-                        No starred places match here. Pan/zoom the map or adjust the filters.
-                      </p>
-                    ) : (
-                      <ul className="flex flex-col divide-y divide-zinc-200 dark:divide-zinc-800">
-                        {mapViewportList.map((e) => (
-                          <li
-                            key={e.id}
-                            className={`flex flex-col gap-0.5 py-3 ${
-                              isNonActive(e.status) ? "opacity-60" : ""
-                            }`}
-                          >
-                            <span className="font-medium text-zinc-950 dark:text-zinc-50">
-                              {e.name}
-                            </span>
-                            <span className="text-sm text-zinc-500 dark:text-zinc-400">
-                              {e.address}
-                            </span>
-                            <StatusBadge status={e.status} />
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <div className="flex flex-col gap-4">
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                    <select
-                      value={browseCity}
-                      onChange={(e) => {
-                        setBrowseCity(e.target.value);
-                        setBrowseType("");
-                        setBrowseCuisine("");
-                      }}
-                      className={selectClass}
-                      aria-label="City"
-                    >
-                      <option value="">All cities</option>
-                      {browseCityOptions.map((c) => (
-                        <option key={c} value={c}>
-                          {c}
-                        </option>
-                      ))}
-                    </select>
-
-                    <select
-                      value={browseType}
-                      onChange={(e) => {
-                        setBrowseType(e.target.value);
-                        setBrowseCuisine("");
-                      }}
-                      className={selectClass}
-                      aria-label="Type"
-                    >
-                      <option value="">All types</option>
-                      {browseTypeOptions.map((t) => (
-                        <option key={t} value={t}>
-                          {t}
-                        </option>
-                      ))}
-                    </select>
-
-                    <select
-                      value={browseCuisine}
-                      onChange={(e) => setBrowseCuisine(e.target.value)}
-                      className={selectClass}
-                      aria-label="Cuisine"
-                    >
-                      <option value="">All cuisines</option>
-                      {browseCuisineOptions.map((c) => (
-                        <option key={c} value={c}>
-                          {c}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="flex flex-col gap-2">
-                    <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                      {browseList.length} {browseList.length === 1 ? "place" : "places"}
-                    </h2>
-                    {browseList.length === 0 ? (
-                      <p className="py-8 text-center text-sm text-zinc-500 dark:text-zinc-400">
-                        No starred places match those filters.
-                      </p>
-                    ) : (
-                      <ul className="flex flex-col divide-y divide-zinc-200 dark:divide-zinc-800">
-                        {browseList.map((e) => (
-                          <li
-                            key={e.id}
-                            className={`flex flex-col gap-0.5 py-3 ${
-                              isNonActive(e.status) ? "opacity-60" : ""
-                            }`}
-                          >
-                            <span className="font-medium text-zinc-950 dark:text-zinc-50">
-                              {e.name}
-                            </span>
-                            <span className="text-sm text-zinc-500 dark:text-zinc-400">
-                              {e.address}
-                            </span>
-                            <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                              {e.tags.join(" · ")}
-                            </span>
-                            <StatusBadge status={e.status} />
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                </div>
-              )}
-            </>
-          )
+        {rows.length === 0 ? (
+          <p className="py-16 text-center text-sm text-zinc-500 dark:text-zinc-400">
+            You haven&apos;t starred any restaurants yet. Head back to search and tap the star
+            on a place you like.
+          </p>
         ) : (
-          <div className="flex flex-col gap-6">
-            <Link
-              href="/lists/new"
-              className="self-start rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-primary-hover"
-            >
-              Create list
-            </Link>
+          <>
+            <div className="flex gap-1 self-start rounded-lg border border-zinc-300 p-0.5 dark:border-zinc-700">
+              <button
+                type="button"
+                onClick={() => setStarredTab("map")}
+                className={tabButtonClass(starredTab === "map")}
+              >
+                Map
+              </button>
+              <button
+                type="button"
+                onClick={() => setStarredTab("browse")}
+                className={tabButtonClass(starredTab === "browse")}
+              >
+                Browse
+              </button>
+            </div>
 
-            {listsError && <p className="text-sm text-red-600 dark:text-red-400">{listsError}</p>}
+            {starredTab === "map" ? (
+              <div className="flex flex-col gap-4">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <select
+                    value={mapType}
+                    onChange={(e) => {
+                      setMapType(e.target.value);
+                      setMapCuisine("");
+                    }}
+                    className={selectClass}
+                    aria-label="Type"
+                  >
+                    <option value="">All types</option>
+                    {mapTypeOptions.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
 
-            {lists === null ? (
-              <p className="text-sm text-zinc-500 dark:text-zinc-400">Loading…</p>
-            ) : lists.length === 0 ? (
-              <p className="py-8 text-center text-sm text-zinc-500 dark:text-zinc-400">
-                You haven&apos;t created any lists yet.
-              </p>
+                  <select
+                    value={mapCuisine}
+                    onChange={(e) => setMapCuisine(e.target.value)}
+                    className={selectClass}
+                    aria-label="Cuisine"
+                  >
+                    <option value="">All cuisines</option>
+                    {mapCuisineOptions.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={jumpToKey}
+                    onChange={(e) => handleJumpTo(e.target.value)}
+                    className={selectClass}
+                    aria-label="Jump to"
+                  >
+                    <option value="">Jump to…</option>
+                    {jumpToOptions.map((k) => (
+                      <option key={k} value={k}>
+                        {k}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <EntityMap
+                  entities={mapMarkerEntities}
+                  jumpTo={jumpTarget}
+                  onBoundsChange={handleBoundsChange}
+                />
+
+                <div className="flex flex-col gap-2">
+                  <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                    {mapViewportList.length} in view
+                  </h2>
+                  {mapViewportList.length === 0 ? (
+                    <p className="py-8 text-center text-sm text-zinc-500 dark:text-zinc-400">
+                      No starred places match here. Pan/zoom the map or adjust the filters.
+                    </p>
+                  ) : (
+                    <ul className="flex flex-col divide-y divide-zinc-200 dark:divide-zinc-800">
+                      {mapViewportList.map((e) => (
+                        <li
+                          key={e.id}
+                          className={`flex flex-col gap-0.5 py-3 ${
+                            isNonActive(e.status) ? "opacity-60" : ""
+                          }`}
+                        >
+                          <span className="font-medium text-zinc-950 dark:text-zinc-50">
+                            {e.name}
+                          </span>
+                          <span className="text-sm text-zinc-500 dark:text-zinc-400">
+                            {e.address}
+                          </span>
+                          <StatusBadge status={e.status} />
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
             ) : (
-              <ul className="flex flex-col divide-y divide-zinc-200 dark:divide-zinc-800">
-                {lists.map((l) => (
-                  <li key={l.id} className="py-3">
-                    <Link href={`/lists/${l.id}`} className="flex flex-col gap-0.5">
-                      <span className="font-medium text-zinc-950 hover:underline dark:text-zinc-50">
-                        {l.name}
-                      </span>
-                      <span className="text-sm text-zinc-500 dark:text-zinc-400">
-                        {l.visibility}
-                      </span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
+              <div className="flex flex-col gap-4">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                  <select
+                    value={browseCity}
+                    onChange={(e) => {
+                      setBrowseCity(e.target.value);
+                      setBrowseType("");
+                      setBrowseCuisine("");
+                    }}
+                    className={selectClass}
+                    aria-label="City"
+                  >
+                    <option value="">All cities</option>
+                    {browseCityOptions.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={browseType}
+                    onChange={(e) => {
+                      setBrowseType(e.target.value);
+                      setBrowseCuisine("");
+                    }}
+                    className={selectClass}
+                    aria-label="Type"
+                  >
+                    <option value="">All types</option>
+                    {browseTypeOptions.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={browseCuisine}
+                    onChange={(e) => setBrowseCuisine(e.target.value)}
+                    className={selectClass}
+                    aria-label="Cuisine"
+                  >
+                    <option value="">All cuisines</option>
+                    {browseCuisineOptions.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                    {browseList.length} {browseList.length === 1 ? "place" : "places"}
+                  </h2>
+                  {browseList.length === 0 ? (
+                    <p className="py-8 text-center text-sm text-zinc-500 dark:text-zinc-400">
+                      No starred places match those filters.
+                    </p>
+                  ) : (
+                    <ul className="flex flex-col divide-y divide-zinc-200 dark:divide-zinc-800">
+                      {browseList.map((e) => (
+                        <li
+                          key={e.id}
+                          className={`flex flex-col gap-0.5 py-3 ${
+                            isNonActive(e.status) ? "opacity-60" : ""
+                          }`}
+                        >
+                          <span className="font-medium text-zinc-950 dark:text-zinc-50">
+                            {e.name}
+                          </span>
+                          <span className="text-sm text-zinc-500 dark:text-zinc-400">
+                            {e.address}
+                          </span>
+                          <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                            {e.tags.join(" · ")}
+                          </span>
+                          <StatusBadge status={e.status} />
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
             )}
-          </div>
+          </>
         )}
       </div>
     </main>
-  );
-}
-
-function ProfileWithTabFromUrl() {
-  const searchParams = useSearchParams();
-  const tab = searchParams.get("tab");
-  const initialTab: TopTab = tab === "lists" ? tab : "starred";
-  // Keying on the tab forces a full remount whenever the sidebar links here
-  // with a different ?tab= via client-side navigation (no full page load),
-  // so the initial-state-from-URL logic above always re-runs cleanly instead
-  // of trying to sync stale state across the same mounted instance.
-  return <ProfileContent key={initialTab} initialTab={initialTab} />;
-}
-
-export default function Profile() {
-  return (
-    <Suspense
-      fallback={
-        <main className="flex min-h-screen flex-1 flex-col items-center justify-center bg-white px-6 dark:bg-black">
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">Loading…</p>
-        </main>
-      }
-    >
-      <ProfileWithTabFromUrl />
-    </Suspense>
   );
 }

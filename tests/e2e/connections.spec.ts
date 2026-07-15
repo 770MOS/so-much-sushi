@@ -80,8 +80,9 @@ test("/profile no longer has a Connections tab", async ({ page }) => {
   await signIn(page, userA);
   await page.goto("/profile");
 
-  await expect(page.getByRole("button", { name: "Starred", exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Lists", exact: true })).toBeVisible();
+  // /profile no longer has any tab switcher at all (Lists moved to /lists,
+  // Connections moved to /connections) - just Starred content directly.
+  await expect(page.getByRole("button", { name: "Starred", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Connections", exact: true })).toHaveCount(0);
   await expect(page.getByText("Find people")).toHaveCount(0);
 });
@@ -90,12 +91,10 @@ test("the old ?tab=connections deep link falls back sensibly instead of breaking
   await signIn(page, userA);
   await page.goto("/profile?tab=connections");
 
-  // Falls back to the default (Starred) tab rather than erroring or showing
-  // a blank/broken Connections tab that no longer exists.
-  await expect(page.getByRole("button", { name: "Starred", exact: true })).toHaveAttribute(
-    "class",
-    /bg-primary/
-  );
+  // Falls back to the plain Profile page (no tabs, just Starred content)
+  // rather than erroring or showing a blank/broken Connections tab that no
+  // longer exists.
+  await expect(page.getByRole("heading", { name: "Profile", exact: true })).toBeVisible();
   await expect(page.getByText("Find people")).toHaveCount(0);
 });
 

@@ -7,6 +7,7 @@ import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import StatusBadge from "@/components/StatusBadge";
 import { isNonActive } from "@/lib/entityStatus";
+import SaveListButton from "@/components/SaveListButton";
 
 type ListMeta = {
   id: string;
@@ -46,6 +47,7 @@ export default function ListDetail() {
   const [meta, setMeta] = useState<ListMeta | null | undefined>(undefined);
   const [items, setItems] = useState<ListItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isSaved, setIsSaved] = useState(false);
 
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState("");
@@ -74,6 +76,7 @@ export default function ListDetail() {
 
   useEffect(() => {
     if (!user) return;
+    const currentUser = user;
     let cancelled = false;
 
     async function load() {
@@ -100,6 +103,16 @@ export default function ListDetail() {
         return;
       }
       setItems(itemRows ?? []);
+
+      if (!metaRows[0].is_owner) {
+        const { data: savedRow } = await supabase
+          .from("saved_lists")
+          .select("list_id")
+          .eq("user_id", currentUser.id)
+          .eq("list_id", listId)
+          .maybeSingle();
+        if (!cancelled) setIsSaved(!!savedRow);
+      }
     }
 
     load();
@@ -160,7 +173,7 @@ export default function ListDetail() {
   async function handleDeleteList() {
     const { error: deleteError } = await supabase.from("lists").delete().eq("id", listId);
     if (!deleteError) {
-      router.push("/profile");
+      router.push("/lists");
     }
   }
 
@@ -181,8 +194,8 @@ export default function ListDetail() {
       <main className="flex min-h-screen flex-1 flex-col items-center justify-center bg-white px-6 text-center dark:bg-black">
         <p className="text-sm text-zinc-500 dark:text-zinc-400">
           This list doesn&apos;t exist or you don&apos;t have access to it.{" "}
-          <Link href="/profile" className="underline">
-            Back to your profile
+          <Link href="/lists" className="underline">
+            Back to your lists
           </Link>
           .
         </p>
@@ -263,12 +276,17 @@ export default function ListDetail() {
                 </button>
               )}
             </div>
-            <Link
-              href="/profile"
-              className="shrink-0 pt-1 text-sm text-zinc-500 underline hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
-            >
-              Back to profile
-            </Link>
+            <div className="flex shrink-0 items-center gap-3 pt-1">
+              {!meta.is_owner && user && (
+                <SaveListButton userId={user.id} listId={listId} initiallySaved={isSaved} />
+              )}
+              <Link
+                href="/lists"
+                className="text-sm text-zinc-500 underline hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+              >
+                Back to lists
+              </Link>
+            </div>
           </div>
         )}
 

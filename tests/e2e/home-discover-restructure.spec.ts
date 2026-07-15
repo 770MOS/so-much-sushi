@@ -101,7 +101,7 @@ test.describe("sidebar", () => {
       ["Search", "/search"],
       ["Discover", "/discover"],
       ["Starred", "/starred"],
-      ["Lists", "/profile?tab=lists"],
+      ["Lists", "/lists"],
       ["Recommended", "/recommended"],
       ["Connections", "/connections"],
     ];
