@@ -53,7 +53,16 @@ const PIN_SVG = `
 
 function createMarkerElement(isStarred: boolean, recommendedCount: number): HTMLDivElement {
   const wrapper = document.createElement("div");
-  wrapper.style.position = "relative";
+  // This element becomes the root of a maplibregl.Marker, which requires
+  // `position: absolute` (see .maplibregl-marker in maplibre-gl.css) so it
+  // can be placed via a CSS transform. An inline `position: relative` here
+  // used to override that (inline styles beat class rules), leaving every
+  // marker in normal document flow instead - each one stacking ~36px below
+  // the last rather than at its actual map position, which is what caused
+  // all pins to render in a single vertical line regardless of their real
+  // coordinates. `absolute` still gives the recommended-count badge below
+  // a valid positioning context, so it doesn't need `relative` specifically.
+  wrapper.style.position = "absolute";
   wrapper.style.width = "28px";
   wrapper.style.height = "36px";
   // amber-400 for starred (matches the star icon elsewhere in the app),
