@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import dotenv from "dotenv";
 import { createClient } from "@supabase/supabase-js";
 
@@ -112,6 +112,108 @@ test.describe("Search page", () => {
     await page.getByRole("button", { name: "Search", exact: true }).click();
 
     await expect(page.getByText(FIXTURE_NAME)).toBeVisible();
+  });
+});
+
+test.describe("Search page location fallback chain", () => {
+  // No geolocation permission at all here (overrides the file-level grant
+  // above) - requestLocation() resolves null just like a real denial,
+  // without needing an actual OS-level prompt to interact with.
+  test.use({ permissions: [] });
+
+  const PASSWORD = "TestPassword123!";
+  const RUN_ID = Date.now().toString(36);
+
+  type TestUser = { id: string; email: string; handle: string };
+
+  const homeUser: TestUser = {
+    id: "",
+    email: `test+searchhome-${RUN_ID}@example.com`,
+    handle: `pw-search-home-${RUN_ID}`,
+  };
+  const noHomeUser: TestUser = {
+    id: "",
+    email: `test+searchnohome-${RUN_ID}@example.com`,
+    handle: `pw-search-nohome-${RUN_ID}`,
+  };
+
+  async function createTestUser(user: TestUser) {
+    const { data, error } = await supabase.auth.admin.createUser({
+      email: user.email,
+      password: PASSWORD,
+      email_confirm: true,
+    });
+    if (error || !data.user) throw new Error(`Failed to create ${user.email}: ${error?.message}`);
+    user.id = data.user.id;
+
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .update({ handle: user.handle, display_name: user.handle })
+      .eq("id", user.id);
+    if (profileError) throw new Error(`Failed to set profile for ${user.email}: ${profileError.message}`);
+  }
+
+  async function signIn(page: Page, user: TestUser) {
+    await page.goto("/sign-in");
+    await page.locator("#email").fill(user.email);
+    await page.locator("#password").fill(PASSWORD);
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await page.waitForURL("/", { timeout: 15_000 });
+  }
+
+  test.beforeAll(async () => {
+    await Promise.all([createTestUser(homeUser), createTestUser(noHomeUser)]);
+
+    // ~390 miles from the FIXTURE_NAME entity (Boston, MA) - well within
+    // the Search page's 500mi radius, same margin home-location.spec.ts
+    // already relies on for its own Rockville, MD test data.
+    await supabase
+      .from("profiles")
+      .update({ home_city: "Rockville", home_state: "MD" })
+      .eq("id", homeUser.id);
+  });
+
+  test.afterAll(async () => {
+    for (const user of [homeUser, noHomeUser]) {
+      if (user.id) await supabase.auth.admin.deleteUser(user.id);
+    }
+  });
+
+  test("signed-in user with a home location set can search by name with geolocation denied and no session cache", async ({
+    page,
+  }) => {
+    await signIn(page, homeUser);
+    await page.goto("/search");
+
+    await page.locator("#name").fill(FIXTURE_NAME);
+    await page.getByRole("button", { name: "Search", exact: true }).click();
+
+    await expect(page.getByText(FIXTURE_NAME)).toBeVisible({ timeout: 15_000 });
+  });
+
+  test("signed-in user with no home location set still hits the location error", async ({ page }) => {
+    await signIn(page, noHomeUser);
+    await page.goto("/search");
+
+    await page.locator("#name").fill(FIXTURE_NAME);
+    await page.getByRole("button", { name: "Search", exact: true }).click();
+
+    await expect(
+      page.getByText("We need a location to search from. Try the home page instead.")
+    ).toBeVisible();
+    await expect(page.getByText(FIXTURE_NAME)).toHaveCount(0);
+  });
+
+  test("signed-out user still hits the location error", async ({ page }) => {
+    await page.goto("/search");
+
+    await page.locator("#name").fill(FIXTURE_NAME);
+    await page.getByRole("button", { name: "Search", exact: true }).click();
+
+    await expect(
+      page.getByText("We need a location to search from. Try the home page instead.")
+    ).toBeVisible();
+    await expect(page.getByText(FIXTURE_NAME)).toHaveCount(0);
   });
 });
 

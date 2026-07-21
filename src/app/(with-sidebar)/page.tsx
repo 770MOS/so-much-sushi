@@ -64,8 +64,10 @@ export default function HomePage() {
   // (optional) location field: a typed address gets geocoded, "Current
   // location" reuses the coords already captured via geolocation, and an
   // empty field falls back to the cached last-search location or a fresh
-  // geolocation request - same fallback the standalone Search page uses -
-  // so a name-only query works without ever requiring a location.
+  // geolocation request - the same first two steps the standalone Search
+  // page's fallback chain uses (that page adds a third: the signed-in
+  // user's home location) - so a name-only query works without ever
+  // requiring a location.
   async function resolveCoords(): Promise<Coords | null> {
     if (location.trim()) {
       if (location === CURRENT_LOCATION_LABEL && lastCoords) {

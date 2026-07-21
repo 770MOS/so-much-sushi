@@ -92,6 +92,28 @@ export async function reverseGeocode(coords: Coords): Promise<string | null> {
   return parts.join(", ");
 }
 
+// Forward direction: "Arlington, VA" -> coordinates. Used to turn a
+// signed-in user's saved home_city/home_state (text only - there's no
+// stored home lat/lng) into coordinates a search can actually run from.
+export async function geocodeCityState(city: string | null, state: string | null): Promise<Coords | null> {
+  const query = [city, state].filter((p): p is string => Boolean(p && p.trim())).join(", ");
+  if (!query) return null;
+
+  const res = await fetchWithTimeout(
+    `https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=us&q=${encodeURIComponent(query)}`
+  );
+  if (!res) return null;
+
+  const data = await res.json();
+  if (!Array.isArray(data) || data.length === 0) return null;
+
+  const lat = parseFloat(data[0].lat);
+  const lng = parseFloat(data[0].lon);
+  if (Number.isNaN(lat) || Number.isNaN(lng)) return null;
+
+  return { lat, lng };
+}
+
 // Same reverse endpoint as reverseGeocode(), but returns structured
 // city/state instead of a combined display label - for storing a home
 // location, where we want "Arlington"/"VA" as separate values, not a

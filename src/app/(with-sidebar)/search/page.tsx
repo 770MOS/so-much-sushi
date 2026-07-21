@@ -7,6 +7,7 @@ import SearchResultsView from "@/components/SearchResultsView";
 import { useEntitySearch } from "@/lib/useEntitySearch";
 import { useGeolocation } from "@/lib/useGeolocation";
 import { getLastSearchCoords } from "@/lib/lastSearchCoords";
+import { geocodeCityState } from "@/lib/reverseGeocode";
 
 // A name-only lookup should never miss a known place because of distance -
 // this is generously larger than the current Arlington-only dataset's
@@ -44,6 +45,17 @@ export default function SearchPage() {
       let coords = getLastSearchCoords();
       if (!coords) {
         coords = await geo.requestLocation();
+      }
+      if (!coords && user) {
+        // Geolocation denied/unavailable - fall back to the signed-in
+        // user's saved home location. That's stored as city/state text
+        // only (no lat/lng), so geocode it the same way a typed address
+        // on the home page would be.
+        const { data } = await supabase.rpc("get_my_home_location");
+        const row = data?.[0];
+        if (row?.home_city || row?.home_state) {
+          coords = await geocodeCityState(row.home_city, row.home_state);
+        }
       }
       if (!coords) {
         search.setError("We need a location to search from. Try the home page instead.");
