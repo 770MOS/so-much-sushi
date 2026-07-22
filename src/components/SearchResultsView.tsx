@@ -159,7 +159,7 @@ export default function SearchResultsView({
       {results.length === 0 ? (
         <p className="py-8 text-center text-sm text-zinc-500 dark:text-zinc-400">{emptyMessage}</p>
       ) : viewMode === "map" ? (
-        <EntityMap entities={mapMarkerEntities} />
+        <EntityMap entities={mapMarkerEntities} onToggleStar={toggleStar} />
       ) : (
         <ul className="flex flex-col divide-y divide-zinc-200 dark:divide-zinc-800">
           {sortedResults.map((r) => {

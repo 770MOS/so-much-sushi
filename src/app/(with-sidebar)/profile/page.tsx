@@ -80,6 +80,13 @@ export default function Profile() {
   const [browseType, setBrowseType] = useState("");
   const [browseCuisine, setBrowseCuisine] = useState("");
 
+  // Every entity get_my_starred_entities returns is, by definition, starred
+  // at load time - there's no separate "is this starred" flag to track like
+  // useEntitySearch's starredIds. Unstarring from the map popup here is a
+  // local deviation from that loaded baseline, not refetched until the next
+  // page load, so track it as an override rather than a fresh set.
+  const [unstarredOverrides, setUnstarredOverrides] = useState<Set<string>>(new Set());
+
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setUser(data.user ?? null));
     const {
@@ -172,11 +179,42 @@ export default function Profile() {
       lat: e.lat,
       lng: e.lng,
       matchesFilter: entityMatchesTypeCuisine(e, mapType, mapCuisine),
-      isStarred: true,
+      isStarred: !unstarredOverrides.has(e.id),
       recommendedCount: e.recommendedCount,
       status: e.status,
     }));
-  }, [entities, mapType, mapCuisine]);
+  }, [entities, mapType, mapCuisine, unstarredOverrides]);
+
+  async function toggleStar(entityId: string) {
+    if (!user) {
+      router.push("/sign-in");
+      return;
+    }
+
+    const isCurrentlyStarred = !unstarredOverrides.has(entityId);
+
+    if (isCurrentlyStarred) {
+      const { error } = await supabase
+        .from("stars")
+        .delete()
+        .eq("user_id", user.id)
+        .eq("entity_id", entityId);
+      if (!error) {
+        setUnstarredOverrides((prev) => new Set(prev).add(entityId));
+      }
+    } else {
+      const { error } = await supabase
+        .from("stars")
+        .insert({ user_id: user.id, entity_id: entityId });
+      if (!error) {
+        setUnstarredOverrides((prev) => {
+          const next = new Set(prev);
+          next.delete(entityId);
+          return next;
+        });
+      }
+    }
+  }
 
   const mapViewportList = useMemo(() => {
     return entities.filter((e) => {
@@ -364,6 +402,7 @@ export default function Profile() {
                   entities={mapMarkerEntities}
                   jumpTo={jumpTarget}
                   onBoundsChange={handleBoundsChange}
+                  onToggleStar={toggleStar}
                 />
 
                 <div className="flex flex-col gap-2">

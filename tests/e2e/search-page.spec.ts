@@ -159,6 +159,19 @@ test.describe("Search page location fallback chain", () => {
     await page.locator("#password").fill(PASSWORD);
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
     await page.waitForURL("/", { timeout: 15_000 });
+
+    // The "set your home location?" prompt (shown only for users with no
+    // home location set - noHomeUser here, not homeUser) appears after an
+    // async get_my_home_location round trip, not immediately on navigation.
+    // Give that a moment to resolve before deciding whether there's
+    // anything to dismiss, so a slow request doesn't let the modal
+    // intercept a click later in the test.
+    await page.waitForTimeout(1500);
+    const skipButton = page.getByRole("button", { name: "Skip for now" });
+    if (await skipButton.isVisible()) {
+      await skipButton.click();
+      await expect(page.getByText("Set your home location?")).toHaveCount(0);
+    }
   }
 
   test.beforeAll(async () => {

@@ -29,8 +29,22 @@ type Props = {
   entities: MapMarkerEntity[];
   jumpTo?: { lat: number; lng: number } | null;
   onBoundsChange?: (bounds: MapBounds) => void;
+  onToggleStar?: (id: string) => void;
   className?: string;
 };
+
+// Shared with the star icon/pin coloring below, so the popup's star button,
+// the pin itself, and the list view's StarIcon (src/components/icons.tsx)
+// never disagree on what "starred" looks like.
+const STARRED_COLOR = "#fbbf24"; // amber-400
+const UNSTARRED_COLOR = "#a1a1aa"; // zinc-400
+
+// Same path as StarIcon in src/components/icons.tsx - duplicated here
+// because this element is built with raw DOM APIs (a React component can't
+// be rendered into a MapLibre marker/popup), not because it's a different
+// icon.
+const STAR_ICON_PATH =
+  "M12 3.5l2.6 5.27 5.82.85-4.21 4.1.99 5.8L12 16.9l-5.2 2.62.99-5.8-4.21-4.1 5.82-.85L12 3.5z";
 
 function escapeHtml(s: string | null | undefined) {
   if (!s) return "";
@@ -65,9 +79,7 @@ function createMarkerElement(isStarred: boolean, recommendedCount: number): HTML
   wrapper.style.position = "absolute";
   wrapper.style.width = "28px";
   wrapper.style.height = "36px";
-  // amber-400 for starred (matches the star icon elsewhere in the app),
-  // zinc-400 plain pin otherwise.
-  wrapper.style.color = isStarred ? "#fbbf24" : "#a1a1aa";
+  wrapper.style.color = isStarred ? STARRED_COLOR : UNSTARRED_COLOR;
   wrapper.innerHTML = PIN_SVG;
 
   if (recommendedCount > 0) {
@@ -86,16 +98,85 @@ function createMarkerElement(isStarred: boolean, recommendedCount: number): HTML
   return wrapper;
 }
 
-export default function EntityMap({ entities, jumpTo, onBoundsChange, className }: Props) {
+function setStarButtonAppearance(button: HTMLButtonElement, isStarred: boolean) {
+  const svg = button.querySelector("svg");
+  if (svg) {
+    svg.setAttribute("fill", isStarred ? STARRED_COLOR : "none");
+    svg.setAttribute("stroke", isStarred ? STARRED_COLOR : UNSTARRED_COLOR);
+  }
+  button.setAttribute("aria-pressed", String(isStarred));
+  button.setAttribute("aria-label", isStarred ? "Unstar this place" : "Star this place");
+}
+
+function createStarButton(isStarred: boolean): HTMLButtonElement {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.style.display = "inline-flex";
+  button.style.alignItems = "center";
+  button.style.justifyContent = "center";
+  button.style.flexShrink = "0";
+  button.style.padding = "2px";
+  button.style.border = "none";
+  button.style.background = "none";
+  button.style.cursor = "pointer";
+  button.innerHTML = `<svg viewBox="0 0 24 24" width="18" height="18" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="${STAR_ICON_PATH}"/></svg>`;
+  setStarButtonAppearance(button, isStarred);
+  return button;
+}
+
+// Popup content built via DOM APIs rather than Popup.setHTML(string) - a
+// starring click needs a real event listener, and the star icon needs to
+// be updated in place (without rebuilding the whole popup) whenever this
+// entity's starred state changes on a later render.
+function createPopupContent(entity: MapMarkerEntity): {
+  element: HTMLDivElement;
+  starButton: HTMLButtonElement;
+} {
+  const container = document.createElement("div");
+
+  const topRow = document.createElement("div");
+  topRow.style.display = "flex";
+  topRow.style.alignItems = "center";
+  topRow.style.justifyContent = "space-between";
+  topRow.style.gap = "8px";
+
+  const nameLine = document.createElement("div");
+  const label = entity.status ? closedLabel(entity.status) : null;
+  nameLine.innerHTML = label
+    ? `<strong>${escapeHtml(entity.name)}</strong> <span style="color:#71717a;">(${label})</span>`
+    : `<strong>${escapeHtml(entity.name)}</strong>`;
+
+  const starButton = createStarButton(entity.isStarred);
+
+  topRow.appendChild(nameLine);
+  topRow.appendChild(starButton);
+  container.appendChild(topRow);
+
+  if (entity.address) {
+    const addressLine = document.createElement("div");
+    addressLine.textContent = entity.address;
+    container.appendChild(addressLine);
+  }
+
+  return { element: container, starButton };
+}
+
+export default function EntityMap({ entities, jumpTo, onBoundsChange, onToggleStar, className }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markersRef = useRef<Map<string, maplibregl.Marker>>(new Map());
+  const starButtonsRef = useRef<Map<string, HTMLButtonElement>>(new Map());
   const initialFitDoneRef = useRef(false);
   const onBoundsChangeRef = useRef(onBoundsChange);
+  const onToggleStarRef = useRef(onToggleStar);
 
   useEffect(() => {
     onBoundsChangeRef.current = onBoundsChange;
   }, [onBoundsChange]);
+
+  useEffect(() => {
+    onToggleStarRef.current = onToggleStar;
+  }, [onToggleStar]);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -106,6 +187,7 @@ export default function EntityMap({ entities, jumpTo, onBoundsChange, className 
     // recreates the map once on mount, and refs survive that cycle.
     markersRef.current.forEach((m) => m.remove());
     markersRef.current.clear();
+    starButtonsRef.current.clear();
     initialFitDoneRef.current = false;
 
     const map = new maplibregl.Map({
@@ -147,6 +229,7 @@ export default function EntityMap({ entities, jumpTo, onBoundsChange, className 
       if (!currentIds.has(id)) {
         marker.remove();
         markersRef.current.delete(id);
+        starButtonsRef.current.delete(id);
       }
     }
 
@@ -157,17 +240,31 @@ export default function EntityMap({ entities, jumpTo, onBoundsChange, className 
       let marker = markersRef.current.get(entity.id);
       if (!marker) {
         const element = createMarkerElement(entity.isStarred, entity.recommendedCount);
-        const label = entity.status ? closedLabel(entity.status) : null;
-        const nameLine = label
-          ? `<strong>${escapeHtml(entity.name)}</strong> <span style="color:#71717a;">(${label})</span>`
-          : `<strong>${escapeHtml(entity.name)}</strong>`;
-        const popupHtml = entity.address ? `${nameLine}<br/>${escapeHtml(entity.address)}` : nameLine;
+        const { element: popupContent, starButton } = createPopupContent(entity);
+        starButton.addEventListener("click", (event) => {
+          event.stopPropagation();
+          onToggleStarRef.current?.(entity.id);
+        });
+        starButtonsRef.current.set(entity.id, starButton);
+
         marker = new maplibregl.Marker({ element })
           .setLngLat([entity.lng, entity.lat])
-          .setPopup(new maplibregl.Popup({ offset: 20 }).setHTML(popupHtml))
+          .setPopup(new maplibregl.Popup({ offset: 20 }).setDOMContent(popupContent))
           .addTo(map);
         markersRef.current.set(entity.id, marker);
+      } else {
+        // Popup content (and the star button inside it) is only built once,
+        // at marker creation - refresh it in place here so a starred state
+        // that changed since then (e.g. the user just toggled it, from this
+        // popup or anywhere else) is reflected without recreating the popup.
+        const starButton = starButtonsRef.current.get(entity.id);
+        if (starButton) setStarButtonAppearance(starButton, entity.isStarred);
       }
+
+      // The pin's own color is set once at creation too - keep it in sync
+      // with starred state for the same reason as the popup button above.
+      marker.getElement().style.color = entity.isStarred ? STARRED_COLOR : UNSTARRED_COLOR;
+
       const filterOpacity = entity.matchesFilter ? 1 : 0.25;
       const statusOpacity = entity.status && entity.status !== "active" ? 0.55 : 1;
       marker.getElement().style.opacity = String(filterOpacity * statusOpacity);
