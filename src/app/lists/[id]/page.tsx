@@ -308,9 +308,12 @@ export default function ListDetail() {
                 }`}
               >
                 <div className="flex flex-col gap-0.5">
-                  <span className="font-medium text-zinc-950 dark:text-zinc-50">
+                  <Link
+                    href={`/venue/${item.entity_id}`}
+                    className="w-fit font-medium text-zinc-950 hover:underline dark:text-zinc-50"
+                  >
                     {item.name}
-                  </span>
+                  </Link>
                   <span className="text-sm text-zinc-500 dark:text-zinc-400">
                     {item.address}
                   </span>

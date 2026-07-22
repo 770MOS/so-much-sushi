@@ -291,6 +291,14 @@ REVOKE EXECUTE ON FUNCTION get_list_entities(uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION get_list_meta(uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION get_list_entities(uuid) TO authenticated;
 
+-- get_entity_detail: powers /venue/[id] (and its intercepted modal
+-- equivalent). This is the SECOND function here that's SUPPOSED to be
+-- callable by anon, alongside search_entities above - venue pages need to
+-- work for signed-out visitors following a shared link or a search engine
+-- crawling sitemap.xml, not just signed-in users. PUBLIC is deliberately
+-- left alone here too, not revoked. Defined in supabase/get_entity_detail.sql.
+GRANT EXECUTE ON FUNCTION get_entity_detail(uuid) TO anon, authenticated;
+
 -- handle_new_user: the on_auth_user_created signup trigger. Not reachable
 -- via PostgREST's RPC surface regardless of grants (functions returning
 -- `trigger` aren't exposed as /rpc/* endpoints), so this REVOKE is

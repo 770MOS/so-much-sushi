@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { getMapStyleUrl, DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM } from "@/lib/mapConfig";
@@ -131,6 +132,7 @@ function createStarButton(isStarred: boolean): HTMLButtonElement {
 function createPopupContent(entity: MapMarkerEntity): {
   element: HTMLDivElement;
   starButton: HTMLButtonElement;
+  nameLink: HTMLAnchorElement;
 } {
   const container = document.createElement("div");
 
@@ -140,15 +142,24 @@ function createPopupContent(entity: MapMarkerEntity): {
   topRow.style.justifyContent = "space-between";
   topRow.style.gap = "8px";
 
-  const nameLine = document.createElement("div");
+  // A real <a href> (not just a click handler) so middle-click/"open in new
+  // tab"/right-click still work as an actual link - the click handler
+  // wired up by the caller intercepts the plain left-click case to use
+  // Next's router instead, which is what lets /venue/[id] open as a modal
+  // here rather than a full navigation.
+  const nameLink = document.createElement("a");
+  nameLink.href = `/venue/${entity.id}`;
+  nameLink.style.color = "inherit";
+  nameLink.style.textDecoration = "none";
+  nameLink.style.cursor = "pointer";
   const label = entity.status ? closedLabel(entity.status) : null;
-  nameLine.innerHTML = label
+  nameLink.innerHTML = label
     ? `<strong>${escapeHtml(entity.name)}</strong> <span style="color:#71717a;">(${label})</span>`
     : `<strong>${escapeHtml(entity.name)}</strong>`;
 
   const starButton = createStarButton(entity.isStarred);
 
-  topRow.appendChild(nameLine);
+  topRow.appendChild(nameLink);
   topRow.appendChild(starButton);
   container.appendChild(topRow);
 
@@ -158,10 +169,11 @@ function createPopupContent(entity: MapMarkerEntity): {
     container.appendChild(addressLine);
   }
 
-  return { element: container, starButton };
+  return { element: container, starButton, nameLink };
 }
 
 export default function EntityMap({ entities, jumpTo, onBoundsChange, onToggleStar, className }: Props) {
+  const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markersRef = useRef<Map<string, maplibregl.Marker>>(new Map());
@@ -240,12 +252,17 @@ export default function EntityMap({ entities, jumpTo, onBoundsChange, onToggleSt
       let marker = markersRef.current.get(entity.id);
       if (!marker) {
         const element = createMarkerElement(entity.isStarred, entity.recommendedCount);
-        const { element: popupContent, starButton } = createPopupContent(entity);
+        const { element: popupContent, starButton, nameLink } = createPopupContent(entity);
         starButton.addEventListener("click", (event) => {
           event.stopPropagation();
           onToggleStarRef.current?.(entity.id);
         });
         starButtonsRef.current.set(entity.id, starButton);
+        nameLink.addEventListener("click", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          router.push(`/venue/${entity.id}`);
+        });
 
         marker = new maplibregl.Marker({ element })
           .setLngLat([entity.lng, entity.lat])
@@ -274,7 +291,7 @@ export default function EntityMap({ entities, jumpTo, onBoundsChange, onToggleSt
       map.fitBounds(bounds, { padding: 40, maxZoom: 15, duration: 0 });
       initialFitDoneRef.current = true;
     }
-  }, [entities]);
+  }, [entities, router]);
 
   useEffect(() => {
     if (jumpTo && mapRef.current) {

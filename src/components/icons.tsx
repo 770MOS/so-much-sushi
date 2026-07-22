@@ -162,6 +162,49 @@ export function DiscoverNavIcon() {
   );
 }
 
+export function BookmarkIcon({ filled }: { filled: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width={18}
+      height={18}
+      fill={filled ? "currentColor" : "none"}
+      stroke="currentColor"
+      strokeWidth={1.5}
+      className={filled ? "text-primary" : "text-zinc-400"}
+    >
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6 3.75h12v16.5l-6-4-6 4V3.75z" />
+    </svg>
+  );
+}
+
+export function ShareIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth={1.5}>
+      <circle cx="18" cy="5" r="2.5" />
+      <circle cx="6" cy="12" r="2.5" />
+      <circle cx="18" cy="19" r="2.5" />
+      <path strokeLinecap="round" d="M8.2 10.7l7.6-4.4M8.2 13.3l7.6 4.4" />
+    </svg>
+  );
+}
+
+export function CloseIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width={20} height={20} fill="none" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" d="M6 6l12 12M18 6L6 18" />
+    </svg>
+  );
+}
+
+export function BackArrowIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width={20} height={20} fill="none" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15 5l-7 7 7 7" />
+    </svg>
+  );
+}
+
 export function ConnectionsNavIcon() {
   return (
     <svg viewBox="0 0 24 24" width={20} height={20} fill="none" stroke="currentColor" strokeWidth={1.5}>
