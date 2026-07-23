@@ -13,8 +13,13 @@
 --     case-insensitive substring match on entities.name, for the Search
 --     page - a very large radius plus name_query means distance/category
 --     never hide a place the user is looking up by name).
---   - `status` and `categories` (alphabetically sorted name array) output
---     columns.
+--   - `status`, `categories` (alphabetically sorted name array), and
+--     `category_paths` (ltree paths as text, e.g. "restaurants.bakery" -
+--     added in supabase/add_category_paths_to_map_queries.sql so
+--     EntityMap can pick a marker icon via
+--     src/lib/entityTypes.ts's topLevelTypeForCategoryPaths, since
+--     Bakeries/Breweries aren't root categories and can't be told apart
+--     from a plain Restaurant/Bar by display name alone) output columns.
 --   - `e.status <> 'permanently_closed'` is now always excluded from
 --     results, regardless of show_hidden.
 --   - `SET search_path = public, extensions` - required because PostGIS
@@ -62,7 +67,7 @@
 -- reproduce the same ambiguity.
 
 CREATE OR REPLACE FUNCTION public.search_entities(ref_lat double precision, ref_lng double precision, radius_miles double precision, category_path ltree DEFAULT NULL::ltree, show_hidden boolean DEFAULT false, recommended_only boolean DEFAULT false, starred_only boolean DEFAULT false, name_query text DEFAULT NULL::text)
- RETURNS TABLE(id uuid, name text, address text, miles numeric, lat double precision, lng double precision, is_starred boolean, is_hidden boolean, recommended_by jsonb, recommended_count integer, status text, categories text[])
+ RETURNS TABLE(id uuid, name text, address text, miles numeric, lat double precision, lng double precision, is_starred boolean, is_hidden boolean, recommended_by jsonb, recommended_count integer, status text, categories text[], category_paths text[])
  LANGUAGE sql
  STABLE SECURITY DEFINER
  SET search_path TO 'public', 'extensions'
@@ -112,7 +117,13 @@ AS $function$
             FROM entity_categories ec2
             JOIN categories cat ON cat.id = ec2.category_id
             WHERE ec2.entity_id = e.id
-        ) AS categories
+        ) AS categories,
+        (
+            SELECT array_agg(cat3.path::text ORDER BY cat3.path)
+            FROM entity_categories ec3
+            JOIN categories cat3 ON cat3.id = ec3.category_id
+            WHERE ec3.entity_id = e.id
+        ) AS category_paths
     FROM entities e
     JOIN entity_categories ec ON ec.entity_id = e.id
     JOIN categories c         ON c.id = ec.category_id

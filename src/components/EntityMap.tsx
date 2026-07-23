@@ -6,6 +6,7 @@ import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { getMapStyleUrl, DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM } from "@/lib/mapConfig";
 import { closedLabel } from "@/lib/entityStatus";
+import type { EntityType } from "@/lib/entityTypes";
 
 export type MapMarkerEntity = {
   id: string;
@@ -17,6 +18,12 @@ export type MapMarkerEntity = {
   isStarred: boolean;
   recommendedCount: number;
   status?: string;
+  // Which of the 5 marker-icon shapes this pin gets - see
+  // src/lib/entityTypes.ts's topLevelTypeForCategoryPaths. Purely about
+  // which icon renders; color still means personal status (starred/
+  // recommended/filtered), never category - the two are deliberately kept
+  // independent.
+  entityType?: Exclude<EntityType, "all"> | null;
 };
 
 export type MapBounds = {
@@ -47,6 +54,49 @@ const UNSTARRED_COLOR = "#a1a1aa"; // zinc-400
 const STAR_ICON_PATH =
   "M12 3.5l2.6 5.27 5.82.85-4.21 4.1.99 5.8L12 16.9l-5.2 2.62.99-5.8-4.21-4.1 5.82-.85L12 3.5z";
 
+// Same path data as RestaurantTypeIcon/BarTypeIcon/CoffeeTypeIcon/
+// BakeryTypeIcon/BreweryTypeIcon in src/components/icons.tsx - duplicated
+// here for the same raw-DOM reason as STAR_ICON_PATH above. Original
+// source: Tabler Icons (tools-kitchen-2, glass-cocktail, cup, bread, beer -
+// github.com/tabler/tabler-icons, MIT licensed).
+const CATEGORY_ICON_PATHS: Record<Exclude<EntityType, "all">, string[]> = {
+  restaurants: [
+    "M19 3v12h-5c-.023 -3.681 .184 -7.406 5 -12m0 12v6h-1v-3m-10 -14v17m-3 -17v3a3 3 0 1 0 6 0v-3",
+  ],
+  bars: [
+    "M8 21h8",
+    "M12 15v6",
+    "M5 5a7 2 0 1 0 14 0a7 2 0 1 0 -14 0",
+    "M5 5v.388c0 .432 .126 .853 .362 1.206l5 7.509c.633 .951 1.88 1.183 2.785 .517c.191 -.141 .358 -.316 .491 -.517l5 -7.509c.236 -.353 .362 -.774 .362 -1.206v-.388",
+  ],
+  coffee: [
+    "M5 11h14v-3h-14l0 3",
+    "M17.5 11l-1.5 10h-8l-1.5 -10",
+    "M6 8v-1a2 2 0 0 1 2 -2h8a2 2 0 0 1 2 2v1",
+    "M15 5v-2",
+  ],
+  bakeries: [
+    "M18 4a3 3 0 0 1 2 5.235v8.765a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-8.764a3 3 0 0 1 1.824 -5.231h12.176v-.005",
+  ],
+  breweries: [
+    "M9 21h6a1 1 0 0 0 1 -1v-3.625c0 -1.397 .29 -2.775 .845 -4.025l.31 -.7c.556 -1.25 .845 -2.253 .845 -3.65v-4a1 1 0 0 0 -1 -1h-10a1 1 0 0 0 -1 1v4c0 1.397 .29 2.4 .845 3.65l.31 .7a9.931 9.931 0 0 1 .845 4.025v3.625a1 1 0 0 0 1 1",
+    "M6 8h12",
+  ],
+};
+
+// The category icon renders inside the pin's white circle (r=4.5, centered
+// at 12,12 of the pin's own 24x32 viewBox - see PIN_SVG below). Tabler
+// icons are natively a 24x24 viewBox; scaling by 1/3 and translating by
+// (8,8) maps that down to an 8x8 box spanning (8,8)-(16,16), just inside
+// the circle. stroke="currentColor" (not a hardcoded color) so the icon
+// always matches the pin's own status color (amber/zinc/etc) - color still
+// means personal status, the icon shape is the only new signal here.
+function categoryIconMarkup(entityType: Exclude<EntityType, "all"> | null | undefined): string {
+  if (!entityType) return "";
+  const pathElements = CATEGORY_ICON_PATHS[entityType].map((d) => `<path d="${d}"/>`).join("");
+  return `<g transform="translate(8,8) scale(0.333)" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">${pathElements}</g>`;
+}
+
 function escapeHtml(s: string | null | undefined) {
   if (!s) return "";
   const map: Record<string, string> = {
@@ -59,14 +109,21 @@ function escapeHtml(s: string | null | undefined) {
   return s.replace(/[&<>"']/g, (c) => map[c]);
 }
 
-const PIN_SVG = `
-  <svg viewBox="0 0 24 32" width="28" height="36" xmlns="http://www.w3.org/2000/svg">
-    <path d="M12 0C5.373 0 0 5.373 0 12c0 9 12 20 12 20s12-11 12-20c0-6.627-5.373-12-12-12z" fill="currentColor"/>
-    <circle cx="12" cy="12" r="4.5" fill="white" fill-opacity="0.9"/>
-  </svg>
-`;
+function pinSvg(entityType: Exclude<EntityType, "all"> | null | undefined): string {
+  return `
+    <svg viewBox="0 0 24 32" width="28" height="36" xmlns="http://www.w3.org/2000/svg">
+      <path d="M12 0C5.373 0 0 5.373 0 12c0 9 12 20 12 20s12-11 12-20c0-6.627-5.373-12-12-12z" fill="currentColor"/>
+      <circle cx="12" cy="12" r="4.5" fill="white" fill-opacity="0.9"/>
+      ${categoryIconMarkup(entityType)}
+    </svg>
+  `;
+}
 
-function createMarkerElement(isStarred: boolean, recommendedCount: number): HTMLDivElement {
+function createMarkerElement(
+  isStarred: boolean,
+  recommendedCount: number,
+  entityType: Exclude<EntityType, "all"> | null | undefined
+): HTMLDivElement {
   const wrapper = document.createElement("div");
   // This element becomes the root of a maplibregl.Marker, which requires
   // `position: absolute` (see .maplibregl-marker in maplibre-gl.css) so it
@@ -81,7 +138,7 @@ function createMarkerElement(isStarred: boolean, recommendedCount: number): HTML
   wrapper.style.width = "28px";
   wrapper.style.height = "36px";
   wrapper.style.color = isStarred ? STARRED_COLOR : UNSTARRED_COLOR;
-  wrapper.innerHTML = PIN_SVG;
+  wrapper.innerHTML = pinSvg(entityType);
 
   if (recommendedCount > 0) {
     const badge = document.createElement("div");
@@ -251,7 +308,7 @@ export default function EntityMap({ entities, jumpTo, onBoundsChange, onToggleSt
 
       let marker = markersRef.current.get(entity.id);
       if (!marker) {
-        const element = createMarkerElement(entity.isStarred, entity.recommendedCount);
+        const element = createMarkerElement(entity.isStarred, entity.recommendedCount, entity.entityType);
         const { element: popupContent, starButton, nameLink } = createPopupContent(entity);
         starButton.addEventListener("click", (event) => {
           event.stopPropagation();

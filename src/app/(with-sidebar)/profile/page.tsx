@@ -11,6 +11,7 @@ import StatusBadge from "@/components/StatusBadge";
 import { isNonActive } from "@/lib/entityStatus";
 import AccountSettings from "@/components/AccountSettings";
 import type { Recommender } from "@/lib/searchTypes";
+import { topLevelTypeForCategoryPaths } from "@/lib/entityTypes";
 
 const EntityMap = dynamic(() => import("@/components/EntityMap"), { ssr: false });
 
@@ -27,6 +28,7 @@ type StarredRow = {
   recommended_by: Recommender[] | null;
   recommended_count: number;
   status: string;
+  category_paths: string[] | null;
 };
 
 type StarredEntity = {
@@ -40,6 +42,7 @@ type StarredEntity = {
   recommendedCount: number;
   status: string;
   tags: { type_name: string; cuisine_name: string }[];
+  categoryPaths: string[] | null;
 };
 
 type StarredTab = "map" | "browse";
@@ -138,6 +141,7 @@ export default function Profile() {
           recommendedCount: r.recommended_count,
           status: r.status,
           tags: [],
+          categoryPaths: r.category_paths,
         };
         byId.set(r.id, e);
       }
@@ -182,6 +186,7 @@ export default function Profile() {
       isStarred: !unstarredOverrides.has(e.id),
       recommendedCount: e.recommendedCount,
       status: e.status,
+      entityType: topLevelTypeForCategoryPaths(e.categoryPaths),
     }));
   }, [entities, mapType, mapCuisine, unstarredOverrides]);
 

@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { setLastSearchCoords } from "@/lib/lastSearchCoords";
 import type { MapMarkerEntity } from "@/components/EntityMap";
 import type { SearchResult, SortMode, ViewMode } from "@/lib/searchTypes";
+import { topLevelTypeForCategoryPaths } from "@/lib/entityTypes";
 
 type RunSearchOptions = {
   lat: number;
@@ -50,6 +51,7 @@ export function useEntitySearch(user: User | null) {
       isStarred: starredIds.has(r.id),
       recommendedCount: r.recommended_count,
       status: r.status,
+      entityType: topLevelTypeForCategoryPaths(r.category_paths),
     }));
   }, [sortedResults, starredIds]);
 

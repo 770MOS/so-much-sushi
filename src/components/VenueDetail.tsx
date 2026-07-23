@@ -10,6 +10,7 @@ import WantToGoButton from "@/components/WantToGoButton";
 import ShareButton from "@/components/ShareButton";
 import { StarIcon } from "@/components/icons";
 import type { MapMarkerEntity } from "@/components/EntityMap";
+import { topLevelTypeForCategoryPaths } from "@/lib/entityTypes";
 
 const EntityMap = dynamic(() => import("@/components/EntityMap"), { ssr: false });
 
@@ -30,6 +31,7 @@ export type EntityDetail = {
   lng: number;
   is_starred: boolean;
   categories: string[] | null;
+  category_paths: string[] | null;
 };
 
 function hoursDisplay(entity: EntityDetail): string {
@@ -85,6 +87,7 @@ export default function VenueDetail({ entity }: { entity: EntityDetail }) {
     isStarred,
     recommendedCount: 0,
     status: entity.status,
+    entityType: topLevelTypeForCategoryPaths(entity.category_paths),
   };
 
   return (

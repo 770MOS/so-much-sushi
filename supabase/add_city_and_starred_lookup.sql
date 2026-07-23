@@ -25,6 +25,23 @@
 -- record of *when* this changed (this file mirrors the current live
 -- shape, confirmed via pg_get_functiondef, same convention as
 -- search_entities.sql).
+--
+-- UPDATE: category_paths (ltree paths as text) added in
+-- supabase/add_category_paths_to_map_queries.sql - lets the Profile
+-- Starred map pick a marker icon via
+-- src/lib/entityTypes.ts's topLevelTypeForCategoryPaths. Distinct from
+-- the pre-existing type_name/cuisine_name columns, which only carry the
+-- *display name* of the top-level category and the specific tag
+-- respectively - neither can tell a plain Restaurant from a Bakery
+-- (restaurants.bakery), since type_name collapses to just "Restaurants"
+-- either way.
+--
+-- UPDATE: SET search_path = public, extensions added, also in
+-- add_category_paths_to_map_queries.sql - this function calls ST_Y/ST_X
+-- (PostGIS, lives in the extensions schema) same as search_entities and
+-- get_entity_detail, but never had this explicit SET like those two do.
+-- It worked without one in practice, but that was never a guarantee -
+-- brought in line with the other two.
 
 ALTER TABLE entities ADD COLUMN IF NOT EXISTS city text;
 ALTER TABLE entities ADD COLUMN IF NOT EXISTS state text;
@@ -36,9 +53,10 @@ ALTER TABLE entities ADD COLUMN IF NOT EXISTS state text;
 DROP FUNCTION IF EXISTS public.get_my_starred_entities();
 
 CREATE OR REPLACE FUNCTION public.get_my_starred_entities()
- RETURNS TABLE(id uuid, name text, address text, city text, state text, lat double precision, lng double precision, type_name text, cuisine_name text, recommended_by jsonb, recommended_count integer)
+ RETURNS TABLE(id uuid, name text, address text, city text, state text, lat double precision, lng double precision, type_name text, cuisine_name text, recommended_by jsonb, recommended_count integer, category_paths text[])
  LANGUAGE sql
  STABLE SECURITY DEFINER
+ SET search_path = public, extensions
 AS $function$
     SELECT
         e.id, e.name, e.address, e.city, e.state,
@@ -71,7 +89,13 @@ AS $function$
                 OR (f2.addressee_id = auth.uid() AND f2.requester_id = fs2.user_id)
             )
             WHERE fs2.entity_id = e.id AND f2.status = 'accepted'
-        ) AS recommended_count
+        ) AS recommended_count,
+        (
+            SELECT array_agg(cat2.path::text ORDER BY cat2.path)
+            FROM entity_categories ec2
+            JOIN categories cat2 ON cat2.id = ec2.category_id
+            WHERE ec2.entity_id = e.id
+        ) AS category_paths
     FROM stars s
     JOIN entities e            ON e.id = s.entity_id
     JOIN entity_categories ec  ON ec.entity_id = e.id

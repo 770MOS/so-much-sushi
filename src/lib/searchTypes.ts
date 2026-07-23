@@ -15,6 +15,7 @@ export type SearchResult = {
   recommended_count: number;
   status: string;
   categories: string[] | null;
+  category_paths: string[] | null;
 };
 
 export type SortMode = "nearest" | "az";

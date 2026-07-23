@@ -22,6 +22,13 @@
 -- An earlier draft of this file declared it as text before that was
 -- checked, which would have been a real RETURNS TABLE type mismatch.
 --
+-- category_paths (ltree paths as text, added in
+-- supabase/add_category_paths_to_map_queries.sql) lets the venue page's
+-- single-pin map pick a marker icon via
+-- src/lib/entityTypes.ts's topLevelTypeForCategoryPaths - a plain
+-- Restaurant and a Bakery share no distinguishing display name, only path
+-- (restaurants vs restaurants.bakery).
+--
 -- Safe to re-run (idempotent) if replayed against a fresh database.
 
 CREATE OR REPLACE FUNCTION public.get_entity_detail(p_entity_id uuid)
@@ -37,7 +44,8 @@ CREATE OR REPLACE FUNCTION public.get_entity_detail(p_entity_id uuid)
    lat double precision,
    lng double precision,
    is_starred boolean,
-   categories text[]
+   categories text[],
+   category_paths text[]
  )
  LANGUAGE sql
  STABLE SECURITY DEFINER
@@ -57,7 +65,13 @@ AS $function$
             FROM entity_categories ec
             JOIN categories cat ON cat.id = ec.category_id
             WHERE ec.entity_id = e.id
-        ) AS categories
+        ) AS categories,
+        (
+            SELECT array_agg(cat2.path::text ORDER BY cat2.path)
+            FROM entity_categories ec2
+            JOIN categories cat2 ON cat2.id = ec2.category_id
+            WHERE ec2.entity_id = e.id
+        ) AS category_paths
     FROM entities e
     WHERE e.id = p_entity_id;
 $function$;

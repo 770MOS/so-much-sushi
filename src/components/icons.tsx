@@ -1,3 +1,56 @@
+// The 5 marker-category icons below use path data borrowed directly from
+// Tabler Icons (github.com/tabler/tabler-icons, MIT licensed) - specific
+// icons: tools-kitchen-2, glass-cocktail, cup, bread, beer. Hand-wrapped as
+// inline SVGs matching this file's existing convention rather than adding
+// @tabler/icons-react as a dependency - this project has no icon-library
+// dependency anywhere else, every icon here is a plain inline SVG.
+export function RestaurantTypeIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width={16} height={16} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M19 3v12h-5c-.023 -3.681 .184 -7.406 5 -12m0 12v6h-1v-3m-10 -14v17m-3 -17v3a3 3 0 1 0 6 0v-3" />
+    </svg>
+  );
+}
+
+export function BarTypeIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width={16} height={16} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 21h8" />
+      <path d="M12 15v6" />
+      <path d="M5 5a7 2 0 1 0 14 0a7 2 0 1 0 -14 0" />
+      <path d="M5 5v.388c0 .432 .126 .853 .362 1.206l5 7.509c.633 .951 1.88 1.183 2.785 .517c.191 -.141 .358 -.316 .491 -.517l5 -7.509c.236 -.353 .362 -.774 .362 -1.206v-.388" />
+    </svg>
+  );
+}
+
+export function CoffeeTypeIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width={16} height={16} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M5 11h14v-3h-14l0 3" />
+      <path d="M17.5 11l-1.5 10h-8l-1.5 -10" />
+      <path d="M6 8v-1a2 2 0 0 1 2 -2h8a2 2 0 0 1 2 2v1" />
+      <path d="M15 5v-2" />
+    </svg>
+  );
+}
+
+export function BakeryTypeIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width={16} height={16} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M18 4a3 3 0 0 1 2 5.235v8.765a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-8.764a3 3 0 0 1 1.824 -5.231h12.176v-.005" />
+    </svg>
+  );
+}
+
+export function BreweryTypeIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width={16} height={16} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 21h6a1 1 0 0 0 1 -1v-3.625c0 -1.397 .29 -2.775 .845 -4.025l.31 -.7c.556 -1.25 .845 -2.253 .845 -3.65v-4a1 1 0 0 0 -1 -1h-10a1 1 0 0 0 -1 1v4c0 1.397 .29 2.4 .845 3.65l.31 .7a9.931 9.931 0 0 1 .845 4.025v3.625a1 1 0 0 0 1 1" />
+      <path d="M6 8h12" />
+    </svg>
+  );
+}
+
 export function HeartIcon() {
   return (
     <svg viewBox="0 0 24 24" width={14} height={14} fill="currentColor" className="text-rose-400">
