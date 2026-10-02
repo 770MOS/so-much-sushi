@@ -129,5 +129,21 @@
   "coffee_shop": "coffee",
   "tea_room": "tea",
   "bubble_tea_shop": "bubble_tea",
-  "smoothie_juice_bar": "juice_smoothies"
+  "smoothie_juice_bar": "juice_smoothies",
+  "liquor_store": "wine_liquor",
+  "beer_wine_spirits_store": "wine_liquor",
+  "wine_shop": "wine_liquor",
+  "farmers_market": "farmers_market",
+  "specialty_foods_store": "specialty_grocery",
+  "international_grocery_store": "specialty_grocery",
+  "asian_grocery_store": "specialty_grocery",
+  "organic_grocery_store": "specialty_grocery",
+  "herb_and_spice_store": "specialty_grocery",
+  "health_food_store": "specialty_grocery",
+  "produce_store": "specialty_grocery",
+  "butcher_shop": "butcher",
+  "seafood_market": "seafood_market",
+  "fishmonger": "seafood_market",
+  "cheese_shop": "cheese_shop",
+  "custom_cakes_shop": "bakery"
 }
