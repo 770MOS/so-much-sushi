@@ -143,9 +143,11 @@ INSERT INTO public.sources (code, name, role, license, license_class, license_ur
    'Places theme only; other Overture themes are ODbL and must not be ingested. Licence varies per record by upstream dataset (CDLA-Permissive-2.0, Apache-2.0 for Foursquare, CC0-1.0 for AllThePlaces): record it per record.'),
   ('fsq_os_places', 'Foursquare Open Source Places', 'base', 'Apache-2.0', 'permissive',
    'https://huggingface.co/datasets/foursquare/fsq-os-places', 'Copyright Foursquare Labs, Inc.', 'monthly',
-   'Releases from October 2025 need a Places Portal account and token; review the portal terms before first use. Also appears inside Overture Places, so the two are not independent.'),
+   'ON HOLD (inactive). Releases from October 2025 need a Foursquare account. The Developer Master Terms (2024-02-29) bar using the Foursquare Service to build a point-of-interest dataset (7.5.8) or a competing database (7.5.9); whether they govern this Apache-2.0 dataset is unresolved. Do not create an account or ingest until Foursquare confirms in writing or counsel clears it. Foursquare-sourced records still arrive through Overture Places under Apache-2.0.'),
   ('venue_website', 'The venue''s own website', 'first_party', 'Facts published by the business, established by us', 'own',
    NULL, NULL, 'manual', 'Looked up one venue at a time; no crawling.'),
   ('manual_research', 'Our own research and curation', 'internal', 'Own work', 'own', NULL, NULL, 'manual', NULL),
   ('user_report', 'Corrections and reports from users', 'user', 'Licensed to us under the terms of service', 'own',
    NULL, NULL, 'continuous', 'Requires the contribution-licence clause in the terms before any tester submits data.');
+
+UPDATE public.sources SET is_active = false WHERE code = 'fsq_os_places';
