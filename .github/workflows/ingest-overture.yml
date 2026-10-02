@@ -35,7 +35,7 @@ jobs:
           MODE: ${{ inputs.mode }}
           RELEASE: ${{ inputs.release }}
           BBOX: ${{ inputs.bbox }}
-        run: python scripts/ingest/overture_places.py --mode "$MODE" --release "$RELEASE" --bbox "$BBOX"
+        run: python scripts/ingest/overture_places.py --mode "$MODE" --release="$RELEASE" --bbox="$BBOX"
       - uses: actions/upload-artifact@v4
         with:
           name: overture-places-${{ inputs.mode }}
