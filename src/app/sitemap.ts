@@ -13,7 +13,7 @@ async function countEligibleEntities(): Promise<number> {
   const { count, error } = await supabase
     .from("entities")
     .select("id", { count: "exact", head: true })
-    .neq("status", "permanently_closed")
+    .in("status", ["active", "temporarily_closed"])
     .eq("needs_review", false);
   if (error || count === null) return 0;
   return count;
@@ -39,7 +39,7 @@ export default async function sitemap({
   const { data, error } = await supabase
     .from("entities")
     .select("id, last_verified")
-    .neq("status", "permanently_closed")
+    .in("status", ["active", "temporarily_closed"])
     .eq("needs_review", false)
     .order("id")
     .range(start, end);
