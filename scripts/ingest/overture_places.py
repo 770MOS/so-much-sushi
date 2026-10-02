@@ -31,17 +31,13 @@ def norm_license(value):
             "cc0-1.0": "CC0-1.0", "cc0": "CC0-1.0"}.get(v)
 
 
-def map_category(cat, cmap):
-    """Return (our slug, mapped confidently?)."""
-    if not cat:
-        return "restaurants", False
+def map_category(cat, hierarchy, cmap):
+    """Return (our slug, exact match?). Falls back to the nearest listed ancestor in Overture's hierarchy."""
     if cat in cmap:
         return cmap[cat], True
-    for words, slug in ((("brewery", "brewpub"), "brewery"), (("bar", "pub", "lounge", "tavern"), "bar"),
-                        (("coffee", "cafe", "tea"), "coffee"),
-                        (("bakery", "dessert", "ice_cream", "donut", "pastry"), "bakery")):
-        if any(w in cat.split("_") or w == cat for w in words):
-            return slug, False
+    for node in reversed(hierarchy or []):
+        if node in cmap:
+            return cmap[node], False
     return "restaurants", False
 
 
@@ -66,12 +62,15 @@ def fetch(release, bbox):
 
 
 def transform(rows, cmap):
-    out, skipped, tops = [], Counter(), Counter()
+    out, skipped, tops, shopping = [], Counter(), Counter(), Counter()
     for r in rows:
         tax = json.loads(r["taxonomy"]) if r["taxonomy"] else {}
         hierarchy = tax.get("hierarchy") or []
         tops[hierarchy[0] if hierarchy else "(none)"] += 1
-        if "food_and_drink" not in json.dumps(tax):
+        cat = tax.get("primary") or r["basic_category"]
+        if hierarchy and hierarchy[0] == "shopping":
+            shopping[cat] += 1
+        if "food_and_drink" not in hierarchy and cat not in cmap:
             skipped["not food and drink"] += 1
             continue
         if not r["name"]:
@@ -90,8 +89,7 @@ def transform(rows, cmap):
             continue
         websites = json.loads(r["websites"]) if r["websites"] else []
         phones = json.loads(r["phones"]) if r["phones"] else []
-        cat = tax.get("primary") or r["basic_category"]
-        slug, mapped = map_category(cat, cmap)
+        slug, mapped = map_category(cat, hierarchy, cmap)
         out.append({
             "source_record_id": r["id"], "upstream_dataset": dataset, "license": license_,
             "name": r["name"], "address": addr.get("freeform"), "city": addr.get("locality"),
@@ -103,7 +101,7 @@ def transform(rows, cmap):
                         "operating_status": r["operating_status"], "sources": sources,
                         "websites": websites, "phones": phones, "category_mapped": mapped},
         })
-    return out, skipped, tops
+    return out, skipped, tops, shopping
 
 
 def notice(title, text):
@@ -112,11 +110,12 @@ def notice(title, text):
         print(f"::notice title={title}::{str(text)[:3500]}")
 
 
-def summarise(records, skipped, tops, total):
+def summarise(records, skipped, tops, shopping, total):
     unm = Counter(r["source_category"] for r in records if not r["payload"]["category_mapped"])
     notice("counts", f"in box {total}; kept {len(records)}; skipped {dict(skipped)}; "
            f"phone {sum(1 for r in records if r['phone'])}; website {sum(1 for r in records if r['website'])}")
     notice("taxonomy top levels", dict(tops.most_common(15)))
+    notice("shopping categories", dict(shopping.most_common(150)))
     notice("datasets and licences", f"{dict(Counter(r['upstream_dataset'] for r in records))} "
            f"{dict(Counter(r['license'] for r in records))}")
     notice("our categories", dict(Counter(r["category_slug"] for r in records).most_common(30)))
@@ -185,8 +184,8 @@ def main():
     bbox = [float(x) for x in a.bbox.split(",")]
     cmap = {k: v for k, v in json.loads((HERE / "overture_category_map.json").read_text()).items() if not k.startswith("_")}
     rows = fetch(a.release, bbox)
-    records, skipped, tops = transform(rows, cmap)
-    summarise(records, skipped, tops, len(rows))
+    records, skipped, tops, shopping = transform(rows, cmap)
+    summarise(records, skipped, tops, shopping, len(rows))
     with open(a.out, "w", newline="") as f:
         cols = [c for c in records[0] if c != "payload"] if records else []
         w = csv.DictWriter(f, fieldnames=cols + ["category_mapped"])

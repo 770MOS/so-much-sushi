@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import dotenv from "dotenv";
 import { createClient } from "@supabase/supabase-js";
+import { mainCategoryId, type MainCategorySlug } from "./helpers/mainCategory";
 
 dotenv.config({ path: ".env.local" });
 
@@ -20,7 +21,7 @@ const PASSWORD = "TestPassword123!";
 // is rendering without parsing full SVG geometry.
 const ICON_PREFIX = {
   restaurants: "M19 3v12h-5c-.0",
-  bars: "M8 21h8",
+  drinks: "M8 21h8",
   coffee: "M5 11h14v-3h-14",
 };
 
@@ -38,6 +39,7 @@ async function createFixtureEntity(name: string, categorySlug: string): Promise<
   const { data, error } = await supabase
     .from("entities")
     .insert({
+      main_category_id: await mainCategoryId(categorySlug as MainCategorySlug),
       name,
       address: "Arlington, VA",
       location: `SRID=4326;POINT(${MOCK_LNG} ${MOCK_LAT})`,
@@ -120,7 +122,7 @@ test.use({
 });
 
 test.beforeAll(async () => {
-  for (const slug of ["restaurants", "bars", "coffee"]) {
+  for (const slug of ["restaurants", "drinks", "coffee"]) {
     const { data, error } = await supabase.from("categories").select("id").eq("slug", slug).single();
     if (error || !data) throw new Error(`Could not find "${slug}" category: ${error?.message}`);
     categoryIds[slug] = data.id;
@@ -129,7 +131,7 @@ test.beforeAll(async () => {
   await Promise.all([createTestUser(mainUser), createTestUser(friendUser)]);
 
   fixtureIds.restaurant = await createFixtureEntity(FIXTURE_RESTAURANT, "restaurants");
-  fixtureIds.bar = await createFixtureEntity(FIXTURE_BAR, "bars");
+  fixtureIds.bar = await createFixtureEntity(FIXTURE_BAR, "drinks");
   fixtureIds.coffee = await createFixtureEntity(FIXTURE_COFFEE, "coffee");
 
   // mainUser stars the restaurant fixture (Profile Starred map + color test).
@@ -191,7 +193,7 @@ test("search Map view: restaurant, bar, and coffee shop each render a distinct i
 
   await searchByName(page, FIXTURE_BAR);
   const barIcon = await singleMarkerIconInfo(page);
-  expect(barIcon.iconPrefix).toBe(ICON_PREFIX.bars);
+  expect(barIcon.iconPrefix).toBe(ICON_PREFIX.drinks);
 
   await searchByName(page, FIXTURE_COFFEE);
   const coffeeIcon = await singleMarkerIconInfo(page);
@@ -245,7 +247,7 @@ test("consistent icon across all 4 EntityMap consumers: search, Profile Starred,
   await page.goto("/recommended");
   await expect(page.getByText(FIXTURE_BAR)).toBeVisible({ timeout: 15_000 });
   await page.getByRole("button", { name: "Map", exact: true }).click();
-  expect((await singleMarkerIconInfo(page)).iconPrefix).toBe(ICON_PREFIX.bars);
+  expect((await singleMarkerIconInfo(page)).iconPrefix).toBe(ICON_PREFIX.drinks);
 
   // 4. Venue page's single-pin map.
   await page.goto(`/venue/${fixtureIds.coffee}`);

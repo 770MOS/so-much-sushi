@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import dotenv from "dotenv";
 import { createClient } from "@supabase/supabase-js";
+import { mainCategoryId } from "./helpers/mainCategory";
 
 dotenv.config({ path: ".env.local" });
 
@@ -50,6 +51,7 @@ async function createFixtureEntity(name: string): Promise<string> {
   const { data, error } = await supabase
     .from("entities")
     .insert({
+      main_category_id: await mainCategoryId(),
       name,
       address: "Arlington, VA",
       location: `SRID=4326;POINT(${MOCK_LNG} ${MOCK_LAT})`,

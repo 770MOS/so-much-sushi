@@ -4,10 +4,10 @@
 create temp table r(t text, ok boolean);
 -- fixtures
 insert into auth.users(id,raw_user_meta_data) values ('11111111-1111-1111-1111-111111111111','{"handle":"u1"}'),('22222222-2222-2222-2222-222222222222','{"handle":"u2"}');
-insert into entities(id,name,location) values
+insert into entities(id,name,location,main_category_id) select v.id::uuid, v.name, v.loc::extensions.geography, c.id from (values
  ('aaaaaaaa-0000-0000-0000-000000000001','Dup','SRID=4326;POINT(-77.1 38.88)'),
  ('aaaaaaaa-0000-0000-0000-000000000002','Survivor','SRID=4326;POINT(-77.1 38.88)'),
- ('aaaaaaaa-0000-0000-0000-000000000003','Final','SRID=4326;POINT(-77.1 38.88)');
+ ('aaaaaaaa-0000-0000-0000-000000000003','Final','SRID=4326;POINT(-77.1 38.88)')) v(id,name,loc), categories c where c.slug='restaurants';
 insert into entity_categories select id,(select id from categories where slug='pizza') from entities;
 insert into stars(user_id,entity_id) values ('11111111-1111-1111-1111-111111111111','aaaaaaaa-0000-0000-0000-000000000001'),('11111111-1111-1111-1111-111111111111','aaaaaaaa-0000-0000-0000-000000000002'),('22222222-2222-2222-2222-222222222222','aaaaaaaa-0000-0000-0000-000000000001');
 insert into lists(id,owner_id,name) values ('bbbbbbbb-0000-0000-0000-000000000001','11111111-1111-1111-1111-111111111111','A'),('bbbbbbbb-0000-0000-0000-000000000002','11111111-1111-1111-1111-111111111111','B');
@@ -41,4 +41,11 @@ insert into r select 'anon cannot merge', not has_function_privilege('anon','mer
 insert into r select 'rls on all new tables', (select bool_and(relrowsecurity) from pg_class where relname in ('sources','source_runs','source_records','entity_field_provenance','change_events','review_decisions'));
 set role anon; select (select id from get_entity_detail('aaaaaaaa-0000-0000-0000-000000000001')) is not null as anon_detail \gset
 reset role; insert into r values('anon venue link resolves', :'anon_detail');
+-- main category rules
+do $$ begin insert into entities(name,main_category_id) values ('x',(select id from categories where slug='turkish')); insert into r values('main must be a root',false); exception when check_violation then insert into r values('main must be a root',true); end $$;
+do $$ begin insert into entities(name) values ('x'); insert into r values('main is required',false); exception when check_violation or not_null_violation then insert into r values('main is required',true); end $$;
+insert into entities(id,name,location,main_category_id) select 'aaaaaaaa-0000-0000-0000-000000000009','Plain Bar','SRID=4326;POINT(-77.1 38.88)'::extensions.geography, id from categories where slug='drinks';
+insert into r select 'entity with no subcategory is found by main category', (select count(*)=1 from search_entities(38.88,-77.1,1,'drinks'));
+insert into r select 'subcategory search includes ancestors', (select count(*)=1 from search_entities(38.88,-77.1,1,'restaurants.italian'));
+insert into r select 'category_paths start with the main category', (select category_paths[1]='drinks' from search_entities(38.88,-77.1,1,'drinks'));
 select case when ok then 'PASS ' else 'FAIL ' end || t from r;

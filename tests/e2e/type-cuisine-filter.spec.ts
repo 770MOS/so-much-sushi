@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import dotenv from "dotenv";
 import { createClient } from "@supabase/supabase-js";
+import { mainCategoryId } from "./helpers/mainCategory";
 
 dotenv.config({ path: ".env.local" });
 
@@ -37,6 +38,7 @@ test.beforeAll(async () => {
   const { data: cocktailBar, error: cocktailError } = await supabase
     .from("entities")
     .insert({
+      main_category_id: await mainCategoryId("drinks"),
       name: "Playwright Test Cocktail Bar",
       address: "Null Island",
       location: `SRID=4326;POINT(${FIXTURE_LNG} ${FIXTURE_LAT})`,
@@ -51,6 +53,7 @@ test.beforeAll(async () => {
   const { data: wineBar, error: wineError } = await supabase
     .from("entities")
     .insert({
+      main_category_id: await mainCategoryId("drinks"),
       name: "Playwright Test Wine Bar",
       address: "Null Island",
       location: `SRID=4326;POINT(${FIXTURE_LNG} ${FIXTURE_LAT})`,
@@ -88,10 +91,10 @@ test("All and Restaurants show the category dropdown", async ({ page }) => {
   await expect(page.locator("#category")).toBeVisible();
 });
 
-test("Bars, Coffee, Bakeries, and Breweries hide the category dropdown", async ({ page }) => {
+test("Drinks, Coffee, and Bakeries and Markets hide the category dropdown", async ({ page }) => {
   await page.goto("/discover");
 
-  for (const label of ["Bars", "Coffee", "Bakeries", "Breweries"]) {
+  for (const label of ["Drinks", "Coffee", "Bakeries and Markets"]) {
     await page.getByRole("button", { name: label, exact: true }).click();
     await expect(page.locator("#category")).toHaveCount(0);
   }
@@ -107,7 +110,7 @@ test("selecting a type does not auto-run search - only the Search button does", 
     }
   });
 
-  await page.getByRole("button", { name: "Bars", exact: true }).click();
+  await page.getByRole("button", { name: "Drinks", exact: true }).click();
   await page.waitForTimeout(500);
   expect(searchRequests).toHaveLength(0);
 
@@ -116,7 +119,7 @@ test("selecting a type does not auto-run search - only the Search button does", 
   await expect.poll(() => searchRequests.length, { timeout: 15_000 }).toBeGreaterThan(0);
 });
 
-test("a Bars search returns Cocktail Bar and Wine Bar tagged places with no sub-selection", async ({
+test("a Drinks search returns Cocktail Bar and Wine Bar tagged places with no sub-selection", async ({
   page,
 }) => {
   // Best-effort reverse-geocode label lookup - block it so the location
@@ -130,7 +133,7 @@ test("a Bars search returns Cocktail Bar and Wine Bar tagged places with no sub-
   await expect(page.locator("#location")).toHaveValue("Current location");
   await page.waitForTimeout(1000);
 
-  await page.getByRole("button", { name: "Bars", exact: true }).click();
+  await page.getByRole("button", { name: "Drinks", exact: true }).click();
   await expect(page.locator("#category")).toHaveCount(0);
 
   await page.getByRole("button", { name: "Search", exact: true }).click();

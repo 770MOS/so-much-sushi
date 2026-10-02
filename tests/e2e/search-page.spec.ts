@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
 import dotenv from "dotenv";
 import { createClient } from "@supabase/supabase-js";
+import { mainCategoryId } from "./helpers/mainCategory";
 
 dotenv.config({ path: ".env.local" });
 
@@ -46,6 +47,7 @@ test.beforeAll(async () => {
   const { data, error } = await supabase
     .from("entities")
     .insert({
+      main_category_id: await mainCategoryId(),
       name: FIXTURE_NAME,
       address: "Boston, MA",
       location: `SRID=4326;POINT(${FAR_LNG} ${FAR_LAT})`,
@@ -238,7 +240,7 @@ test.describe("Discover page is unaffected", () => {
     await expect(page.locator("#radius")).toBeVisible();
     await expect(page.locator("#category")).toBeVisible();
 
-    for (const label of ["All", "Restaurants", "Bars", "Coffee", "Bakeries", "Breweries"]) {
+    for (const label of ["All", "Restaurants", "Drinks", "Coffee", "Bakeries and Markets"]) {
       await expect(page.getByRole("button", { name: label, exact: true })).toBeVisible();
     }
     await expect(page.getByRole("button", { name: "All", exact: true })).toHaveAttribute(
