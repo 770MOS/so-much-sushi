@@ -106,7 +106,24 @@ def transform(rows, cmap):
     return out, skipped, tops
 
 
+def notice(title, text):
+    """Also surface a line as a GitHub Actions annotation, which is readable without the full log."""
+    if os.environ.get("GITHUB_ACTIONS"):
+        print(f"::notice title={title}::{str(text)[:3500]}")
+
+
 def summarise(records, skipped, tops, total):
+    unm = Counter(r["source_category"] for r in records if not r["payload"]["category_mapped"])
+    notice("counts", f"in box {total}; kept {len(records)}; skipped {dict(skipped)}; "
+           f"phone {sum(1 for r in records if r['phone'])}; website {sum(1 for r in records if r['website'])}")
+    notice("taxonomy top levels", dict(tops.most_common(15)))
+    notice("datasets and licences", f"{dict(Counter(r['upstream_dataset'] for r in records))} "
+           f"{dict(Counter(r['license'] for r in records))}")
+    notice("our categories", dict(Counter(r["category_slug"] for r in records).most_common(30)))
+    notice("unmapped source categories", f"{sum(unm.values())}: {dict(unm.most_common(60))}")
+    notice("status and states", f"{dict(Counter(str(r['payload']['operating_status']) for r in records))} "
+           f"{dict(Counter(r['state'] for r in records).most_common(6))}")
+    notice("sample", json.dumps(records[:2])[:3000])
     print(f"\nplaces in box: {total}; kept as food and drink: {len(records)}")
     print("top-level taxonomy of everything in the box:", dict(tops.most_common(12)))
     print("skipped:", dict(skipped))
