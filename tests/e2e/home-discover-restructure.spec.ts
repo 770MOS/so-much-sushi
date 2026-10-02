@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import dotenv from "dotenv";
 import { createClient } from "@supabase/supabase-js";
+import { mainCategoryId } from "./helpers/mainCategory";
 
 dotenv.config({ path: ".env.local" });
 
@@ -47,6 +48,7 @@ test.beforeAll(async () => {
   const { data: nameFixture, error: nameError } = await supabase
     .from("entities")
     .insert({
+      main_category_id: await mainCategoryId(),
       name: NAME_FIXTURE,
       address: "Arlington, VA",
       location: `SRID=4326;POINT(${MOCK_LNG} ${MOCK_LAT})`,
@@ -63,6 +65,7 @@ test.beforeAll(async () => {
   const { data: locationFixture, error: locationError } = await supabase
     .from("entities")
     .insert({
+      main_category_id: await mainCategoryId(),
       name: LOCATION_FIXTURE,
       address: "Boston, MA",
       location: `SRID=4326;POINT(${FAR_LNG} ${FAR_LAT})`,
@@ -135,7 +138,7 @@ test.describe("/discover - unchanged experience", () => {
     await expect(page.locator("#radius")).toBeVisible();
     await expect(page.locator("#category")).toBeVisible();
 
-    for (const label of ["All", "Restaurants", "Bars", "Coffee", "Bakeries", "Breweries"]) {
+    for (const label of ["All", "Restaurants", "Drinks", "Coffee", "Bakeries and Markets"]) {
       await expect(page.getByRole("button", { name: label, exact: true })).toBeVisible();
     }
 
@@ -143,10 +146,10 @@ test.describe("/discover - unchanged experience", () => {
     await expect(page.locator("#name")).toHaveCount(0);
   });
 
-  test("category dropdown still hides for Bars/Coffee/Bakeries/Breweries", async ({ page }) => {
+  test("category dropdown still hides for Drinks/Coffee/Bakeries and Markets", async ({ page }) => {
     await page.goto("/discover");
 
-    await page.getByRole("button", { name: "Bars", exact: true }).click();
+    await page.getByRole("button", { name: "Drinks", exact: true }).click();
     await expect(page.locator("#category")).toHaveCount(0);
   });
 });
@@ -161,7 +164,7 @@ test.describe("home page (/) - combined quick search", () => {
     await expect(page.locator("#location")).toBeVisible();
     await expect(page.locator("#radius")).toBeVisible();
 
-    for (const label of ["All", "Restaurants", "Bars", "Coffee", "Bakeries", "Breweries"]) {
+    for (const label of ["All", "Restaurants", "Drinks", "Coffee", "Bakeries and Markets"]) {
       await expect(page.getByRole("button", { name: label, exact: true })).toBeVisible();
     }
 
@@ -179,7 +182,7 @@ test.describe("home page (/) - combined quick search", () => {
       if (req.url().includes("/rest/v1/rpc/search_entities")) searchRequests.push(req.url());
     });
 
-    await page.getByRole("button", { name: "Bars", exact: true }).click();
+    await page.getByRole("button", { name: "Drinks", exact: true }).click();
     await page.waitForTimeout(500);
     expect(searchRequests).toHaveLength(0);
   });
