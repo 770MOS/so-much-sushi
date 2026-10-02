@@ -55,7 +55,8 @@ const STAR_ICON_PATH =
   "M12 3.5l2.6 5.27 5.82.85-4.21 4.1.99 5.8L12 16.9l-5.2 2.62.99-5.8-4.21-4.1 5.82-.85L12 3.5z";
 
 // Same path data as RestaurantTypeIcon/BarTypeIcon/CoffeeTypeIcon/
-// BakeryTypeIcon/BreweryTypeIcon in src/components/icons.tsx - duplicated
+// BakeryTypeIcon in src/components/icons.tsx (drinks uses the bar icon,
+// markets the bakery icon) - duplicated
 // here for the same raw-DOM reason as STAR_ICON_PATH above. Original
 // source: Tabler Icons (tools-kitchen-2, glass-cocktail, cup, bread, beer -
 // github.com/tabler/tabler-icons, MIT licensed).
@@ -63,7 +64,7 @@ const CATEGORY_ICON_PATHS: Record<Exclude<EntityType, "all">, string[]> = {
   restaurants: [
     "M19 3v12h-5c-.023 -3.681 .184 -7.406 5 -12m0 12v6h-1v-3m-10 -14v17m-3 -17v3a3 3 0 1 0 6 0v-3",
   ],
-  bars: [
+  drinks: [
     "M8 21h8",
     "M12 15v6",
     "M5 5a7 2 0 1 0 14 0a7 2 0 1 0 -14 0",
@@ -75,12 +76,8 @@ const CATEGORY_ICON_PATHS: Record<Exclude<EntityType, "all">, string[]> = {
     "M6 8v-1a2 2 0 0 1 2 -2h8a2 2 0 0 1 2 2v1",
     "M15 5v-2",
   ],
-  bakeries: [
+  markets: [
     "M18 4a3 3 0 0 1 2 5.235v8.765a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-8.764a3 3 0 0 1 1.824 -5.231h12.176v-.005",
-  ],
-  breweries: [
-    "M9 21h6a1 1 0 0 0 1 -1v-3.625c0 -1.397 .29 -2.775 .845 -4.025l.31 -.7c.556 -1.25 .845 -2.253 .845 -3.65v-4a1 1 0 0 0 -1 -1h-10a1 1 0 0 0 -1 1v4c0 1.397 .29 2.4 .845 3.65l.31 .7a9.931 9.931 0 0 1 .845 4.025v3.625a1 1 0 0 0 1 1",
-    "M6 8h12",
   ],
 };
 

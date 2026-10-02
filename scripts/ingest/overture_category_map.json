@@ -1,5 +1,5 @@
 {
-  "_comment": "Overture category -> our category slug. A category not listed here is mapped through its nearest listed ancestor in Overture's hierarchy and marked category_mapped=false for review.",
+  "_comment": "Overture category -> our category slug. Inside Overture's food_and_drink branch, a category not listed here is mapped through its nearest listed ancestor and marked category_mapped=false. Outside that branch (shopping), only categories listed here are ingested at all: that is how specialty food shops are included and supermarkets and convenience stores are left out.",
   "restaurant": "restaurants",
   "food_and_drink": "restaurants",
   "casual_eatery": "restaurants",
@@ -104,7 +104,7 @@
   "candy_store": "candy_chocolate",
   "chocolatier": "candy_chocolate",
   "bagel_shop": "bagels",
-  "alcoholic_beverage_venue": "bars",
+  "alcoholic_beverage_venue": "drinks",
   "bar": "bar",
   "dive_bar": "bar",
   "hotel_bar": "bar",
