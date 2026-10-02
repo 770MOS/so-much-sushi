@@ -31,17 +31,13 @@ def norm_license(value):
             "cc0-1.0": "CC0-1.0", "cc0": "CC0-1.0"}.get(v)
 
 
-def map_category(cat, cmap):
-    """Return (our slug, mapped confidently?)."""
-    if not cat:
-        return "restaurants", False
+def map_category(cat, hierarchy, cmap):
+    """Return (our slug, exact match?). Falls back to the nearest listed ancestor in Overture's hierarchy."""
     if cat in cmap:
         return cmap[cat], True
-    for words, slug in ((("brewery", "brewpub"), "brewery"), (("bar", "pub", "lounge", "tavern"), "bar"),
-                        (("coffee", "cafe", "tea"), "coffee"),
-                        (("bakery", "dessert", "ice_cream", "donut", "pastry"), "bakery")):
-        if any(w in cat.split("_") or w == cat for w in words):
-            return slug, False
+    for node in reversed(hierarchy or []):
+        if node in cmap:
+            return cmap[node], False
     return "restaurants", False
 
 
@@ -91,7 +87,7 @@ def transform(rows, cmap):
         websites = json.loads(r["websites"]) if r["websites"] else []
         phones = json.loads(r["phones"]) if r["phones"] else []
         cat = tax.get("primary") or r["basic_category"]
-        slug, mapped = map_category(cat, cmap)
+        slug, mapped = map_category(cat, hierarchy, cmap)
         out.append({
             "source_record_id": r["id"], "upstream_dataset": dataset, "license": license_,
             "name": r["name"], "address": addr.get("freeform"), "city": addr.get("locality"),
