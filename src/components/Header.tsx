@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import AccountMenu from "@/components/AccountMenu";
@@ -14,6 +15,7 @@ type Profile = {
 };
 
 export default function Header() {
+  const pathname = usePathname();
   const supabase = useMemo(() => createClient(), []);
   const [user, setUser] = useState<User | null | undefined>(undefined);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -43,6 +45,9 @@ export default function Header() {
       cancelled = true;
     };
   }, [user, supabase]);
+
+  // The admin section has its own top bar.
+  if (pathname.startsWith("/admin")) return null;
 
   return (
     <header className="w-full border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-black">
