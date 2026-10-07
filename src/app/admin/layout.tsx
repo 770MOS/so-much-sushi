@@ -44,7 +44,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <Link href="/admin/review" className="flex min-h-11 items-center rounded-lg px-2.5 font-medium text-neutral-900 hover:bg-neutral-200/70">
             Review queue
           </Link>
-          <span className="flex min-h-11 items-center rounded-lg px-2.5 text-neutral-400">All places (coming next)</span>
+          <Link href="/admin/places" className="flex min-h-11 items-center rounded-lg px-2.5 font-medium text-neutral-900 hover:bg-neutral-200/70">
+            All places
+          </Link>
           <span className="flex min-h-11 items-center rounded-lg px-2.5 text-neutral-400">Categories and tags (coming next)</span>
         </nav>
         <main className="flex min-w-0 flex-1 flex-col">{children}</main>
