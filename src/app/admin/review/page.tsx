@@ -4,13 +4,15 @@ import { place, websiteHost } from "@/lib/adminFormat";
 import Compare from "@/components/admin/Compare";
 import SelectAll from "@/components/admin/SelectAll";
 import {
+  acceptSourceChanges,
   acceptTagsSelected,
   acceptTickedRejectRest,
   keepSeparateSelected,
   mergeSelected,
+  rejectSourceChanges,
   rejectTagsSelected,
 } from "./actions";
-import type { MergeRow, TagCount, TagRow } from "./types";
+import type { MergeRow, SourceChangeRow, TagCount, TagRow } from "./types";
 
 const TAG_PAGE = 200;
 
@@ -18,6 +20,24 @@ const th = "whitespace-nowrap border-b border-l border-neutral-200 px-3 py-2 tex
 const td = "border-b border-l border-neutral-100 px-3 py-2 align-top first:border-l-0";
 const primary = "min-h-11 cursor-pointer rounded-lg bg-neutral-900 px-3.5 text-[13px] font-medium text-white hover:bg-neutral-700";
 const secondary = "min-h-11 cursor-pointer rounded-lg border border-neutral-300 bg-white px-3.5 text-[13px] font-medium hover:bg-neutral-50";
+
+const CHANGE_LABEL: Record<string, string> = {
+  attribute_change: "Value",
+  closure_signal: "Closed?",
+  status_change: "Reopened?",
+  absent: "Missing",
+};
+
+const STATUS_LABEL: Record<string, string> = {
+  active: "Open",
+  temporarily_closed: "Temporarily closed",
+  permanently_closed: "Permanently closed",
+};
+
+function changeValue(field: string | null, v: string | null) {
+  if (!v) return null;
+  return field === "status" ? (STATUS_LABEL[v] ?? v.replace(/_/g, " ")) : v;
+}
 
 function one(v: string | string[] | undefined) {
   return Array.isArray(v) ? v[0] : v;
@@ -30,13 +50,20 @@ export default async function ReviewQueue({
 }) {
   const { db } = await requireAdmin();
   const params = await searchParams;
-  const type = one(params.type) === "tags" ? "tags" : "merges";
+  const requested = one(params.type);
+  const type = requested === "tags" ? "tags" : requested === "changes" ? "changes" : "merges";
   const tag = one(params.tag) ?? null;
   const notice = one(params.notice);
 
-  const [mergesRes, countsRes] = await Promise.all([db.rpc("admin_pending_merges"), db.rpc("admin_pending_tag_counts")]);
+  const [mergesRes, countsRes, changesRes] = await Promise.all([
+    db.rpc("admin_pending_merges"),
+    db.rpc("admin_pending_tag_counts"),
+    db.rpc("admin_pending_source_changes"),
+  ]);
   if (mergesRes.error) throw new Error(mergesRes.error.message);
   if (countsRes.error) throw new Error(countsRes.error.message);
+  if (changesRes.error) throw new Error(changesRes.error.message);
+  const changes = (changesRes.data ?? []) as SourceChangeRow[];
   const merges = (mergesRes.data ?? []) as MergeRow[];
   const counts = ((countsRes.data ?? []) as TagCount[]).map((c) => ({ ...c, pending: Number(c.pending) }));
   const tagTotal = counts.reduce((sum, c) => sum + c.pending, 0);
@@ -48,7 +75,12 @@ export default async function ReviewQueue({
     tags = (res.data ?? []) as TagRow[];
   }
 
-  const here = type === "tags" ? `/admin/review?type=tags${tag ? `&tag=${encodeURIComponent(tag)}` : ""}` : "/admin/review";
+  const here =
+    type === "tags"
+      ? `/admin/review?type=tags${tag ? `&tag=${encodeURIComponent(tag)}` : ""}`
+      : type === "changes"
+        ? "/admin/review?type=changes"
+        : "/admin/review";
   const tab = (active: boolean) =>
     `flex min-h-11 items-center gap-2 rounded-lg border px-3 text-[13px] ${
       active ? "border-neutral-900 bg-neutral-900 text-white" : "border-neutral-300 bg-white hover:bg-neutral-50"
@@ -64,6 +96,9 @@ export default async function ReviewQueue({
         <Link href="/admin/review?type=tags" className={tab(type === "tags")}>
           Tag suggestions <span className="font-mono text-xs">{tagTotal}</span>
         </Link>
+        <Link href="/admin/review?type=changes" className={tab(type === "changes")}>
+          Source changes <span className="font-mono text-xs">{changes.length}</span>
+        </Link>
       </div>
 
       {notice && (
@@ -72,7 +107,64 @@ export default async function ReviewQueue({
         </p>
       )}
 
-      {type === "merges" ? (
+      {type === "changes" ? (
+        changes.length === 0 ? (
+          <p className="px-4 py-10 text-neutral-600">No changes from source loads are waiting.</p>
+        ) : (
+          <form>
+            <input type="hidden" name="return" value={here} />
+            <div className="flex flex-wrap items-center gap-2 border-b border-neutral-200 bg-neutral-50 px-4 py-2">
+              <button formAction={acceptSourceChanges} className={primary}>
+                Apply ticked
+              </button>
+              <button formAction={rejectSourceChanges} className={secondary}>
+                Reject ticked
+              </button>
+              <span className="text-xs text-neutral-600">
+                Found by comparing the latest load with what we have. Values changed by hand are never overwritten without your say.
+              </span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[980px] border-collapse text-[13px]">
+                <thead>
+                  <tr className="bg-neutral-50">
+                    <th className={th}><SelectAll /></th>
+                    <th className={th}>Place</th>
+                    <th className={th}>Change</th>
+                    <th className={th}>Now</th>
+                    <th className={th}>Proposed</th>
+                    <th className={th}>Why</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {changes.map((c) => (
+                    <tr key={c.event_id} className="has-[:checked]:bg-orange-50">
+                      <td className={td}>
+                        <label className="flex min-h-11 min-w-11 cursor-pointer items-center justify-center">
+                          <input type="checkbox" name="id" value={c.event_id} aria-label={`Select ${c.name}`} className="h-4 w-4 accent-neutral-900" />
+                        </label>
+                      </td>
+                      <td className={td}>
+                        <Link href={`/admin/places/${c.entity_id}`} className="inline-flex min-h-11 items-center font-medium underline decoration-neutral-300 hover:text-orange-700">
+                          {c.name}
+                        </Link>
+                        <div className="text-xs text-neutral-500">{place(c.city, c.state)}</div>
+                      </td>
+                      <td className={`${td} whitespace-nowrap`}>{CHANGE_LABEL[c.event_type] ?? c.event_type}{c.event_type === "attribute_change" && c.field ? `: ${c.field.replace(/_/g, " ")}` : ""}</td>
+                      <td className={td}>{changeValue(c.field, c.current_value) ?? <span className="text-neutral-400">None</span>}</td>
+                      <td className={`${td} font-medium`}>{changeValue(c.field, c.proposed_value) ?? <span className="font-normal text-neutral-400">None</span>}</td>
+                      <td className={`${td} text-neutral-600`}>
+                        {c.reason}
+                        {c.release && <div className="text-xs text-neutral-500">Load {c.release}</div>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </form>
+        )
+      ) : type === "merges" ? (
         merges.length === 0 ? (
           <p className="px-4 py-10 text-neutral-600">No possible duplicates are waiting.</p>
         ) : (
