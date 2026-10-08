@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireAdmin } from "@/lib/admin";
 import { loadCategories, mainCategories } from "@/lib/adminCategories";
 import { formatPhone, websiteHost } from "@/lib/adminFormat";
+import StateTownSelect from "@/components/admin/StateTownSelect";
 import TagChecklist from "@/components/admin/TagChecklist";
 
 const PAGE = 50;
@@ -12,6 +13,7 @@ type PlaceRow = {
   needs_review: boolean; main_category: string; tags: string[]; total: number;
 };
 type Option = { value: string; count: number };
+type Town = { state: string | null; value: string; count: number };
 
 const th = "whitespace-nowrap border-b border-l border-neutral-200 px-3 py-2 text-left font-medium text-neutral-600 first:border-l-0";
 const td = "border-b border-l border-neutral-100 px-3 py-2 align-top first:border-l-0";
@@ -52,7 +54,7 @@ export default async function AllPlaces({
 
   const [categories, filtersRes, placesRes] = await Promise.all([
     loadCategories(db),
-    db.rpc("admin_place_filters", { p_state: state ?? null }),
+    db.rpc("admin_place_filters", { p_state: null }),
     db.rpc("admin_search_places", {
       p_q: q ?? null, p_state: state ?? null, p_city: city ?? null, p_zip: zip ?? null,
       p_main: main ?? null, p_tags: tags.length ? tags : null, p_status: status ?? null,
@@ -62,7 +64,7 @@ export default async function AllPlaces({
   ]);
   if (filtersRes.error) throw new Error(filtersRes.error.message);
   if (placesRes.error) throw new Error(placesRes.error.message);
-  const filters = filtersRes.data as { states: Option[]; cities: Option[] };
+  const filters = filtersRes.data as { states: Option[]; cities: Option[]; towns?: Town[] };
   const rows = (placesRes.data ?? []) as PlaceRow[];
   const total = rows.length ? Number(rows[0].total) : 0;
   const pages = Math.max(1, Math.ceil(total / PAGE));
@@ -85,24 +87,14 @@ export default async function AllPlaces({
           Name
           <input type="search" name="q" defaultValue={q} placeholder="Contains…" className={`${control} w-44`} />
         </label>
-        <label className={label}>
-          State
-          <select name="state" defaultValue={state ?? ""} className={control}>
-            <option value="">Any</option>
-            {filters.states.map((s) => (
-              <option key={s.value} value={s.value}>{s.value} ({s.count.toLocaleString("en-US")})</option>
-            ))}
-          </select>
-        </label>
-        <label className={label}>
-          Town or city
-          <select name="city" defaultValue={city ?? ""} className={`${control} max-w-48`}>
-            <option value="">Any</option>
-            {filters.cities.map((c) => (
-              <option key={c.value} value={c.value}>{c.value} ({c.count.toLocaleString("en-US")})</option>
-            ))}
-          </select>
-        </label>
+        <StateTownSelect
+          states={filters.states}
+          towns={filters.towns ?? []}
+          state={state}
+          city={city}
+          controlClass={control}
+          labelClass={label}
+        />
         <label className={label}>
           ZIP code
           <input type="text" name="zip" defaultValue={zip} inputMode="numeric" maxLength={5} placeholder="22201" className={`${control} w-24`} />
