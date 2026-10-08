@@ -93,3 +93,24 @@ export async function acceptTickedRejectRest(formData: FormData) {
   }
   back(formData, `Added ${accepted} tags, rejected ${rejected}.`);
 }
+
+async function decideSourceChanges(formData: FormData, accept: boolean) {
+  const { db, email } = await requireAdmin();
+  const selected = ids(formData, "id");
+  if (selected.length === 0) back(formData, "Nothing was ticked.");
+  const { data, error } = await db.rpc("decide_source_changes", {
+    p_events: selected,
+    p_accept: accept,
+    p_decided_by: email,
+  });
+  if (error) back(formData, `Could not save: ${error.message}`);
+  back(formData, accept ? `Applied ${data} changes.` : `Rejected ${data} changes.`);
+}
+
+export async function acceptSourceChanges(formData: FormData) {
+  await decideSourceChanges(formData, true);
+}
+
+export async function rejectSourceChanges(formData: FormData) {
+  await decideSourceChanges(formData, false);
+}

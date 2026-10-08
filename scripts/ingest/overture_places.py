@@ -172,6 +172,11 @@ def load(records, release, scope):
         "stats": {"by_license": dict(Counter(r["license"] for r in records)),
                   "by_dataset": dict(Counter(r["upstream_dataset"] for r in records))}})
     print(f"loaded {done} records as run {run['id']}")
+    # Compare the load with the places we already have: update, propose, or create.
+    result = rest.call("POST", "/rpc/reconcile_run", {"p_run_id": run["id"], "p_decided_by": "ingest:overture_places"})
+    print("reconcile:", json.dumps(result, indent=2))
+    lines = [f"{k.replace('_', ' ')}: {v}" for k, v in (result or {}).items() if k not in ("build", "finished_at")]
+    notice("Reconcile", "%0A".join(lines))
 
 
 def main():

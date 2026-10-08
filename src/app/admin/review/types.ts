@@ -15,3 +15,9 @@ export type TagRow = {
 };
 
 export type TagCount = { tag_path: string; tag_name: string | null; pending: number };
+
+export type SourceChangeRow = {
+  event_id: number; event_type: string; entity_id: string; name: string; city: string | null; state: string | null;
+  field: string | null; current_value: string | null; proposed_value: string | null; reason: string | null;
+  release: string | null; created_at: string;
+};
