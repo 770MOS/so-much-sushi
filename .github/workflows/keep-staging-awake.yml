@@ -1,0 +1,26 @@
+name: Keep staging awake
+
+# Supabase pauses free projects after about a week without activity.
+# One small read each Monday and Thursday keeps the sandbox available.
+on:
+  schedule:
+    - cron: "17 13 * * 1,4"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Read one row from the sandbox
+        env:
+          URL: ${{ secrets.SANDBOX_SUPABASE_URL }}
+          KEY: ${{ secrets.SANDBOX_SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' "$URL/rest/v1/sources?select=id&limit=1" \
+                 -H "apikey: $KEY" -H "Authorization: Bearer $KEY")
+          echo "sandbox answered $code"
+          [ "$code" = "200" ] || { echo "::warning title=Sandbox not reachable::HTTP $code. It may already be paused; restore it in the Supabase dashboard."; exit 1; }
