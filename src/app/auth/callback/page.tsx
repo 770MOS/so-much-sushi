@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -36,9 +37,9 @@ export default function AuthCallback() {
       {error ? (
         <p className="text-zinc-600 dark:text-zinc-400">
           That confirmation link is invalid or has expired.{" "}
-          <a href="/sign-up" className="underline">
+          <Link href="/sign-up" className="underline">
             Try signing up again
-          </a>
+          </Link>
           .
         </p>
       ) : (

@@ -1,0 +1,47 @@
+name: Deploy database to staging
+
+# When a merge to main changes the migrations, apply them to the staging database (the sandbox).
+# Production is never touched here; it gets its own workflow with an approval step.
+on:
+  push:
+    branches: [main]
+    paths: ["supabase/migrations/**"]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: staging
+    steps:
+      - uses: actions/checkout@v5
+      - name: Check the connection setting is present
+        env:
+          STAGING_DB_URL: ${{ secrets.STAGING_DB_URL }}
+        run: |
+          if [ -z "$STAGING_DB_URL" ]; then
+            echo "::error title=Missing secret::Add STAGING_DB_URL (the sandbox's session pooler connection string) under Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+          case "$STAGING_DB_URL" in
+            *mfngcidhbzjexbxtgbeh*) ;;
+            *) echo "::error title=Wrong database::STAGING_DB_URL does not point at the sandbox (mfngcidhbzjexbxtgbeh). Refusing to run."; exit 1 ;;
+          esac
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Show what will be applied
+        env:
+          STAGING_DB_URL: ${{ secrets.STAGING_DB_URL }}
+        run: supabase db push --db-url "$STAGING_DB_URL" --dry-run
+      - name: Apply migrations
+        env:
+          STAGING_DB_URL: ${{ secrets.STAGING_DB_URL }}
+        run: supabase db push --db-url "$STAGING_DB_URL"
