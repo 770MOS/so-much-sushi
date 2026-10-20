@@ -6,12 +6,14 @@ Modes:
   dry-run  read and summarise, write a CSV, touch no database (default)
   load     also create a source_runs row and upsert into source_records
 """
-import argparse, csv, json, os, sys, urllib.error, urllib.request
-from datetime import datetime, timezone
+import argparse, json, sys
 from collections import Counter
 from pathlib import Path
 
 import duckdb
+
+sys.path.insert(0, str(Path(__file__).parent))
+from common import load, notice, summarise, write_csv  # noqa: E402
 
 HERE = Path(__file__).parent
 # Licence per upstream dataset, from https://docs.overturemaps.org/attribution/ . Used only
@@ -104,81 +106,6 @@ def transform(rows, cmap):
     return out, skipped, tops, shopping
 
 
-def notice(title, text):
-    """Also surface a line as a GitHub Actions annotation, which is readable without the full log."""
-    if os.environ.get("GITHUB_ACTIONS"):
-        print(f"::notice title={title}::{str(text)[:3500]}")
-
-
-def summarise(records, skipped, tops, shopping, total):
-    unm = Counter(r["source_category"] for r in records if not r["payload"]["category_mapped"])
-    notice("counts", f"in box {total}; kept {len(records)}; skipped {dict(skipped)}; "
-           f"phone {sum(1 for r in records if r['phone'])}; website {sum(1 for r in records if r['website'])}")
-    notice("taxonomy top levels", dict(tops.most_common(15)))
-    notice("shopping categories", dict(shopping.most_common(150)))
-    notice("datasets and licences", f"{dict(Counter(r['upstream_dataset'] for r in records))} "
-           f"{dict(Counter(r['license'] for r in records))}")
-    notice("our categories", dict(Counter(r["category_slug"] for r in records).most_common(30)))
-    notice("unmapped source categories", f"{sum(unm.values())}: {dict(unm.most_common(60))}")
-    notice("status and states", f"{dict(Counter(str(r['payload']['operating_status']) for r in records))} "
-           f"{dict(Counter(r['state'] for r in records).most_common(6))}")
-    notice("sample", json.dumps(records[:2])[:3000])
-    print(f"\nplaces in box: {total}; kept as food and drink: {len(records)}")
-    print("top-level taxonomy of everything in the box:", dict(tops.most_common(12)))
-    print("skipped:", dict(skipped))
-    for label, key in (("upstream dataset", lambda r: r["upstream_dataset"]), ("licence", lambda r: r["license"]),
-                       ("our category", lambda r: r["category_slug"]), ("state", lambda r: r["state"])):
-        print(f"by {label}:", dict(Counter(map(key, records)).most_common(15)))
-    unmapped = Counter(r["source_category"] for r in records if not r["payload"]["category_mapped"])
-    print(f"not confidently mapped: {sum(unmapped.values())}; top source categories:", dict(unmapped.most_common(40)))
-    print("with phone:", sum(1 for r in records if r["phone"]), "| with website:", sum(1 for r in records if r["website"]))
-    print("operating_status:", dict(Counter(str(r["payload"]["operating_status"]) for r in records)))
-    print("sample:", json.dumps(records[:3], indent=1)[:3000])
-
-
-class Rest:
-    def __init__(self):
-        self.url = os.environ["SUPABASE_URL"].rstrip("/") + "/rest/v1"
-        self.key = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
-
-    def call(self, method, path, body, prefer=None):
-        req = urllib.request.Request(self.url + path, method=method, data=json.dumps(body).encode(), headers={
-            "apikey": self.key, "Authorization": f"Bearer {self.key}", "Content-Type": "application/json",
-            **({"Prefer": prefer} if prefer else {})})
-        try:
-            with urllib.request.urlopen(req, timeout=120) as resp:
-                text = resp.read().decode()
-                return json.loads(text) if text else None
-        except urllib.error.HTTPError as e:
-            sys.exit(f"{method} {path} failed: {e.code} {e.read().decode()[:500]}")
-
-
-def load(records, release, scope):
-    rest = Rest()
-    req = urllib.request.Request(rest.url + "/sources?code=eq.overture_places&select=id,is_active",
-                                 headers={"apikey": rest.key, "Authorization": f"Bearer {rest.key}"})
-    with urllib.request.urlopen(req, timeout=60) as resp:
-        src = json.loads(resp.read().decode())
-    if not src or not src[0]["is_active"]:
-        sys.exit("source overture_places is missing or inactive in the register; refusing to load")
-    run = rest.call("POST", "/source_runs", {"source_id": src[0]["id"], "release": release, "scope": scope,
-                                             "license": "per record (CDLA-Permissive-2.0 / Apache-2.0 / CC0-1.0)"},
-                    prefer="return=representation")[0]
-    done = 0
-    for i in range(0, len(records), 500):
-        done += rest.call("POST", "/rpc/ingest_source_records", {"p_run_id": run["id"], "p_records": records[i:i + 500]})
-    rest.call("PATCH", f"/source_runs?id=eq.{run['id']}", {
-        "status": "succeeded", "record_count": done, "finished_at": datetime.now(timezone.utc).isoformat(),
-        "stats": {"by_license": dict(Counter(r["license"] for r in records)),
-                  "by_dataset": dict(Counter(r["upstream_dataset"] for r in records))}})
-    print(f"loaded {done} records as run {run['id']}")
-    # Compare the load with the places we already have: update, propose, or create.
-    result = rest.call("POST", "/rpc/reconcile_run", {"p_run_id": run["id"], "p_decided_by": "ingest:overture_places"})
-    print("reconcile:", json.dumps(result, indent=2))
-    lines = [f"{k.replace('_', ' ')}: {v}" for k, v in (result or {}).items() if k not in ("build", "finished_at")]
-    notice("Reconcile", "%0A".join(lines))
-
-
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--release", required=True)
@@ -190,15 +117,13 @@ def main():
     cmap = {k: v for k, v in json.loads((HERE / "overture_category_map.json").read_text()).items() if not k.startswith("_")}
     rows = fetch(a.release, bbox)
     records, skipped, tops, shopping = transform(rows, cmap)
-    summarise(records, skipped, tops, shopping, len(rows))
-    with open(a.out, "w", newline="") as f:
-        cols = [c for c in records[0] if c != "payload"] if records else []
-        w = csv.DictWriter(f, fieldnames=cols + ["category_mapped"])
-        w.writeheader()
-        for r in records:
-            w.writerow({**{c: r[c] for c in cols}, "category_mapped": r["payload"]["category_mapped"]})
+    summarise(records, skipped, {"Overture top levels": dict(tops.most_common(12)),
+                                 "Shopping categories seen": dict(shopping.most_common(25)),
+                                 "In box": len(rows)})
+    write_csv(records, a.out)
     if a.mode == "load":
-        load(records, a.release, f"bbox:{a.bbox}")
+        load(records, "overture_places", a.release, f"bbox:{a.bbox}",
+             "per record (CDLA-Permissive-2.0 / Apache-2.0 / CC0-1.0)")
 
 
 if __name__ == "__main__":
