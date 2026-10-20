@@ -11,7 +11,7 @@ Modes:
 Area: --bbox xmin,ymin,xmax,ymax  (fast: only the matching parts of the file are read), or
       --state VA                  (reads the whole national file, then keeps that state).
 """
-import argparse, json, sys, urllib.request
+import argparse, json, sys
 from collections import Counter
 from pathlib import Path
 
@@ -19,7 +19,7 @@ import duckdb
 
 HERE = Path(__file__).parent
 sys.path.insert(0, str(HERE))
-from common import load, notice, summarise, write_csv  # noqa: E402
+from common import get_json, load, notice, run, summarise, write_csv  # noqa: E402
 
 LATEST = "https://data.alltheplaces.xyz/runs/latest.json"
 LICENSE = "CC0-1.0"
@@ -46,14 +46,14 @@ def norm_state(value):
 
 
 def latest_run():
-    with urllib.request.urlopen(LATEST, timeout=60) as resp:
-        return json.loads(resp.read().decode())
+    return get_json(LATEST)
 
 
 def fetch(parquet_url, keys, bbox=None, state=None):
     con = duckdb.connect()
     if parquet_url.startswith("http"):
         con.execute("INSTALL httpfs; LOAD httpfs;")
+        con.execute("SET http_timeout = 300; SET http_retries = 5;")
     cols = [r[0] for r in con.execute(f"DESCRIBE SELECT * FROM read_parquet('{parquet_url}')").fetchall()]
     notice("Columns", ", ".join(cols))
     tag_filter = " OR ".join(
@@ -162,4 +162,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    run(main)

@@ -13,7 +13,7 @@ from pathlib import Path
 import duckdb
 
 sys.path.insert(0, str(Path(__file__).parent))
-from common import load, notice, summarise, write_csv  # noqa: E402
+from common import load, notice, run, summarise, write_csv  # noqa: E402
 
 HERE = Path(__file__).parent
 # Licence per upstream dataset, from https://docs.overturemaps.org/attribution/ . Used only
@@ -127,4 +127,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    run(main)
