@@ -1,0 +1,66 @@
+name: Ingest a source (sandbox)
+
+# Pull one source for one area and, in load mode, load and reconcile it in the sandbox.
+on:
+  workflow_dispatch:
+    inputs:
+      source:
+        description: "Which source"
+        type: choice
+        options: [overture_places, alltheplaces]
+        default: overture_places
+      mode:
+        description: "dry-run only reads and summarises; load writes to the sandbox"
+        type: choice
+        options: [dry-run, load]
+        default: dry-run
+      release:
+        description: "Overture release (All the Places always uses its latest run)"
+        default: "2026-09-23.1"
+      bbox:
+        description: "Area as xmin,ymin,xmax,ymax (default: DC, Arlington, Alexandria and inner suburbs). Ignored when a state is given."
+        default: "-77.25,38.75,-76.90,39.05"
+      state:
+        description: "Two-letter state instead of the box (All the Places only for now), e.g. VA"
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ingest-sandbox
+  cancel-in-progress: false
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install duckdb==1.5.6
+      - name: Run ingest
+        env:
+          SUPABASE_URL: ${{ inputs.mode == 'load' && secrets.SANDBOX_SUPABASE_URL || '' }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ inputs.mode == 'load' && secrets.SANDBOX_SUPABASE_SERVICE_ROLE_KEY || '' }}
+          SOURCE: ${{ inputs.source }}
+          MODE: ${{ inputs.mode }}
+          RELEASE: ${{ inputs.release }}
+          BBOX: ${{ inputs.bbox }}
+          STATE: ${{ inputs.state }}
+        run: |
+          if [ "$SOURCE" = overture_places ]; then
+            if [ -n "$STATE" ]; then echo "::error::State areas are not supported for Overture yet; use the box."; exit 1; fi
+            python scripts/ingest/overture_places.py --mode "$MODE" --release="$RELEASE" --bbox="$BBOX" --out records.csv
+          elif [ -n "$STATE" ]; then
+            python scripts/ingest/alltheplaces.py --mode "$MODE" --state "$STATE" --out records.csv
+          else
+            python scripts/ingest/alltheplaces.py --mode "$MODE" --bbox="$BBOX" --out records.csv
+          fi
+      - uses: actions/upload-artifact@v5
+        with:
+          name: ${{ inputs.source }}-${{ inputs.mode }}
+          path: records.csv
+          if-no-files-found: ignore
