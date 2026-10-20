@@ -15,11 +15,38 @@ An adapter's only job is to turn one source's data into records of this shape:
 
 Everything after that (creating the run, loading, reconciling, reporting) is shared here.
 """
-import csv, json, os, sys, urllib.error, urllib.request
+import csv, json, os, sys, traceback, urllib.error, urllib.request
 from collections import Counter
 from datetime import datetime, timezone
+from pathlib import Path
 
 BATCH = 500
+USER_AGENT = "so-much-sushi-ingest/1.0 (+https://github.com/770MOS/so-much-sushi)"
+
+
+def get_json(url, timeout=60):
+    """GET a JSON document with an explicit User-Agent (some hosts refuse Python's default)."""
+    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "application/json"})
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return json.loads(resp.read().decode())
+
+
+def run(main):
+    """Run an adapter's main(); on any error, put the reason in a GitHub annotation and exit 1."""
+    try:
+        main()
+    except SystemExit as e:
+        if e.code not in (0, None):
+            if os.environ.get("GITHUB_ACTIONS"):
+                print(f"::error title=Ingest stopped::{str(e.code)[:3000]}")
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        if os.environ.get("GITHUB_ACTIONS"):
+            where = traceback.extract_tb(e.__traceback__)[-1]
+            print(f"::error title=Ingest failed::{type(e).__name__}: {str(e)[:2500]} "
+                  f"(at {Path(where.filename).name}:{where.lineno})")
+        sys.exit(1)
 
 
 def notice(title, text):
