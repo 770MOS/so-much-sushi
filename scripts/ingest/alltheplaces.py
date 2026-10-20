@@ -11,7 +11,7 @@ Modes:
 Area: --bbox xmin,ymin,xmax,ymax  (fast: only the matching parts of the file are read), or
       --state VA                  (reads the whole national file, then keeps that state).
 """
-import argparse, json, sys
+import argparse, io, json, os, sys, tempfile, urllib.request, zipfile
 from collections import Counter
 from pathlib import Path
 
@@ -19,7 +19,7 @@ import duckdb
 
 HERE = Path(__file__).parent
 sys.path.insert(0, str(HERE))
-from common import get_json, load, notice, run, summarise, write_csv  # noqa: E402
+from common import USER_AGENT, get_json, load, notice, run, summarise, write_csv  # noqa: E402
 
 LATEST = "https://data.alltheplaces.xyz/runs/latest.json"
 LICENSE = "CC0-1.0"
@@ -49,7 +49,18 @@ def latest_run():
     return get_json(LATEST)
 
 
-def fetch(parquet_url, keys, bbox=None, state=None):
+def in_area(lon, lat, props, bbox, state):
+    if bbox:
+        xmin, ymin, xmax, ymax = bbox
+        if lon is None or lat is None or not (xmin <= lon <= xmax and ymin <= lat <= ymax):
+            return False
+    if state and norm_state(props.get("addr:state")) != state:
+        return False
+    return (props.get("addr:country") or "US") in ("US", "USA")
+
+
+def fetch_parquet(parquet_url, keys, bbox=None, state=None):
+    """Read only the matching rows of the weekly GeoParquet (fast, when it is published)."""
     con = duckdb.connect()
     if parquet_url.startswith("http"):
         con.execute("INSTALL httpfs; LOAD httpfs;")
@@ -73,6 +84,93 @@ def fetch(parquet_url, keys, bbox=None, state=None):
         WHERE {' AND '.join(where)}""")
     names = [d[0] for d in rel.description]
     return [dict(zip(names, row)) for row in rel.fetchall()]
+
+
+def point_of(geometry):
+    """A representative point: the point itself, or the middle of a shape's extent."""
+    if not geometry:
+        return None, None
+    if geometry.get("type") == "Point":
+        c = geometry.get("coordinates") or [None, None]
+        return c[0], c[1]
+    xs, ys = [], []
+
+    def walk(c):
+        if c and isinstance(c[0], (int, float)):
+            xs.append(c[0]); ys.append(c[1])
+        else:
+            for x in c or []:
+                walk(x)
+    walk(geometry.get("coordinates"))
+    return ((min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2) if xs else (None, None)
+
+
+def features_of(member, tokens=()):
+    """Yield features from one spider file, whether written one feature per line or as one document."""
+    head = member.read(4096)
+    rest = member.read()
+    text = (head + rest).decode("utf-8", errors="replace")
+    lines = text.splitlines()
+    if len(lines) > 2:
+        for line in lines:
+            line = line.strip().rstrip(",")
+            if tokens and not any(t in line for t in tokens):
+                continue  # cheap pre-filter: no food-and-drink tag value on this line
+            if line.startswith("{") and '"Feature"' in line and '"FeatureCollection"' not in line:
+                try:
+                    yield json.loads(line)
+                except json.JSONDecodeError:
+                    pass
+        return
+    try:
+        doc = json.loads(text)
+    except json.JSONDecodeError:
+        return
+    yield from (doc.get("features") or [])
+
+
+def fetch_zip(output_url, keys, bbox=None, state=None):
+    """Stream the weekly zip of every spider's output without unpacking it to disk."""
+    wanted = {v for v in (key.split("=", 1)[1] for key in keys)}
+    tokens = [f'"{v}"' for v in wanted]
+    with tempfile.TemporaryDirectory() as tmp:
+        path = os.path.join(tmp, "output.zip")
+        req = urllib.request.Request(output_url, headers={"User-Agent": USER_AGENT})
+        with urllib.request.urlopen(req, timeout=600) as resp, open(path, "wb") as out:
+            while chunk := resp.read(8 << 20):
+                out.write(chunk)
+        notice("Downloaded", f"{os.path.getsize(path) / 1e9:.2f} GB")
+        rows, files = [], 0
+        with zipfile.ZipFile(path) as zf:
+            for info in zf.infolist():
+                if info.is_dir() or not info.filename.endswith(("geojson", "json")):
+                    continue
+                files += 1
+                spider = Path(info.filename).name.split(".")[0]
+                with zf.open(info) as member:
+                    for f in features_of(io.BufferedReader(member, 1 << 20), tokens):
+                        props = f.get("properties") or {}
+                        if not any(props.get(k) == v for k, v in (key.split("=", 1) for key in keys)):
+                            continue
+                        if not props.get("ref"):
+                            continue
+                        lon, lat = point_of(f.get("geometry"))
+                        if not in_area(lon, lat, props, bbox, state):
+                            continue
+                        rows.append({"id": f.get("id"), "spider": props.get("@spider") or spider,
+                                     "properties": props, "lon": lon, "lat": lat})
+        notice("Read", f"{files} spider files")
+        return rows
+
+
+def fetch(info, keys, bbox=None, state=None):
+    """Use the GeoParquet when it exists; otherwise fall back to the zip."""
+    if info.get("parquet_url"):
+        try:
+            return fetch_parquet(info["parquet_url"], keys, bbox, state)
+        except Exception as e:  # noqa: BLE001
+            notice("Parquet unavailable", f"{type(e).__name__}: {str(e)[:300]} - using the zip instead")
+    return fetch_zip(info["output_url"], keys, bbox, state)
 
 
 def address(p):
@@ -102,7 +200,7 @@ def categorise(p, cmap):
 def transform(rows, cmap):
     out, skipped, spiders = [], Counter(), Counter()
     for r in rows:
-        p = json.loads(r["properties"]) if r["properties"] else {}
+        p = r["properties"] if isinstance(r["properties"], dict) else json.loads(r["properties"] or "{}")
         cat = categorise(p, cmap)
         if not cat:
             skipped["not food and drink"] += 1
@@ -152,7 +250,7 @@ def main():
     notice("Release", f"All the Places run {info['run_id']} ({info.get('spiders')} spiders)")
 
     cmap = {k: v for k, v in json.loads((HERE / "alltheplaces_category_map.json").read_text()).items() if not k.startswith("_")}
-    rows = fetch(info["parquet_url"], cmap["primary"].keys(), bbox, state)
+    rows = fetch(info, list(cmap["primary"].keys()), bbox, state)
     records, skipped, spiders = transform(rows, cmap)
     summarise(records, skipped, {"Matched rows": len(rows), "Top spiders": dict(spiders.most_common(30))})
     write_csv(records, a.out)
