@@ -37,11 +37,26 @@ jobs:
       - uses: supabase/setup-cli@v1
         with:
           version: latest
+      # Each step copies the last lines of any error into an annotation, so the reason shows
+      # in the failure email. Anything that looks like a password in a URL is blanked first.
       - name: Show what will be applied
         env:
           STAGING_DB_URL: ${{ secrets.STAGING_DB_URL }}
-        run: supabase db push --db-url "$STAGING_DB_URL" --dry-run
+        run: |
+          set -o pipefail
+          if ! supabase db push --db-url "$STAGING_DB_URL" --dry-run 2>&1 | tee out.txt; then
+            msg=$(tail -n 8 out.txt | sed -E 's#(postgres(ql)?://[^:/@]+):[^@]*@#\1:***@#g' | tr '\n' ' ')
+            case "$msg" in *"password authentication failed"*) hint="The password in STAGING_DB_URL is wrong. Reset it in Supabase and update the secret.";; *) hint="";; esac
+            echo "::error title=Could not reach staging::$hint $msg"
+            exit 1
+          fi
       - name: Apply migrations
         env:
           STAGING_DB_URL: ${{ secrets.STAGING_DB_URL }}
-        run: supabase db push --db-url "$STAGING_DB_URL"
+        run: |
+          set -o pipefail
+          if ! supabase db push --db-url "$STAGING_DB_URL" 2>&1 | tee out.txt; then
+            msg=$(tail -n 8 out.txt | sed -E 's#(postgres(ql)?://[^:/@]+):[^@]*@#\1:***@#g' | tr '\n' ' ')
+            echo "::error title=Migration failed on staging::$msg"
+            exit 1
+          fi
