@@ -37,7 +37,7 @@ select admin_update_place((select id from entities where name = 'Noodle Nook'), 
 -- and a brand-new place.
 select pg_temp.load('alltheplaces', 'state:VA', jsonb_build_array(
   pg_temp.rec('aB','Taco Town','7035550002','https://tacotown.example/arlington',-77.1101,38.88),
-  pg_temp.rec('aA','Burger Barn','7035550001','https://burgerbarn.example/stores/arlington',-77.1001,38.88),
+  pg_temp.rec('aA','Burger Barn','7035550001','https://order.burgerbarnfranchise.example/arlington',-77.1001,38.88),
   pg_temp.rec('aC','Noodle Nook','7035550003',null,-77.1201,38.88),
   pg_temp.rec('aN','Pizza Planet','7035550004','https://pizzaplanet.example',-77.13,38.88))) as a1 \gset
 insert into r select 'second source attaches to existing places', (:'a1'::jsonb->>'attached_to_existing_places')::int = 2;
@@ -94,7 +94,7 @@ insert into r select 'missing from every source recently, so proposed',
 -- Accepting the higher-ranked website switches the field to that source.
 select decide_source_changes(array(select event_id from admin_pending_source_changes() where name = 'Burger Barn' and field = 'website'), true, 'me') \gset
 insert into r select 'accepted proposal switches the value and its source',
-  (select website from entities where name = 'Burger Barn') = 'https://burgerbarn.example/stores/arlington'
+  (select website from entities where name = 'Burger Barn') = 'https://order.burgerbarnfranchise.example/arlington'
   and (select p.source_id from entity_field_provenance p join entities e on e.id = p.entity_id
        where e.name = 'Burger Barn' and p.field = 'website') = (select id from sources where code = 'alltheplaces');
 do $$ begin insert into source_runs (source_id, scope, status) select id, 'county:x', 'succeeded' from sources where code = 'alltheplaces';

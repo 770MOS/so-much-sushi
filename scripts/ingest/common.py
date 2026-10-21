@@ -101,6 +101,19 @@ def write_csv(records, path):
             w.writerow({**{c: r[c] for c in cols}, "category_mapped": r["payload"].get("category_mapped")})
 
 
+def reconcile(rest, run_id, decided_by):
+    """Reconcile a run. Over a direct database connection when DATABASE_URL is set, because the
+    API stops any statement after a few seconds and a large load takes longer than that."""
+    db_url = os.environ.get("DATABASE_URL")
+    if not db_url:
+        return rest.call("POST", "/rpc/reconcile_run", {"p_run_id": run_id, "p_decided_by": decided_by})
+    import psycopg  # installed by the workflow
+    with psycopg.connect(db_url, autocommit=True) as conn:
+        conn.execute("SET statement_timeout = '30min'")
+        row = conn.execute("SELECT public.reconcile_run(%s, %s)", (run_id, decided_by)).fetchone()
+        return row[0]
+
+
 def load(records, source_code, release, scope, run_license):
     """Create a run, upsert the records, mark the run succeeded, then reconcile it."""
     rest = Rest()
@@ -119,7 +132,7 @@ def load(records, source_code, release, scope, run_license):
         "stats": {"by_license": dict(Counter(r["license"] for r in records)),
                   "by_dataset": dict(Counter(r["upstream_dataset"] for r in records))}})
     notice("Loaded", f"{done} records as run {run['id']} ({source_code}, {release}, {scope})")
-    result = rest.call("POST", "/rpc/reconcile_run", {"p_run_id": run["id"], "p_decided_by": f"ingest:{source_code}"})
+    result = reconcile(rest, run["id"], f"ingest:{source_code}")
     print("reconcile:", json.dumps(result, indent=2))
     notice("Reconcile", "%0A".join(f"{k.replace('_', ' ')}: {v}" for k, v in (result or {}).items()
                                     if k not in ("build", "finished_at")))
