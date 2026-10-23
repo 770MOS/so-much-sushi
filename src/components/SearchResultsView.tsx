@@ -175,7 +175,7 @@ export default function SearchResultsView({
                   </Link>
                   <span className="text-sm text-zinc-500 dark:text-zinc-400">{r.address}</span>
                   {r.categories && r.categories.length > 0 && (
-                    <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                    <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
                       {r.categories.join(", ")}
                     </span>
                   )}
