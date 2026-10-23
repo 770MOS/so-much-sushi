@@ -1,7 +1,9 @@
--- Lists and place pages show the full address: street, town, state and ZIP
--- ("1401 Wilson Blvd Ste 110, Arlington, VA 22209"). The functions keep their columns;
--- only the text in "address" changes. Raw street, town and state stay in their own
--- columns where a function already returned them.
+-- Addresses as people read them (agreed 2026-10-23):
+--   * lists and map pins: street and town, "1401 Wilson Blvd Ste 110 · Arlington";
+--   * the place page: the full address, "1401 Wilson Blvd Ste 110, Arlington, VA 22209".
+-- The functions keep their columns; only the text in "address" changes. Raw town and
+-- state stay in their own columns where a function already returned them.
+-- When neighbourhoods are added they replace the town for large cities.
 SET search_path = public, extensions;
 
 CREATE FUNCTION public.display_address(p_address text, p_city text, p_state text, p_postal text)
@@ -16,6 +18,17 @@ CREATE FUNCTION public.display_address(p_address text, p_city text, p_state text
 $$;
 GRANT EXECUTE ON FUNCTION public.display_address(text, text, text, text) TO anon, authenticated, service_role;
 
+CREATE FUNCTION public.list_address(p_address text, p_city text)
+  RETURNS text
+  LANGUAGE sql IMMUTABLE PARALLEL SAFE SET search_path TO '' AS $$
+  SELECT NULLIF(concat_ws(' · ',
+           NULLIF(trim(CASE WHEN a IS NOT NULL AND c IS NOT NULL AND strpos(lower(a), lower(', ' || c)) > 0
+                            THEN left(a, strpos(lower(a), lower(', ' || c)) - 1) ELSE a END), ''),
+           c), '')
+  FROM (SELECT NULLIF(trim(p_address), '') AS a, NULLIF(trim(p_city), '') AS c) t;
+$$;
+GRANT EXECUTE ON FUNCTION public.list_address(text, text) TO anon, authenticated, service_role;
+
 CREATE OR REPLACE FUNCTION public.search_entities(
     ref_lat double precision, ref_lng double precision, radius_miles double precision,
     category_path public.ltree DEFAULT NULL, show_hidden boolean DEFAULT false,
@@ -26,7 +39,7 @@ CREATE OR REPLACE FUNCTION public.search_entities(
                 status text, categories text[], category_paths text[])
   LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, extensions AS $$
     SELECT
-        e.id, e.name, display_address(e.address, e.city, e.state, e.postal_code) AS address,
+        e.id, e.name, list_address(e.address, e.city) AS address,
         round((ST_Distance(
             e.location, ST_SetSRID(ST_MakePoint(ref_lng, ref_lat), 4326)::geography
         ) / 1609.34)::numeric, 2) AS miles,
@@ -122,7 +135,7 @@ CREATE OR REPLACE FUNCTION public.get_my_starred_entities()
                 type_name text, cuisine_name text, recommended_by jsonb, recommended_count integer, category_paths text[])
   LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, extensions AS $$
     SELECT
-        e.id, e.name, display_address(e.address, e.city, e.state, e.postal_code) AS address, e.city, e.state,
+        e.id, e.name, list_address(e.address, e.city) AS address, e.city, e.state,
         ST_Y(e.location::geometry) AS lat,
         ST_X(e.location::geometry) AS lng,
         mc.name AS type_name,
@@ -169,7 +182,7 @@ CREATE OR REPLACE FUNCTION "public"."get_list_entities"("p_list_id" "uuid") RETU
     LANGUAGE "sql" STABLE SECURITY DEFINER
     SET "search_path" TO 'public', 'extensions'
     AS $$
-    SELECT e.id AS entity_id, e.name, display_address(e.address, e.city, e.state, e.postal_code) AS address, e.city, e.state,
+    SELECT e.id AS entity_id, e.name, list_address(e.address, e.city) AS address, e.city, e.state,
            ST_Y(e.location::geometry) AS lat, ST_X(e.location::geometry) AS lng,
            li.added_at, e.status
     FROM lists l
@@ -197,7 +210,7 @@ CREATE OR REPLACE FUNCTION public.get_profile_starred_entities(target_user_id uu
                 type_name text, cuisine_name text, status text)
   LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, extensions AS $$
     SELECT
-        e.id, e.name, display_address(e.address, e.city, e.state, e.postal_code) AS address, e.city, e.state,
+        e.id, e.name, list_address(e.address, e.city) AS address, e.city, e.state,
         ST_Y(e.location::geometry) AS lat,
         ST_X(e.location::geometry) AS lng,
         mc.name AS type_name,
