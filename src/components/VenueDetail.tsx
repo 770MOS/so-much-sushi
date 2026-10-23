@@ -1,5 +1,6 @@
 "use client";
 
+import CategoryTags from "@/components/CategoryTags";
 import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
@@ -94,18 +95,7 @@ export default function VenueDetail({ entity }: { entity: EntityDetail }) {
     <div className="flex flex-col gap-6 px-6 py-8">
       <div className="flex flex-col gap-2">
         <h1 className="text-2xl font-semibold text-zinc-950 dark:text-zinc-50">{entity.name}</h1>
-        {entity.categories && entity.categories.length > 0 && (
-          <div className="flex flex-wrap gap-1.5">
-            {entity.categories.map((c) => (
-              <span
-                key={c}
-                className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-600 dark:bg-zinc-900 dark:text-zinc-400"
-              >
-                {c}
-              </span>
-            ))}
-          </div>
-        )}
+        <CategoryTags names={entity.categories} paths={entity.category_paths} />
         <StatusBadge status={entity.status} />
       </div>
 

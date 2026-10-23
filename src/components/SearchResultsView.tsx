@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { User } from "@supabase/supabase-js";
 import type { ReactNode } from "react";
 import AddToListMenu from "@/components/AddToListMenu";
+import CategoryTags from "@/components/CategoryTags";
 import StatusBadge from "@/components/StatusBadge";
 import { HeartIcon, StarIcon, EyeOffIcon } from "@/components/icons";
 import type { MapMarkerEntity } from "@/components/EntityMap";
@@ -174,11 +175,9 @@ export default function SearchResultsView({
                     {r.name}
                   </Link>
                   <span className="text-sm text-zinc-500 dark:text-zinc-400">{r.address}</span>
-                  {r.categories && r.categories.length > 0 && (
-                    <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
-                      {r.categories.join(", ")}
-                    </span>
-                  )}
+                  <div className="mt-1">
+                    <CategoryTags names={r.categories} paths={r.category_paths} />
+                  </div>
                   <StatusBadge status={r.status} />
                   {recLabel && (
                     <span className="flex items-center gap-1 text-xs text-zinc-500 dark:text-zinc-400">
