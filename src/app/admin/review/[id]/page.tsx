@@ -1,16 +1,25 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireAdmin } from "@/lib/admin";
-import { formatPhone, place, websiteHost } from "@/lib/adminFormat";
-import Compare from "@/components/admin/Compare";
-import { keepSeparateSelected, mergeSelected } from "../actions";
+import { loadCategories } from "@/lib/adminCategories";
+import type { AdminPlace } from "@/lib/adminPlace";
+import MergeChooser from "@/components/admin/MergeChooser";
+import { keepSeparateSelected, mergeWithChoices } from "../actions";
 import type { MergeRow } from "../types";
 
-const cell = "border-b border-l border-neutral-100 px-3.5 py-2.5 align-top";
+const control = "min-h-11 w-full rounded-lg border border-neutral-300 bg-white px-2.5 text-[13px]";
 
-export default async function ReviewOne({ params }: { params: Promise<{ id: string }> }) {
+export default async function ReviewOne({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
   const { db } = await requireAdmin();
   const { id } = await params;
+  const noticeParam = (await searchParams).notice;
+  const notice = Array.isArray(noticeParam) ? noticeParam[0] : noticeParam;
   const { data, error } = await db.rpc("admin_pending_merges");
   if (error) throw new Error(error.message);
   const rows = (data ?? []) as MergeRow[];
@@ -19,18 +28,15 @@ export default async function ReviewOne({ params }: { params: Promise<{ id: stri
   const m = rows[index];
   const next = rows[index + 1] ?? null;
 
-  const fields: { label: string; a: string; b: string; compare: React.ReactNode }[] = [
-    { label: "Name", a: m.a_name, b: m.b_name, compare: <Compare same={m.a_name === m.b_name} /> },
-    {
-      label: "Address",
-      a: [m.a_address, place(m.a_city, m.a_state)].filter(Boolean).join(", "),
-      b: [m.b_address, place(m.b_city, m.b_state)].filter(Boolean).join(", "),
-      compare: <span className="font-mono text-xs">{m.distance_m ?? "?"} m apart</span>,
-    },
-    { label: "Phone", a: formatPhone(m.a_phone), b: formatPhone(m.b_phone), compare: <Compare same={m.same_phone} missing={!m.a_phone || !m.b_phone} /> },
-    { label: "Website", a: websiteHost(m.a_website), b: websiteHost(m.b_website), compare: <Compare same={m.same_website} missing={!m.a_website || !m.b_website} /> },
-    { label: "Status", a: m.a_status.replace("_", " "), b: m.b_status.replace("_", " "), compare: <Compare same={m.a_status === m.b_status} /> },
-  ];
+  const [categories, ra, rb] = await Promise.all([
+    loadCategories(db),
+    db.rpc("admin_get_place", { p_id: m.a_id }),
+    db.rpc("admin_get_place", { p_id: m.b_id }),
+  ]);
+  if (ra.error || rb.error) throw new Error((ra.error ?? rb.error)!.message);
+  const a = ra.data as AdminPlace;
+  const b = rb.data as AdminPlace;
+  const returnTo = next ? `/admin/review/${next.event_id}` : "/admin/review";
 
   return (
     <div className="flex max-w-5xl flex-col gap-4 px-4 py-5">
@@ -42,44 +48,37 @@ export default async function ReviewOne({ params }: { params: Promise<{ id: stri
           {index + 1} of {rows.length}
         </span>
       </div>
+      {notice && <p role="status" className="rounded-lg border border-orange-200 bg-orange-50 px-3.5 py-2 text-[13px] text-orange-900">{notice}</p>}
       <h1 className="text-lg font-semibold">Are these the same place?</h1>
-      <div className="overflow-x-auto rounded-xl border border-neutral-200">
-        <table className="w-full min-w-[620px] border-collapse text-[13px]">
-          <thead>
-            <tr className="bg-neutral-50 text-left">
-              <th className="w-28 border-b border-neutral-200 px-3.5 py-2 font-medium text-neutral-600">Field</th>
-              <th className="border-b border-l border-neutral-200 px-3.5 py-2 font-medium text-neutral-600">Place A (kept)</th>
-              <th className="border-b border-l border-neutral-200 px-3.5 py-2 font-medium text-neutral-600">Place B</th>
-              <th className="w-56 border-b border-l border-neutral-200 px-3.5 py-2 font-medium text-neutral-600">Compare</th>
-            </tr>
-          </thead>
-          <tbody>
-            {fields.map((f) => (
-              <tr key={f.label}>
-                <td className="border-b border-neutral-100 px-3.5 py-2.5 align-top text-neutral-500">{f.label}</td>
-                <td className={`${cell} ${f.label === "Name" ? "text-[15px] font-semibold" : ""}`}>{f.a || <span className="text-neutral-400">None</span>}</td>
-                <td className={`${cell} ${f.label === "Name" ? "text-[15px] font-semibold" : ""}`}>{f.b || <span className="text-neutral-400">None</span>}</td>
-                <td className={cell}>{f.compare}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <form className="flex flex-wrap items-center gap-2">
+      <p className="text-[13px] text-neutral-600">
+        If they are, pick which value to keep for each field that differs. Place B becomes a pointer to A, and its source records, stars and list entries move to A.
+      </p>
+      <form className="flex flex-col gap-3">
         <input type="hidden" name="id" value={m.event_id} />
-        <input type="hidden" name="return" value={next ? `/admin/review/${next.event_id}` : "/admin/review"} />
-        <button formAction={mergeSelected} className="min-h-11 cursor-pointer rounded-lg bg-neutral-900 px-4 text-[13px] font-medium text-white hover:bg-neutral-700">
-          Same place: merge B into A
-        </button>
-        <button formAction={keepSeparateSelected} className="min-h-11 cursor-pointer rounded-lg border border-neutral-300 bg-white px-4 text-[13px] font-medium hover:bg-neutral-50">
-          Different places
-        </button>
-        {next && (
-          <Link href={`/admin/review/${next.event_id}`} className="inline-flex min-h-11 items-center rounded-lg border border-neutral-300 px-4 text-[13px] font-medium hover:bg-neutral-50">
-            Skip
+        <input type="hidden" name="a" value={a.id} />
+        <input type="hidden" name="b" value={b.id} />
+        <input type="hidden" name="return" value={returnTo} />
+        <MergeChooser a={a} b={b} categories={categories} />
+        <label className="flex max-w-xl flex-col gap-1 text-xs font-medium text-neutral-700">
+          Note (optional)
+          <input name="note" placeholder="Why, or where you checked" className={control} />
+        </label>
+        <div className="flex flex-wrap items-center gap-2">
+          <button formAction={mergeWithChoices} className="min-h-11 cursor-pointer rounded-lg bg-neutral-900 px-4 text-[13px] font-medium text-white hover:bg-neutral-700">
+            Same place: merge B into A
+          </button>
+          <button formAction={keepSeparateSelected} className="min-h-11 cursor-pointer rounded-lg border border-neutral-300 bg-white px-4 text-[13px] font-medium hover:bg-neutral-50">
+            Different places
+          </button>
+          {next && (
+            <Link href={`/admin/review/${next.event_id}`} className="inline-flex min-h-11 items-center rounded-lg border border-neutral-300 px-4 text-[13px] font-medium hover:bg-neutral-50">
+              Skip
+            </Link>
+          )}
+          <Link href={`/admin/places/${b.id}/merge?with=${a.id}`} className="inline-flex min-h-11 items-center px-2 text-[13px] underline hover:text-orange-700">
+            Keep B instead
           </Link>
-        )}
-        <span className="text-xs text-neutral-600">A merge keeps A&apos;s details, turns B into a redirect and moves saved lists to A.</span>
+        </div>
       </form>
     </div>
   );
