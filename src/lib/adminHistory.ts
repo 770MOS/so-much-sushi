@@ -61,6 +61,8 @@ function ledgerEntry(r: HistoryRow, i: number): TimelineEntry {
         ? [`Left as edited: ${(d.fields_kept_edited_since as string[]).map(fieldName).join(", ")}`] : [];
       return { ...base, title: `Merge undone: ${other}`, lines: [...kept, ...note], tone: "decision" };
     }
+    case "new_candidate":
+      return { ...base, title: d.added_by_hand ? "Added by hand" : `New place${from}`, lines: note, tone: "decision" };
     case "attribute_change": {
       if (r.field === "categories") {
         return { ...base, title: `Tag suggestion "${show(r.new_value)}": ${r.status === "approved" ? "accepted" : r.status ?? ""}`, lines: onMerged, tone: r.status === "pending" ? "pending" : "decision" };
