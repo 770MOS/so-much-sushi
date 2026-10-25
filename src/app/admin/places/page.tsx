@@ -83,6 +83,9 @@ export default async function AllPlaces({
     <>
       <form method="get" className="relative flex flex-wrap items-end gap-2 border-b border-neutral-200 px-4 py-2.5">
         <h1 className="mr-2 self-center text-base font-semibold">All places</h1>
+        <Link href="/admin/places/new" className="order-last ml-auto inline-flex min-h-11 items-center self-center rounded-lg bg-neutral-900 px-3 text-[13px] font-medium text-white hover:bg-neutral-700">
+          Add a place
+        </Link>
         <label className={label}>
           Name
           <input type="search" name="q" defaultValue={q} placeholder="Contains…" className={`${control} w-44`} />

@@ -91,3 +91,45 @@ export async function undoMerge(formData: FormData) {
   }
   goTo(here, notice);
 }
+
+export type SimilarPlace = {
+  id: string; name: string; address: string | null; city: string | null; state: string | null;
+  phone: string | null; distance_m: number; reason: string;
+};
+export type AddPlaceState = {
+  values: Record<string, string>; tags?: string[]; error?: string; similar?: SimilarPlace[]; attempt?: number;
+};
+const ADD_FIELDS = ["name", "address", "city", "state", "postal_code", "phone", "website", "main_category", "status", "lat", "lng", "note"] as const;
+
+// Add a place by hand. The first try shows possible existing matches; ticking
+// "add it anyway" saves regardless.
+export async function addPlace(prev: AddPlaceState, formData: FormData): Promise<AddPlaceState> {
+  const { db, email } = await requireAdmin();
+  const values: Record<string, string> = {};
+  for (const f of ADD_FIELDS) values[f] = String(formData.get(f) ?? "").trim();
+  const tags = formData.getAll("tag").map(String);
+  const attempt = (prev.attempt ?? 0) + 1;
+  const keep = { values, tags, attempt };
+
+  if (!values.name) return { ...keep, error: "A place needs a name." };
+  if (!values.lat || !values.lng) return { ...keep, error: "Place the pin on the map." };
+  if (!values.main_category) return { ...keep, error: "Choose a main category." };
+
+  if (formData.get("confirm") !== "on") {
+    const { data, error } = await db.rpc("admin_similar_places", {
+      p_lat: Number(values.lat), p_lng: Number(values.lng), p_name: values.name, p_phone: values.phone || null,
+    });
+    if (error) return { ...keep, error: `Could not check for existing places: ${error.message}` };
+    const similar = (data ?? []) as SimilarPlace[];
+    if (similar.length > 0) return { ...keep, similar };
+  }
+
+  const { note, ...place } = values;
+  const { data: id, error } = await db.rpc("admin_add_place", { p_values: place, p_decided_by: email, p_note: note || null });
+  if (error) return { ...keep, error: `Not saved: ${error.message}` };
+  if (tags.length) {
+    const tagged = await db.rpc("admin_set_place_tags", { p_id: id, p_tags: tags, p_decided_by: email });
+    if (tagged.error) goTo(String(id), `Place added, but tags were not saved: ${tagged.error.message}`);
+  }
+  goTo(String(id), "Place added.");
+}
