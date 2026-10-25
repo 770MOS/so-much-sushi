@@ -110,4 +110,7 @@ insert into r select 'queue merge: proposal approved', (select status from chang
 select id as m5 from change_events where event_type = 'merge' and status = 'approved' and (evidence->>'proposal')::bigint = :prop \gset
 select admin_undo_merge(:m5, 'admin@test') \gset
 insert into r select 'undo marks the proposal as different places', (select status from change_events where id = :prop) = 'rejected';
+insert into r select 'history names the other place in merge and undo entries',
+  (select bool_and(detail ? 'duplicate_name' or detail ? 'survivor_name') from place_history(:'s') where kind in ('merge', 'unmerge'))
+  and exists (select 1 from place_history(:'s') where kind = 'unmerge');
 select case when ok then 'PASS ' else 'FAIL ' end || t from r;

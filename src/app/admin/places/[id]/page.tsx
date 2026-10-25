@@ -4,29 +4,18 @@ import { requireAdmin } from "@/lib/admin";
 import { loadCategories, mainCategories } from "@/lib/adminCategories";
 import { formatPhone, websiteHost } from "@/lib/adminFormat";
 import TagChecklist from "@/components/admin/TagChecklist";
-import { UUID, provenanceLabel, when, type AdminPlace, type HistoryItem, type PlaceMerge } from "@/lib/adminPlace";
+import { UUID, provenanceLabel, when, type AdminPlace, type PlaceMerge } from "@/lib/adminPlace";
+import { buildTimeline, type HistoryRow, type TimelineEntry } from "@/lib/adminHistory";
 import { savePlace, undoMerge } from "../actions";
 
 const control = "min-h-11 w-full rounded-lg border border-neutral-300 bg-white px-2.5 text-[13px]";
 const panel = "rounded-xl border border-neutral-200";
 const panelHead = "border-b border-neutral-200 bg-neutral-50 px-3.5 py-2 text-xs font-medium text-neutral-600";
 
-function show(v: unknown) {
-  if (v === null || v === undefined || v === "") return "nothing";
-  if (Array.isArray(v)) return v.length ? v.map((x) => String(x).split(".").pop()!.replace(/_/g, " ")).join(", ") : "none";
-  if (typeof v === "object") return JSON.stringify(v);
-  return String(v);
-}
-function describe(h: HistoryItem) {
-  if (h.type === "manual_edit") return `${(h.field ?? "field").replace(/_/g, " ")}: ${show(h.old)} → ${show(h.new)}`;
-  if (h.type === "merge") return h.status === "pending" ? "Possible duplicate proposed" : h.status === "rejected" ? "Possible duplicate: kept separate" : h.status === "superseded" ? "Possible duplicate: no longer needed" : "Merged with a duplicate";
-  if (h.type === "unmerge") return "Merge undone";
-  if (h.field === "categories") {
-    const tag = String((h.new as { add_category?: string } | null)?.add_category ?? "").split(".").pop()?.replace(/_/g, " ");
-    return `Tag suggestion "${tag}": ${h.status}`;
-  }
-  return `${h.type.replace(/_/g, " ")}${h.field ? ` (${h.field})` : ""}: ${h.status}`;
-}
+const TONE: Record<TimelineEntry["tone"], string> = {
+  source: "bg-sky-500", change: "bg-neutral-400", decision: "bg-neutral-900", pending: "bg-orange-500",
+};
+const HISTORY_SHOWN = 40;
 
 export default async function PlaceEditor({
   params,
@@ -38,16 +27,22 @@ export default async function PlaceEditor({
   const { db } = await requireAdmin();
   const { id } = await params;
   if (!UUID.test(id)) notFound();
-  const noticeParam = (await searchParams).notice;
+  const sp = await searchParams;
+  const noticeParam = sp.notice;
+  const allHistory = sp.history === "all";
   const notice = Array.isArray(noticeParam) ? noticeParam[0] : noticeParam;
 
-  const [categories, res, mres] = await Promise.all([
+  const [categories, res, mres, hres] = await Promise.all([
     loadCategories(db),
     db.rpc("admin_get_place", { p_id: id }),
     db.rpc("admin_place_merges", { p_id: id }),
+    db.rpc("place_history", { p_entity: id }),
   ]);
   if (res.error) throw new Error(res.error.message);
   if (mres.error) throw new Error(mres.error.message);
+  if (hres.error) throw new Error(hres.error.message);
+  const timeline = buildTimeline((hres.data ?? []) as HistoryRow[]);
+  const shown = allHistory ? timeline : timeline.slice(0, HISTORY_SHOWN);
   const p = res.data as AdminPlace | null;
   if (!p) notFound();
   const merged = p.status === "merged";
@@ -218,21 +213,42 @@ export default async function PlaceEditor({
             </section>
           )}
 
-          <section className={panel}>
-            <div className={panelHead}>History</div>
-            {p.history.length === 0 ? (
-              <p className="p-3.5 text-[13px] text-neutral-600">Nothing has changed since this place was loaded.</p>
+          <section className={panel} id="history">
+            <div className={`${panelHead} flex flex-wrap items-baseline justify-between gap-2`}>
+              <span>History · {timeline.length} {timeline.length === 1 ? "entry" : "entries"}</span>
+              <span className="font-normal text-neutral-500">Our changes and every version from each source</span>
+            </div>
+            {timeline.length === 0 ? (
+              <p className="p-3.5 text-[13px] text-neutral-600">No history yet.</p>
             ) : (
-              <ul className="divide-y divide-neutral-100 text-[13px]">
-                {p.history.map((h) => (
-                  <li key={h.id} className="flex flex-col gap-0.5 p-3.5">
-                    <span>{describe(h)}</span>
-                    {h.note && <span className="text-neutral-600">Note: {h.note}</span>}
-                    <span className="text-xs text-neutral-500">{[when(h.at), h.by].filter(Boolean).join(" · ")}</span>
-                  </li>
-                ))}
-              </ul>
+              <>
+                <ol className="divide-y divide-neutral-100 text-[13px]">
+                  {shown.map((h) => (
+                    <li key={h.key} className="flex gap-3 p-3.5">
+                      <span aria-hidden="true" className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${TONE[h.tone]}`} />
+                      <span className="flex min-w-0 flex-col gap-0.5">
+                        <span className="break-words">{h.title}</span>
+                        {h.lines.map((l, i) => (
+                          <span key={i} className="break-words text-neutral-600">{l}</span>
+                        ))}
+                        <span className="text-xs text-neutral-500">{[when(h.at), h.who].filter(Boolean).join(" · ")}</span>
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+                {timeline.length > shown.length && (
+                  <Link href={`/admin/places/${p.id}?history=all#history`} className="flex min-h-11 items-center border-t border-neutral-200 px-3.5 text-[13px] underline hover:text-orange-700">
+                    Show all {timeline.length} entries
+                  </Link>
+                )}
+              </>
             )}
+            <div className="flex flex-wrap gap-x-4 gap-y-1 border-t border-neutral-200 px-3.5 py-2 text-xs text-neutral-500">
+              <span className="inline-flex items-center gap-1.5"><span className={`h-2 w-2 rounded-full ${TONE.source}`} />What a source said</span>
+              <span className="inline-flex items-center gap-1.5"><span className={`h-2 w-2 rounded-full ${TONE.change}`} />Automatic change</span>
+              <span className="inline-flex items-center gap-1.5"><span className={`h-2 w-2 rounded-full ${TONE.decision}`} />Decision or hand edit</span>
+              <span className="inline-flex items-center gap-1.5"><span className={`h-2 w-2 rounded-full ${TONE.pending}`} />Waiting for review</span>
+            </div>
           </section>
         </div>
       </div>
