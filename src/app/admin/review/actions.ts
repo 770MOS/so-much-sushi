@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/admin";
+import { takenFromB, UUID } from "@/lib/adminPlace";
 
 function ids(formData: FormData, key: string): number[] {
   return formData
@@ -39,6 +40,26 @@ export async function mergeSelected(formData: FormData) {
 
 export async function keepSeparateSelected(formData: FormData) {
   await decideMerges(formData, false);
+}
+
+// One proposal, merged with the field choices made on the one-at-a-time screen.
+export async function mergeWithChoices(formData: FormData) {
+  const { db, email } = await requireAdmin();
+  const proposal = Number(formData.get("id"));
+  const a = String(formData.get("a") ?? "");
+  const b = String(formData.get("b") ?? "");
+  if (!Number.isInteger(proposal) || !UUID.test(a) || !UUID.test(b)) back(formData, "Missing places to merge.");
+  const { error } = await db.rpc("admin_merge_places", {
+    p_survivor: a,
+    p_duplicate: b,
+    p_take: takenFromB(formData),
+    p_decided_by: email,
+    p_note: String(formData.get("note") ?? "").trim() || `review queue proposal ${proposal}`,
+    p_proposal: proposal,
+    p_fill_empty: false,
+  });
+  if (error) back(formData, `Could not merge: ${error.message}`);
+  back(formData, "Merged. You can undo it from the place's page.");
 }
 
 async function decideTags(db: Awaited<ReturnType<typeof requireAdmin>>["db"], email: string, events: number[], accept: boolean) {

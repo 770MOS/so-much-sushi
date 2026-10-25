@@ -4,34 +4,13 @@ import { requireAdmin } from "@/lib/admin";
 import { loadCategories, mainCategories } from "@/lib/adminCategories";
 import { formatPhone, websiteHost } from "@/lib/adminFormat";
 import TagChecklist from "@/components/admin/TagChecklist";
-import { savePlace } from "../actions";
+import { UUID, provenanceLabel, when, type AdminPlace, type HistoryItem, type PlaceMerge } from "@/lib/adminPlace";
+import { savePlace, undoMerge } from "../actions";
 
-type Provenance = { source: string; license: string; method: string; set_at: string };
-type SourceRecord = {
-  id: number; source: string; contributor: string | null; license: string | null; name: string | null;
-  address: string | null; phone: string | null; website: string | null; category: string | null;
-  confidence: number | null; operating_status: string | null; match_method: string | null;
-};
-type HistoryItem = {
-  id: number; type: string; field: string | null; status: string; old: unknown; new: unknown;
-  by: string | null; note: string | null; at: string;
-};
-type Place = {
-  id: string; name: string; address: string | null; city: string | null; state: string | null;
-  postal_code: string | null; phone: string | null; website: string | null; status: string;
-  needs_review: boolean; merged_into: string | null; updated_at: string; lat: number; lng: number;
-  main_category: string; tags: string[]; saved: { stars: number; lists: number };
-  provenance: Record<string, Provenance>; source_records: SourceRecord[]; history: HistoryItem[];
-};
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const control = "min-h-11 w-full rounded-lg border border-neutral-300 bg-white px-2.5 text-[13px]";
 const panel = "rounded-xl border border-neutral-200";
 const panelHead = "border-b border-neutral-200 bg-neutral-50 px-3.5 py-2 text-xs font-medium text-neutral-600";
 
-function when(iso: string) {
-  return new Date(iso).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric", timeZone: "America/New_York" });
-}
 function show(v: unknown) {
   if (v === null || v === undefined || v === "") return "nothing";
   if (Array.isArray(v)) return v.length ? v.map((x) => String(x).split(".").pop()!.replace(/_/g, " ")).join(", ") : "none";
@@ -40,7 +19,8 @@ function show(v: unknown) {
 }
 function describe(h: HistoryItem) {
   if (h.type === "manual_edit") return `${(h.field ?? "field").replace(/_/g, " ")}: ${show(h.old)} → ${show(h.new)}`;
-  if (h.type === "merge") return h.status === "pending" ? "Possible duplicate proposed" : h.status === "rejected" ? "Possible duplicate: kept separate" : "Merged with a duplicate";
+  if (h.type === "merge") return h.status === "pending" ? "Possible duplicate proposed" : h.status === "rejected" ? "Possible duplicate: kept separate" : h.status === "superseded" ? "Possible duplicate: no longer needed" : "Merged with a duplicate";
+  if (h.type === "unmerge") return "Merge undone";
   if (h.field === "categories") {
     const tag = String((h.new as { add_category?: string } | null)?.add_category ?? "").split(".").pop()?.replace(/_/g, " ");
     return `Tag suggestion "${tag}": ${h.status}`;
@@ -61,17 +41,27 @@ export default async function PlaceEditor({
   const noticeParam = (await searchParams).notice;
   const notice = Array.isArray(noticeParam) ? noticeParam[0] : noticeParam;
 
-  const [categories, res] = await Promise.all([loadCategories(db), db.rpc("admin_get_place", { p_id: id })]);
+  const [categories, res, mres] = await Promise.all([
+    loadCategories(db),
+    db.rpc("admin_get_place", { p_id: id }),
+    db.rpc("admin_place_merges", { p_id: id }),
+  ]);
   if (res.error) throw new Error(res.error.message);
-  const p = res.data as Place | null;
+  if (mres.error) throw new Error(mres.error.message);
+  const p = res.data as AdminPlace | null;
   if (!p) notFound();
   const merged = p.status === "merged";
+  const merges = (mres.data ?? []) as PlaceMerge[];
+  const mergedBy = merges.find((m) => m.role === "merged" && !m.undone && m.other_id === p.merged_into);
 
-  const from = (field: string) => {
-    const v = p.provenance[field];
-    if (!v) return null;
-    return v.method === "manual" ? `Edited by hand, ${when(v.set_at)}` : `${v.source} · ${v.license}`;
-  };
+  const from = (field: string) => provenanceLabel(p.provenance[field]);
+  const undoButton = (m: PlaceMerge, label: string) => (
+    <form action={undoMerge}>
+      <input type="hidden" name="event" value={m.event_id} />
+      <input type="hidden" name="here" value={p.id} />
+      <button className="min-h-11 cursor-pointer rounded-lg border border-neutral-300 bg-white px-3 text-[13px] font-medium hover:bg-neutral-50">{label}</button>
+    </form>
+  );
   const field = (name: string, text: string, value: string | null, prov: string, extra: Record<string, string | number> = {}) => (
     <label className="flex flex-col gap-1">
       <span className="flex flex-wrap items-baseline justify-between gap-x-3 text-xs">
@@ -89,6 +79,11 @@ export default async function PlaceEditor({
         <span className="text-neutral-400">/</span>
         <h1 className="text-lg font-semibold">{p.name}</h1>
         {p.needs_review && <span className="rounded-full border border-orange-300 bg-orange-50 px-2 py-px text-[11px] text-orange-900">Flagged for review</span>}
+        {!merged && p.status !== "removed" && (
+          <Link href={`/admin/places/${p.id}/merge`} className="ml-auto inline-flex min-h-11 items-center rounded-lg border border-neutral-300 bg-white px-3 text-[13px] font-medium hover:bg-neutral-50">
+            Merge with another place
+          </Link>
+        )}
       </div>
 
       {notice && <p role="status" className="rounded-lg border border-orange-200 bg-orange-50 px-3.5 py-2 text-[13px] text-orange-900">{notice}</p>}
@@ -97,6 +92,12 @@ export default async function PlaceEditor({
           This place was merged into another and can no longer be edited.{" "}
           {p.merged_into && <Link href={`/admin/places/${p.merged_into}`} className="underline hover:text-orange-700">Open the place it was merged into</Link>}
         </p>
+      )}
+      {merged && mergedBy && (
+        <div className="flex flex-wrap items-center gap-3 text-[13px]">
+          {undoButton(mergedBy, "Undo this merge")}
+          <span className="text-neutral-600">Brings this place back as it was, with its source records, stars and list entries.</span>
+        </div>
       )}
 
       <div className="flex flex-col gap-4 xl:flex-row xl:items-start">
@@ -196,6 +197,26 @@ export default async function PlaceEditor({
               </ul>
             )}
           </section>
+
+          {merges.some((m) => m.role === "kept") && (
+            <section className={panel}>
+              <div className={panelHead}>Places merged into this one</div>
+              <ul className="divide-y divide-neutral-100 text-[13px]">
+                {merges.filter((m) => m.role === "kept").map((m) => (
+                  <li key={m.event_id} className="flex flex-wrap items-center justify-between gap-3 p-3.5">
+                    <span className="flex flex-col gap-0.5">
+                      <Link href={`/admin/places/${m.other_id}`} className="font-medium underline hover:text-orange-700">{m.other_name}</Link>
+                      <span className="text-xs text-neutral-500">
+                        {[when(m.merged_at), m.merged_by, m.taken.length ? `took ${m.taken.join(", ").replace(/_/g, " ")}` : null, m.undone ? "undone" : null]
+                          .filter(Boolean).join(" · ")}
+                      </span>
+                    </span>
+                    {!m.undone && undoButton(m, "Undo")}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
 
           <section className={panel}>
             <div className={panelHead}>History</div>
