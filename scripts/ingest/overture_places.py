@@ -5,6 +5,7 @@ Only the Places theme is read: the other Overture themes are ODbL and must not b
 Modes:
   dry-run  read and summarise, write a CSV, touch no database (default)
   load     also create a source_runs row and upsert into source_records
+  size     count places per state across the whole United States (no --bbox needed)
 """
 import argparse, json, sys
 from collections import Counter
@@ -14,6 +15,7 @@ import duckdb
 
 sys.path.insert(0, str(Path(__file__).parent))
 from common import load, notice, run, summarise, write_csv  # noqa: E402
+from sizing import report, state_code  # noqa: E402
 
 HERE = Path(__file__).parent
 # Licence per upstream dataset, from https://docs.overturemaps.org/attribution/ . Used only
@@ -63,6 +65,45 @@ def fetch(release, bbox):
     return [dict(zip(names, row)) for row in rel.fetchall()]
 
 
+# The United States as four boxes: the lower 48, Alaska, Hawaii, and Puerto Rico.
+US_BOXES = [(-125.0, 24.0, -66.5, 49.5), (-180.0, 51.0, -129.9, 71.6), (-160.6, 18.8, -154.7, 22.4), (-67.5, 17.6, -65.2, 18.6)]
+
+
+def size(release, cmap, path=None):
+    """Count food and drink places per state in SQL, without pulling every record."""
+    con = duckdb.connect()
+    if path is None:
+        con.execute("INSTALL httpfs; LOAD httpfs; SET s3_region='us-west-2';")
+        path = f"s3://overturemaps-us-west-2/release/{release}/theme=places/type=place/*"
+    boxes = " OR ".join(f"(bbox.xmin BETWEEN {a} AND {c} AND bbox.ymin BETWEEN {b} AND {d})" for a, b, c, d in US_BOXES)
+    cats = ", ".join("'" + k.replace("'", "''") + "'" for k in cmap)
+    rel = con.execute(f"""
+        SELECT addresses[1].region AS region, lower(coalesce(sources[1].dataset, '')) AS dataset,
+               sources[1].license AS license, count(*) AS places,
+               count(*) FILTER (WHERE len(phones) > 0) AS with_phone,
+               count(*) FILTER (WHERE len(websites) > 0) AS with_website,
+               count(*) FILTER (WHERE coalesce(operating_status, 'open') <> 'open') AS marked_closed
+        FROM read_parquet('{path}', hive_partitioning=1)
+        WHERE ({boxes})
+          AND names.primary IS NOT NULL
+          AND coalesce(addresses[1].country, 'US') = 'US'
+          AND (list_contains(taxonomy.hierarchy, 'food_and_drink') OR taxonomy.primary IN ({cats}))
+        GROUP BY ALL""")
+    rows, licences, dropped = {}, Counter(), Counter()
+    for region, dataset, lic, places, phone, web, closed in rel.fetchall():
+        licence = norm_license(lic) or DATASET_LICENSE.get(dataset)
+        if not licence or licence.lower() not in ALLOWED_LICENSES:
+            dropped[dataset or "(no dataset)"] += places
+            continue
+        licences[licence] += places
+        r = rows.setdefault(state_code(region) or "(unknown)", {"places": 0, "with_phone": 0, "with_website": 0, "marked_closed": 0})
+        r["places"] += places; r["with_phone"] += phone; r["with_website"] += web; r["marked_closed"] += closed
+    report("Overture Places", release, rows, {
+        "By licence": ", ".join(f"{k} {v:,}" for k, v in licences.most_common()),
+        "Left out (licence not recognised)": ", ".join(f"{k} {v:,}" for k, v in dropped.most_common()) or "none",
+    })
+
+
 def transform(rows, cmap):
     out, skipped, tops, shopping = [], Counter(), Counter(), Counter()
     for r in rows:
@@ -109,12 +150,17 @@ def transform(rows, cmap):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--release", required=True)
-    ap.add_argument("--bbox", required=True, help="xmin,ymin,xmax,ymax")
-    ap.add_argument("--mode", choices=["dry-run", "load"], default="dry-run")
+    ap.add_argument("--bbox", help="xmin,ymin,xmax,ymax")
+    ap.add_argument("--mode", choices=["dry-run", "load", "size"], default="dry-run")
     ap.add_argument("--out", default="overture_places.csv")
     a = ap.parse_args()
-    bbox = [float(x) for x in a.bbox.split(",")]
     cmap = {k: v for k, v in json.loads((HERE / "overture_category_map.json").read_text()).items() if not k.startswith("_")}
+    if a.mode == "size":
+        size(a.release, cmap)
+        return
+    if not a.bbox:
+        sys.exit("--bbox is required unless --mode size")
+    bbox = [float(x) for x in a.bbox.split(",")]
     rows = fetch(a.release, bbox)
     records, skipped, tops, shopping = transform(rows, cmap)
     summarise(records, skipped, {"Overture top levels": dict(tops.most_common(12)),
