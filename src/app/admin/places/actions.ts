@@ -133,3 +133,61 @@ export async function addPlace(prev: AddPlaceState, formData: FormData): Promise
   }
   goTo(String(id), "Place added.");
 }
+
+type BulkResult = { places_changed: number; fields_changed: number; places_with_tag_changes: number; skipped_merged: number };
+
+// Bulk edit from the All places list: the ticked rows, or every place matching the filters.
+export async function bulkEdit(formData: FormData) {
+  const { db, email } = await requireAdmin();
+  const raw = String(formData.get("return") ?? "");
+  const returnTo = raw.startsWith("/admin/places") ? raw : "/admin/places";
+  const back = (notice: string): never => {
+    revalidatePath("/admin", "layout");
+    const sep = returnTo.includes("?") ? "&" : "?";
+    redirect(`${returnTo}${sep}notice=${encodeURIComponent(notice)}`);
+  };
+
+  const changes: Record<string, string> = {};
+  const main = String(formData.get("b_main") ?? "");
+  const status = String(formData.get("b_status") ?? "");
+  const review = String(formData.get("b_review") ?? "");
+  if (main) changes.main_category = main;
+  if (status) changes.status = status;
+  if (review === "true" || review === "false") changes.needs_review = review;
+  const addTags = formData.getAll("b_add_tag").map(String);
+  const removeTags = formData.getAll("b_remove_tag").map(String);
+  if (!Object.keys(changes).length && !addTags.length && !removeTags.length) back("Choose something to change first.");
+
+  let ids = formData.getAll("id").map(String).filter((id) => UUID.test(id));
+  if (formData.get("scope") === "all") {
+    const f = (k: string) => String(formData.get(`f_${k}`) ?? "") || null;
+    const tags = formData.getAll("f_tag").map(String);
+    ids = [];
+    for (let offset = 0; ; offset += 1000) {
+      const { data, error } = await db.rpc("admin_search_places", {
+        p_q: f("q"), p_state: f("state"), p_city: f("city"), p_zip: f("zip"), p_main: f("main"),
+        p_tags: tags.length ? tags : null, p_status: f("status"),
+        p_needs_review: f("flag") === "review" ? true : null, p_untagged: f("flag") === "untagged" ? true : null,
+        p_limit: 1000, p_offset: offset,
+      });
+      if (error) back(`Could not list the matching places: ${error.message}`);
+      const page = (data ?? []) as { id: string; total: number }[];
+      if (page.length && Number(page[0].total) > 5000) back("That's more than 5,000 places. Narrow the filters first.");
+      ids.push(...page.map((p) => p.id));
+      if (page.length < 1000) break;
+    }
+  }
+  if (!ids.length) back("Nothing was ticked.");
+
+  const { data, error } = await db.rpc("admin_bulk_update", {
+    p_ids: ids, p_changes: changes, p_add_tags: addTags.length ? addTags : null,
+    p_remove_tags: removeTags.length ? removeTags : null, p_decided_by: email,
+    p_note: String(formData.get("b_note") ?? "").trim() || null,
+  });
+  if (error) back(`Nothing was changed: ${error.message}`);
+  const r = data as BulkResult;
+  let notice = `Updated ${r.places_changed} of ${ids.length} ${ids.length === 1 ? "place" : "places"}.`;
+  if (r.places_changed < ids.length - r.skipped_merged) notice += " The rest already had those values.";
+  if (r.skipped_merged) notice += ` Skipped ${r.skipped_merged} merged.`;
+  back(notice);
+}

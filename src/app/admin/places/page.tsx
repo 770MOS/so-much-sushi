@@ -2,8 +2,11 @@ import Link from "next/link";
 import { requireAdmin } from "@/lib/admin";
 import { loadCategories, mainCategories } from "@/lib/adminCategories";
 import { formatPhone, websiteHost } from "@/lib/adminFormat";
+import SelectAll from "@/components/admin/SelectAll";
+import SelectedCount from "@/components/admin/SelectedCount";
 import StateTownSelect from "@/components/admin/StateTownSelect";
 import TagChecklist from "@/components/admin/TagChecklist";
+import { bulkEdit } from "./actions";
 
 const PAGE = 50;
 
@@ -51,6 +54,7 @@ export default async function AllPlaces({
   const flag = one(params.flag); // "review" | "untagged"
   const tags = many(params.tag);
   const page = Math.max(1, Number(one(params.page)) || 1);
+  const notice = one(params.notice);
 
   const [categories, filtersRes, placesRes] = await Promise.all([
     loadCategories(db),
@@ -147,13 +151,77 @@ export default async function AllPlaces({
         )}
       </form>
 
+      {notice && <p role="status" className="mx-4 mt-3 rounded-lg border border-orange-200 bg-orange-50 px-3.5 py-2 text-[13px] text-orange-900">{notice}</p>}
+
       {rows.length === 0 ? (
         <p className="px-4 py-10 text-neutral-600">No places match these filters.</p>
       ) : (
+        <form action={bulkEdit} className="flex flex-col">
+          <input type="hidden" name="return" value={pageLink(page)} />
+          {Object.entries({ q, state, city, zip, main, status, flag }).map(([k, v]) => v && <input key={k} type="hidden" name={`f_${k}`} value={v} />)}
+          {tags.map((tg) => <input key={tg} type="hidden" name="f_tag" value={tg} />)}
+          <div className="relative flex flex-wrap items-end gap-2 border-b border-neutral-200 bg-neutral-50 px-4 py-2.5">
+            <div className="mr-2 flex min-h-11 flex-col justify-center">
+              <span className="text-xs font-medium text-neutral-600">Bulk edit</span>
+              <SelectedCount total={total} />
+            </div>
+            <label className={label}>
+              Main category
+              <select name="b_main" defaultValue="" className={control}>
+                <option value="">No change</option>
+                {mainCategories(categories).map((m) => (
+                  <option key={m.path} value={m.path}>{m.name}</option>
+                ))}
+              </select>
+            </label>
+            <label className={label}>
+              Status
+              <select name="b_status" defaultValue="" className={control}>
+                <option value="">No change</option>
+                {Object.entries(STATUS).filter(([v]) => v !== "merged").map(([v, l]) => (
+                  <option key={v} value={v}>{l}</option>
+                ))}
+              </select>
+            </label>
+            <label className={label}>
+              Review flag
+              <select name="b_review" defaultValue="" className={control}>
+                <option value="">No change</option>
+                <option value="true">Flag for review</option>
+                <option value="false">Clear the flag</option>
+              </select>
+            </label>
+            {[["b_add_tag", "Add tags"], ["b_remove_tag", "Remove tags"]].map(([name, text]) => (
+              <div key={name} className={label}>
+                <span id={`${name}-label`}>{text}</span>
+                <details>
+                  <summary aria-labelledby={`${name}-label`} className={`${control} flex cursor-pointer list-none items-center gap-2`}>
+                    Choose
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 9l6 6l6 -6" /></svg>
+                  </summary>
+                  <div className="absolute left-4 top-full z-10 -mt-1 max-h-[60vh] w-[min(40rem,calc(100%-2rem))] overflow-y-auto rounded-xl border border-neutral-200 bg-white p-3 text-[13px] font-normal text-neutral-900 shadow-lg">
+                    <TagChecklist categories={categories} selected={[]} name={name} />
+                  </div>
+                </details>
+              </div>
+            ))}
+            <label className={label}>
+              Note (optional)
+              <input name="b_note" placeholder="Why" className={`${control} w-48`} />
+            </label>
+            {total > rows.length && (
+              <label className="flex min-h-11 cursor-pointer items-center gap-2 self-end text-[13px]">
+                <input type="checkbox" name="scope" value="all" className="h-4 w-4 accent-neutral-900" />
+                All {total.toLocaleString("en-US")} matching, not just this page
+              </label>
+            )}
+            <button className="min-h-11 cursor-pointer self-end rounded-lg bg-neutral-900 px-3.5 text-[13px] font-medium text-white hover:bg-neutral-700">Apply to selected</button>
+          </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1040px] border-collapse text-[13px]">
             <thead>
               <tr className="bg-neutral-50">
+                <th className={`${th} w-11 px-0`}><SelectAll /></th>
                 <th className={th}>Name</th>
                 <th className={th}>Address</th>
                 <th className={th}>Town</th>
@@ -169,6 +237,11 @@ export default async function AllPlaces({
             <tbody>
               {rows.map((r) => (
                 <tr key={r.id} className="hover:bg-neutral-50">
+                  <td className={`${td} px-0`}>
+                    <label className="flex min-h-11 min-w-11 cursor-pointer items-center justify-center">
+                      <input type="checkbox" name="id" value={r.id} aria-label={`Select ${r.name}`} className="h-4 w-4 accent-neutral-900" />
+                    </label>
+                  </td>
                   <td className={td}>
                     <Link href={`/admin/places/${r.id}`} className="inline-flex min-h-11 items-center font-medium underline decoration-neutral-300 hover:text-orange-700">
                       {r.name}
@@ -189,6 +262,7 @@ export default async function AllPlaces({
             </tbody>
           </table>
         </div>
+        </form>
       )}
 
       <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-neutral-200 px-4 py-2 text-xs text-neutral-600">
