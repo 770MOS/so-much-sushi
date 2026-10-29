@@ -60,6 +60,15 @@ def report(source, release, rows, extra=None, out="sizing.csv"):
                      + f" | {r['places'] * BYTES_PER_RECORD / 1e6:,.0f} MB |")
     text = "\n".join(lines) + "\n"
     print(text)
+    # Also as one annotation: annotations can be read through the GitHub API, which the
+    # run's summary page and artifacts cannot from every environment.
+    if os.environ.get("GITHUB_ACTIONS"):
+        compact = [f"{source} {release}: {total:,} places, est. {gb:.1f} GB"]
+        compact += [f"{k}: {v}" for k, v in (extra or {}).items()]
+        compact.append("state,places," + ",".join(cols))
+        compact += [f"{code},{r['places']}," + ",".join(str(r.get(c, 0)) for c in cols) for code, r in ordered]
+        body = "\n".join(compact)[:60000].replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+        print(f"::notice title=Places per state::{body}")
     if os.environ.get("GITHUB_STEP_SUMMARY"):
         with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
             f.write(text)
