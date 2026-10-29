@@ -19,6 +19,7 @@ import duckdb
 
 HERE = Path(__file__).parent
 sys.path.insert(0, str(HERE))
+from sizing import report  # noqa: E402
 from common import USER_AGENT, get_json, load, notice, run, summarise, write_csv  # noqa: E402
 
 LATEST = "https://data.alltheplaces.xyz/runs/latest.json"
@@ -229,14 +230,35 @@ def transform(rows, cmap):
     return out, skipped, spiders
 
 
+def size():
+    """Count food and drink places per state across the whole United States."""
+    info = latest_run()
+    cmap = {k: v for k, v in json.loads((HERE / "alltheplaces_category_map.json").read_text()).items() if not k.startswith("_")}
+    records, skipped, spiders = transform(fetch(info, list(cmap["primary"].keys())), cmap)
+    rows = {}
+    for r in records:
+        s = rows.setdefault(norm_state(r["state"]) or "(unknown)", {"places": 0, "with_phone": 0, "with_website": 0})
+        s["places"] += 1
+        s["with_phone"] += bool(r["phone"])
+        s["with_website"] += bool(r["website"])
+    report("All the Places", info["run_id"], rows, {
+        "Chains (spiders) with food and drink places": f"{len(spiders):,}",
+        "Biggest chains": ", ".join(f"{k} {v:,}" for k, v in spiders.most_common(15)),
+        "Left out": ", ".join(f"{k} {v:,}" for k, v in skipped.most_common()) or "none",
+    })
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--run", default="latest", help="All the Places run id, or 'latest'")
     ap.add_argument("--bbox", help="xmin,ymin,xmax,ymax")
     ap.add_argument("--state", help="two-letter state code, e.g. VA")
-    ap.add_argument("--mode", choices=["dry-run", "load"], default="dry-run")
+    ap.add_argument("--mode", choices=["dry-run", "load", "size"], default="dry-run")
     ap.add_argument("--out", default="alltheplaces.csv")
     a = ap.parse_args()
+    if a.mode == "size":
+        size()
+        return
     if bool(a.bbox) == bool(a.state):
         sys.exit("give exactly one of --bbox or --state")
     state = norm_state(a.state) if a.state else None
