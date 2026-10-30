@@ -156,7 +156,9 @@ export async function bulkEdit(formData: FormData) {
   if (review === "true" || review === "false") changes.needs_review = review;
   const addTags = formData.getAll("b_add_tag").map(String);
   const removeTags = formData.getAll("b_remove_tag").map(String);
-  if (!Object.keys(changes).length && !addTags.length && !removeTags.length) back("Choose something to change first.");
+  const checked = formData.get("b_checked") === "on";
+  const hasEdits = Object.keys(changes).length > 0 || addTags.length > 0 || removeTags.length > 0;
+  if (!hasEdits && !checked) back("Choose something to change first.");
 
   let ids = formData.getAll("id").map(String).filter((id) => UUID.test(id));
   if (formData.get("scope") === "all") {
@@ -168,6 +170,7 @@ export async function bulkEdit(formData: FormData) {
         p_q: f("q"), p_state: f("state"), p_city: f("city"), p_zip: f("zip"), p_main: f("main"),
         p_tags: tags.length ? tags : null, p_status: f("status"),
         p_needs_review: f("flag") === "review" ? true : null, p_untagged: f("flag") === "untagged" ? true : null,
+        p_origin: ["hand", "unconfirmed", "stale"].includes(f("flag") ?? "") ? f("flag") : null,
         p_limit: 1000, p_offset: offset,
       });
       if (error) back(`Could not list the matching places: ${error.message}`);
@@ -179,15 +182,35 @@ export async function bulkEdit(formData: FormData) {
   }
   if (!ids.length) back("Nothing was ticked.");
 
-  const { data, error } = await db.rpc("admin_bulk_update", {
-    p_ids: ids, p_changes: changes, p_add_tags: addTags.length ? addTags : null,
-    p_remove_tags: removeTags.length ? removeTags : null, p_decided_by: email,
-    p_note: String(formData.get("b_note") ?? "").trim() || null,
+  const note = String(formData.get("b_note") ?? "").trim() || null;
+  const parts: string[] = [];
+  if (hasEdits) {
+    const { data, error } = await db.rpc("admin_bulk_update", {
+      p_ids: ids, p_changes: changes, p_add_tags: addTags.length ? addTags : null,
+      p_remove_tags: removeTags.length ? removeTags : null, p_decided_by: email, p_note: note,
+    });
+    if (error) back(`Nothing was changed: ${error.message}`);
+    const r = data as BulkResult;
+    let s = `Updated ${r.places_changed} of ${ids.length} ${ids.length === 1 ? "place" : "places"}.`;
+    if (r.places_changed < ids.length - r.skipped_merged) s += " The rest already had those values.";
+    if (r.skipped_merged) s += ` Skipped ${r.skipped_merged} merged.`;
+    parts.push(s);
+  }
+  if (checked) {
+    const { data, error } = await db.rpc("admin_mark_checked", { p_ids: ids, p_decided_by: email, p_note: note });
+    if (error) back(`${parts.join(" ")} Could not mark as checked: ${error.message}`.trim());
+    parts.push(`Marked ${data} as checked.`);
+  }
+  back(parts.join(" "));
+}
+
+// "Checked, still correct" on a place page.
+export async function markChecked(formData: FormData) {
+  const { db, email } = await requireAdmin();
+  const id = String(formData.get("id") ?? "");
+  if (!UUID.test(id)) throw new Error("bad place id");
+  const { error } = await db.rpc("admin_mark_checked", {
+    p_ids: [id], p_decided_by: email, p_note: String(formData.get("note") ?? "").trim() || null,
   });
-  if (error) back(`Nothing was changed: ${error.message}`);
-  const r = data as BulkResult;
-  let notice = `Updated ${r.places_changed} of ${ids.length} ${ids.length === 1 ? "place" : "places"}.`;
-  if (r.places_changed < ids.length - r.skipped_merged) notice += " The rest already had those values.";
-  if (r.skipped_merged) notice += ` Skipped ${r.skipped_merged} merged.`;
-  back(notice);
+  goTo(id, error ? `Not saved: ${error.message}` : "Marked as checked today.");
 }

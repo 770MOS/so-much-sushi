@@ -15,6 +15,7 @@ export type AdminPlace = {
   postal_code: string | null; phone: string | null; website: string | null; status: string;
   needs_review: boolean; merged_into: string | null; updated_at: string; lat: number; lng: number;
   main_category: string; tags: string[]; saved: { stars: number; lists: number };
+  added_by_hand?: boolean; last_checked?: string | null; created_at?: string;
   provenance: Record<string, Provenance>; source_records: SourceRecord[]; history: HistoryItem[];
 };
 

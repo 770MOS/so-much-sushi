@@ -14,6 +14,7 @@ type PlaceRow = {
   id: string; name: string; address: string | null; city: string | null; state: string | null;
   postal_code: string | null; phone: string | null; website: string | null; status: string;
   needs_review: boolean; main_category: string; tags: string[]; total: number;
+  added_by_hand: boolean; source_records: number; last_checked: string | null;
 };
 type Option = { value: string; count: number };
 type Town = { state: string | null; value: string; count: number };
@@ -51,7 +52,7 @@ export default async function AllPlaces({
   const zip = one(params.zip);
   const main = one(params.main);
   const status = one(params.status);
-  const flag = one(params.flag); // "review" | "untagged"
+  const flag = one(params.flag); // "review" | "untagged" | "hand" | "unconfirmed" | "stale"
   const tags = many(params.tag);
   const page = Math.max(1, Number(one(params.page)) || 1);
   const notice = one(params.notice);
@@ -63,6 +64,7 @@ export default async function AllPlaces({
       p_q: q ?? null, p_state: state ?? null, p_city: city ?? null, p_zip: zip ?? null,
       p_main: main ?? null, p_tags: tags.length ? tags : null, p_status: status ?? null,
       p_needs_review: flag === "review" ? true : null, p_untagged: flag === "untagged" ? true : null,
+      p_origin: flag === "hand" || flag === "unconfirmed" || flag === "stale" ? flag : null,
       p_limit: PAGE, p_offset: (page - 1) * PAGE,
     }),
   ]);
@@ -143,6 +145,9 @@ export default async function AllPlaces({
             <option value="">Everything</option>
             <option value="review">Flagged for review</option>
             <option value="untagged">No tags yet</option>
+            <option value="hand">Added by hand</option>
+            <option value="unconfirmed">No source has it</option>
+            <option value="stale">No source, not checked in 6 months</option>
           </select>
         </label>
         <button className="min-h-11 cursor-pointer rounded-lg bg-neutral-900 px-3.5 text-[13px] font-medium text-white hover:bg-neutral-700">Apply</button>
@@ -205,6 +210,10 @@ export default async function AllPlaces({
                 </details>
               </div>
             ))}
+            <label className="flex min-h-11 cursor-pointer items-center gap-2 self-end text-[13px]">
+              <input type="checkbox" name="b_checked" className="h-4 w-4 accent-neutral-900" />
+              Mark as checked
+            </label>
             <label className={label}>
               Note (optional)
               <input name="b_note" placeholder="Why" className={`${control} w-48`} />
@@ -247,6 +256,11 @@ export default async function AllPlaces({
                       {r.name}
                     </Link>
                     {r.needs_review && <span className="ml-2 whitespace-nowrap rounded-full border border-orange-300 bg-orange-50 px-1.5 py-px text-[11px] text-orange-900">Review</span>}
+                    {r.added_by_hand && <span className="ml-2 whitespace-nowrap rounded-full border border-neutral-300 bg-white px-1.5 py-px text-[11px] text-neutral-700">Hand</span>}
+                    {r.source_records === 0 && (
+                      <span title={r.last_checked ? `Last checked ${new Date(r.last_checked).toLocaleDateString("en-US")}` : "Never checked"}
+                            className="ml-2 whitespace-nowrap rounded-full border border-sky-300 bg-sky-50 px-1.5 py-px text-[11px] text-sky-900">No source</span>
+                    )}
                   </td>
                   <td className={td}>{r.address}</td>
                   <td className={`${td} whitespace-nowrap`}>{r.city}</td>
