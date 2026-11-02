@@ -9,7 +9,9 @@ Modes:
   load     also create a source_runs row, upsert into source_records and reconcile
 
 Area: --bbox xmin,ymin,xmax,ymax  (fast: only the matching parts of the file are read), or
-      --state VA                  (reads the whole national file, then keeps that state).
+      --state VA                  (reads the whole national file, then keeps that state), or
+      --states all | VA,MD,...    (reads the national file once, then loads and reconciles each
+                                   state as its own run; safe to run again)
 """
 import argparse, io, json, os, sys, tempfile, urllib.request, zipfile
 from collections import Counter
@@ -20,30 +22,15 @@ import duckdb
 HERE = Path(__file__).parent
 sys.path.insert(0, str(HERE))
 from sizing import report  # noqa: E402
-from common import USER_AGENT, get_json, load, notice, run, summarise, write_csv  # noqa: E402
+from common import (NO_STATE, STATE_NAMES, USER_AGENT, get_json, load, load_by_state, notice,  # noqa: E402
+                    parse_states, run, state_code, summarise, write_csv)
 
 LATEST = "https://data.alltheplaces.xyz/runs/latest.json"
 LICENSE = "CC0-1.0"
-STATE_NAMES = {
-    "AL": "Alabama", "AK": "Alaska", "AZ": "Arizona", "AR": "Arkansas", "CA": "California", "CO": "Colorado",
-    "CT": "Connecticut", "DE": "Delaware", "DC": "District of Columbia", "FL": "Florida", "GA": "Georgia",
-    "HI": "Hawaii", "ID": "Idaho", "IL": "Illinois", "IN": "Indiana", "IA": "Iowa", "KS": "Kansas",
-    "KY": "Kentucky", "LA": "Louisiana", "ME": "Maine", "MD": "Maryland", "MA": "Massachusetts",
-    "MI": "Michigan", "MN": "Minnesota", "MS": "Mississippi", "MO": "Missouri", "MT": "Montana",
-    "NE": "Nebraska", "NV": "Nevada", "NH": "New Hampshire", "NJ": "New Jersey", "NM": "New Mexico",
-    "NY": "New York", "NC": "North Carolina", "ND": "North Dakota", "OH": "Ohio", "OK": "Oklahoma",
-    "OR": "Oregon", "PA": "Pennsylvania", "RI": "Rhode Island", "SC": "South Carolina", "SD": "South Dakota",
-    "TN": "Tennessee", "TX": "Texas", "UT": "Utah", "VT": "Vermont", "VA": "Virginia", "WA": "Washington",
-    "WV": "West Virginia", "WI": "Wisconsin", "WY": "Wyoming", "PR": "Puerto Rico",
-}
-BY_NAME = {v.lower(): k for k, v in STATE_NAMES.items()}
 
 
 def norm_state(value):
-    v = (value or "").strip()
-    if v.upper() in STATE_NAMES:
-        return v.upper()
-    return BY_NAME.get(v.lower())
+    return state_code(value)
 
 
 def latest_run():
@@ -253,14 +240,18 @@ def main():
     ap.add_argument("--run", default="latest", help="All the Places run id, or 'latest'")
     ap.add_argument("--bbox", help="xmin,ymin,xmax,ymax")
     ap.add_argument("--state", help="two-letter state code, e.g. VA")
+    ap.add_argument("--states", help="'all', or two-letter codes like VA,MD (and 'none' for records with no state)")
     ap.add_argument("--mode", choices=["dry-run", "load", "size"], default="dry-run")
     ap.add_argument("--out", default="alltheplaces.csv")
     a = ap.parse_args()
     if a.mode == "size":
         size()
         return
+    if a.states:
+        load_states(a)
+        return
     if bool(a.bbox) == bool(a.state):
-        sys.exit("give exactly one of --bbox or --state")
+        sys.exit("give exactly one of --bbox, --state or --states")
     state = norm_state(a.state) if a.state else None
     if a.state and not state:
         sys.exit(f"unknown state {a.state}")
@@ -279,6 +270,24 @@ def main():
     if a.mode == "load":
         scope = f"state:{state}" if state else f"bbox:{a.bbox}"
         load(records, "alltheplaces", info["run_id"], scope, LICENSE)
+
+
+def load_states(a):
+    """Read the national file once, then load and reconcile one state at a time."""
+    states = parse_states(a.states)
+    info = latest_run()
+    if a.run != "latest" and a.run != info["run_id"]:
+        sys.exit(f"only the latest run ({info['run_id']}) is published as one file; asked for {a.run}")
+    notice("Release", f"All the Places run {info['run_id']} ({info.get('spiders')} spiders)")
+    cmap = {k: v for k, v in json.loads((HERE / "alltheplaces_category_map.json").read_text()).items() if not k.startswith("_")}
+    records, skipped, spiders = transform(fetch(info, list(cmap["primary"].keys())), cmap)
+    groups = {}
+    for r in records:
+        groups.setdefault(state_code(r["state"]) or NO_STATE, []).append(r)
+    notice("Per state", ", ".join(f"{c} {len(groups.get(c, [])):,}" for c in states))
+    notice("Left out", dict(skipped) or "none")
+    if a.mode == "load":
+        load_by_state(lambda code: groups.get(code, []), "alltheplaces", info["run_id"], LICENSE, states)
 
 
 if __name__ == "__main__":

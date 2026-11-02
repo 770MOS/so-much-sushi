@@ -2,36 +2,16 @@
 
 Written to the workflow summary (GITHUB_STEP_SUMMARY) and to a CSV. Touches no database.
 """
-import csv, os
+import csv, os, sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent))
+from common import STATE_NAMES  # noqa: E402
 
 # Measured in the sandbox on 2026-10-29: about 7 KB of database space per source record,
 # counting the record, its first version, the place it builds, field provenance, tags
 # and ledger entries, with their indexes.
 BYTES_PER_RECORD = 7_000
-
-STATE_NAMES = {
-    "AL": "Alabama", "AK": "Alaska", "AZ": "Arizona", "AR": "Arkansas", "CA": "California", "CO": "Colorado",
-    "CT": "Connecticut", "DE": "Delaware", "DC": "District of Columbia", "FL": "Florida", "GA": "Georgia",
-    "HI": "Hawaii", "ID": "Idaho", "IL": "Illinois", "IN": "Indiana", "IA": "Iowa", "KS": "Kansas",
-    "KY": "Kentucky", "LA": "Louisiana", "ME": "Maine", "MD": "Maryland", "MA": "Massachusetts",
-    "MI": "Michigan", "MN": "Minnesota", "MS": "Mississippi", "MO": "Missouri", "MT": "Montana",
-    "NE": "Nebraska", "NV": "Nevada", "NH": "New Hampshire", "NJ": "New Jersey", "NM": "New Mexico",
-    "NY": "New York", "NC": "North Carolina", "ND": "North Dakota", "OH": "Ohio", "OK": "Oklahoma",
-    "OR": "Oregon", "PA": "Pennsylvania", "RI": "Rhode Island", "SC": "South Carolina", "SD": "South Dakota",
-    "TN": "Tennessee", "TX": "Texas", "UT": "Utah", "VT": "Vermont", "VA": "Virginia", "WA": "Washington",
-    "WV": "West Virginia", "WI": "Wisconsin", "WY": "Wyoming", "PR": "Puerto Rico",
-}
-_BY_NAME = {v.lower(): k for k, v in STATE_NAMES.items()}
-
-
-def state_code(value):
-    """Two-letter code from a code, a full name or "US-VA"; None when it is not a US state."""
-    v = (value or "").strip()
-    if v.upper().startswith("US-"):
-        v = v[3:]
-    if v.upper() in STATE_NAMES:
-        return v.upper()
-    return _BY_NAME.get(v.lower())
 
 
 def report(source, release, rows, extra=None, out="sizing.csv"):
