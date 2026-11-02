@@ -1,0 +1,135 @@
+name: Deploy database to production
+
+# Applies new migrations to the production database. Waits for your Approve click (the
+# "production" environment's required reviewer), then: shows what is there, copies people's
+# data into a backup schema, and applies the migrations.
+#
+# The first run is the switch-over from the old schema. It stops after the look-around unless
+# you run it from Actions and choose what to do with the old OpenStreetMap/Google places.
+on:
+  push:
+    branches: [main]
+    paths: ["supabase/migrations/**"]
+  workflow_dispatch:
+    inputs:
+      old_places:
+        description: "First run only (the switch-over): the places from the old OpenStreetMap/Google pulls"
+        type: choice
+        options: [stop and show me first, remove all, remove all except ones entered by hand]
+        default: stop and show me first
+
+# One thing at a time on production: a deploy never overlaps a load.
+concurrency:
+  group: production-db
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: production
+    env:
+      DB_URL: ${{ secrets.PRODUCTION_DB_URL }}
+      CLI: supabase
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Check the connection setting is present
+        run: |
+          if [ -z "$DB_URL" ]; then
+            echo "::error title=Missing secret::Add PRODUCTION_DB_URL (production's session pooler connection string) to the production environment: Settings > Environments > production > Environment secrets."
+            exit 1
+          fi
+          case "$DB_URL" in
+            *ajkgveeuurzltttdfhgv*) ;;
+            *) echo "::error title=Wrong database::PRODUCTION_DB_URL does not point at production (ajkgveeuurzltttdfhgv). Refusing to run."; exit 1 ;;
+          esac
+
+      - name: Get the PostgreSQL 17 client
+        run: docker pull -q postgres:17
+
+      - name: What is there now
+        id: look
+        run: |
+          set -o pipefail
+          scripts/db/psql.sh -f scripts/db/inventory.sql | tee before.txt | scripts/db/report.sh "Production before the deploy"
+          old=$(grep '^old schema' before.txt | cut -d'|' -f2)
+          echo "switchover=$old" >> "$GITHUB_OUTPUT"
+
+      - name: Decide
+        id: decide
+        env:
+          SWITCHOVER: ${{ steps.look.outputs.switchover }}
+          CHOICE: ${{ inputs.old_places || 'stop and show me first' }}
+        run: |
+          if [ "$SWITCHOVER" != "true" ]; then
+            echo "proceed=true" >> "$GITHUB_OUTPUT"; echo "clear=" >> "$GITHUB_OUTPUT"
+          elif [ "$CHOICE" = "remove all" ]; then
+            echo "proceed=true" >> "$GITHUB_OUTPUT"; echo "clear=no" >> "$GITHUB_OUTPUT"
+          elif [ "$CHOICE" = "remove all except ones entered by hand" ]; then
+            echo "proceed=true" >> "$GITHUB_OUTPUT"; echo "clear=yes" >> "$GITHUB_OUTPUT"
+          else
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Stopped before the switch-over::Production still has the old schema. Nothing was changed. Read the counts above, then run this workflow from Actions and choose what to do with the old places."
+          fi
+
+      - name: Copy people's data into a backup schema
+        if: steps.decide.outputs.proceed == 'true'
+        env:
+          CLEAR: ${{ steps.decide.outputs.clear }}
+        run: |
+          if [ -n "$CLEAR" ]; then
+            schema=backup_before_switchover; scope=switchover
+          else
+            schema=backup_$(date -u +%Y%m%d_%H%M%S); scope=routine
+          fi
+          scripts/db/psql.sh -v schema=$schema -v scope=$scope -f scripts/db/snapshot.sql 2>&1 | sed 's/^psql:[^ ]* //'
+          echo "::notice title=Backup::People's data copied into the $schema schema (inside the database, not exposed by the API)."
+
+      - name: "Switch-over: remove the old places"
+        if: steps.decide.outputs.proceed == 'true' && steps.decide.outputs.clear != ''
+        env:
+          CLEAR: ${{ steps.decide.outputs.clear }}
+        run: |
+          set -o pipefail
+          scripts/db/psql.sh -v keep_manual=$CLEAR -f scripts/db/clear_old_places.sql 2>&1 | sed 's/^psql:[^ ]* //' | tee clear.txt
+          echo "::notice title=Old places::$(grep -o 'removed.*' clear.txt | head -1)"
+
+      - uses: supabase/setup-cli@v1
+        if: steps.decide.outputs.proceed == 'true'
+        with:
+          version: 3.0.0
+
+      # The first two migrations are production's schema as it was on 2026-10-02: they are
+      # recorded as applied, never run here.
+      - name: "Switch-over: record the baseline as already applied"
+        if: steps.decide.outputs.proceed == 'true' && steps.decide.outputs.clear != ''
+        run: supabase migration repair 20261002000000 20261002000100 --status applied --remote="$DB_URL" --yes
+
+      - name: Show what will be applied
+        if: steps.decide.outputs.proceed == 'true'
+        run: |
+          set -o pipefail
+          if ! supabase db push --remote="$DB_URL" --dry-run 2>&1 | tee out.txt; then
+            msg=$(tail -n 8 out.txt | sed -E 's#(postgres(ql)?://[^:/@]+):[^@]*@#\1:***@#g' | tr '\n' ' ')
+            echo "::error title=Could not reach production::$msg"
+            exit 1
+          fi
+          echo "::notice title=Migrations to apply::$(grep -o '[0-9]\{14\}_[a-z0-9_]*\.sql' out.txt | sort -u | tr '\n' ' ')"
+
+      - name: Apply migrations
+        if: steps.decide.outputs.proceed == 'true'
+        run: |
+          set -o pipefail
+          if ! supabase db push --remote="$DB_URL" --yes 2>&1 | tee out.txt; then
+            msg=$(tail -n 8 out.txt | sed -E 's#(postgres(ql)?://[^:/@]+):[^@]*@#\1:***@#g' | tr '\n' ' ')
+            echo "::error title=Migration failed on production::$msg"
+            exit 1
+          fi
+
+      - name: What is there now
+        if: steps.decide.outputs.proceed == 'true'
+        run: scripts/db/psql.sh -f scripts/db/inventory.sql | scripts/db/report.sh "Production after the deploy"
