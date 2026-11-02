@@ -6,7 +6,7 @@ import { formatPhone, websiteHost } from "@/lib/adminFormat";
 import TagChecklist from "@/components/admin/TagChecklist";
 import { UUID, provenanceLabel, when, type AdminPlace, type PlaceMerge } from "@/lib/adminPlace";
 import { buildTimeline, type HistoryRow, type TimelineEntry } from "@/lib/adminHistory";
-import { savePlace, undoMerge } from "../actions";
+import { markChecked, savePlace, undoMerge } from "../actions";
 
 const control = "min-h-11 w-full rounded-lg border border-neutral-300 bg-white px-2.5 text-[13px]";
 const panel = "rounded-xl border border-neutral-200";
@@ -166,6 +166,23 @@ export default async function PlaceEditor({
               <dd className="font-mono text-xs">{p.lat.toFixed(5)}, {p.lng.toFixed(5)}</dd>
               <dt className="text-neutral-500">Last changed</dt>
               <dd>{when(p.updated_at)}</dd>
+              <dt className="text-neutral-500">Origin</dt>
+              <dd>
+                {p.added_by_hand ? "Added by hand" : "From a source"}
+                {p.source_records.length === 0 && <span className="text-sky-800"> · no source has it, so we are responsible for keeping it current</span>}
+              </dd>
+              <dt className="text-neutral-500">Last checked</dt>
+              <dd className="flex flex-wrap items-center gap-2">
+                <span>{p.last_checked ? when(p.last_checked) : "Never"}</span>
+                {!merged && (
+                  <form action={markChecked}>
+                    <input type="hidden" name="id" value={p.id} />
+                    <button className="min-h-11 cursor-pointer rounded-lg border border-neutral-300 bg-white px-3 text-[13px] font-medium hover:bg-neutral-50">
+                      Checked, still correct
+                    </button>
+                  </form>
+                )}
+              </dd>
               <dt className="text-neutral-500">Public page</dt>
               <dd><Link href={`/venue/${p.id}`} className="underline hover:text-orange-700">Open</Link></dd>
             </dl>

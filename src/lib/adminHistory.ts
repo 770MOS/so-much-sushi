@@ -42,6 +42,7 @@ function ledgerEntry(r: HistoryRow, i: number): TimelineEntry {
 
   switch (r.kind) {
     case "manual_edit":
+      if (r.field === "last_checked") return { ...base, title: "Checked, still correct", lines: [...note, ...onMerged], tone: "decision" };
       return { ...base, title: `Edited by hand: ${change}`, lines: [...note, ...onMerged], tone: "decision" };
     case "merge": {
       const other = typeof d.duplicate_name === "string" ? d.duplicate_name : typeof d.name_b === "string" ? d.name_b : "another place";

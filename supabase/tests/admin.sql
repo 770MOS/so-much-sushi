@@ -46,7 +46,7 @@ insert into r select 'filters list towns with their state', jsonb_array_length(a
 
 -- access
 insert into r select 'admin functions closed to the public',
-  not has_function_privilege('anon', 'admin_search_places(text,text,text,text,text,text[],text,boolean,boolean,integer,integer)', 'execute')
+  not has_function_privilege('anon', 'admin_search_places(text,text,text,text,text,text[],text,boolean,boolean,integer,integer,text)', 'execute')
   and not has_function_privilege('authenticated', 'decide_source_changes(bigint[],boolean,text)', 'execute')
   and not has_table_privilege('authenticated', 'admins', 'select');
 insert into r select 'licence audit stays clean', (select count(*) from provenance_license_audit) = 0;
