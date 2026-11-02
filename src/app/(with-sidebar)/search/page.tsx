@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import SearchResultsView from "@/components/SearchResultsView";
+import RequestPlaceLink from "@/components/RequestPlaceLink";
 import { useEntitySearch } from "@/lib/useEntitySearch";
 import { useGeolocation } from "@/lib/useGeolocation";
 import { getLastSearchCoords } from "@/lib/lastSearchCoords";
@@ -124,6 +125,8 @@ export default function SearchPage() {
           user={user}
           emptyMessage="No matches yet. Try a different name."
         />
+
+        {search.results !== null && !search.loading && <RequestPlaceLink name={name} />}
       </div>
     </main>
   );

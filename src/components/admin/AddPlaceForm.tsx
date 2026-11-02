@@ -1,18 +1,13 @@
 "use client";
 
-import dynamic from "next/dynamic";
 import Link from "next/link";
+import PinField from "@/components/PinField";
 import { useActionState } from "react";
 import { mainCategories, type Category } from "@/lib/adminCategories";
 import { formatPhone } from "@/lib/adminFormat";
 import TagChecklist from "@/components/admin/TagChecklist";
 import type { AddPlaceState } from "@/app/admin/places/actions";
 
-// The map library needs a browser, so the picker is loaded on the client only.
-const MapPicker = dynamic(() => import("@/components/admin/MapPicker"), {
-  ssr: false,
-  loading: () => <div className="h-80 w-full rounded-xl border border-neutral-200 bg-neutral-50" />,
-});
 
 const control = "min-h-11 w-full rounded-lg border border-neutral-300 bg-white px-2.5 text-[13px]";
 const panel = "rounded-xl border border-neutral-200";
@@ -21,11 +16,19 @@ const panelHead = "border-b border-neutral-200 bg-neutral-50 px-3.5 py-2 text-xs
 export default function AddPlaceForm({
   categories,
   action,
+  initial = { values: {} },
+  hidden = {},
+  submitLabel = "Add place",
 }: {
   categories: Category[];
   action: (state: AddPlaceState, formData: FormData) => Promise<AddPlaceState>;
+  // Values to start with, e.g. from a place request.
+  initial?: AddPlaceState;
+  // Extra fields sent with the form, e.g. the request id.
+  hidden?: Record<string, string>;
+  submitLabel?: string;
 }) {
-  const [state, formAction, pending] = useActionState(action, { values: {} });
+  const [state, formAction, pending] = useActionState(action, initial);
   const v = state.values;
   const pin = v.lat && v.lng ? { lat: Number(v.lat), lng: Number(v.lng) } : null;
   const field = (name: string, label: string, extra: Record<string, string | number> = {}) => (
@@ -38,6 +41,9 @@ export default function AddPlaceForm({
   return (
     // key: a returned state re-renders the inputs with the values that were sent.
     <form action={formAction} key={state.attempt ?? 0} className="flex flex-col gap-4">
+      {Object.entries(hidden).map(([name, value]) => (
+        <input key={name} type="hidden" name={name} value={value} />
+      ))}
       {state.error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3.5 py-2 text-[13px] text-red-900">{state.error}</p>}
 
       {state.similar && state.similar.length > 0 && (
@@ -96,7 +102,7 @@ export default function AddPlaceForm({
           </div>
           <div className={`${panelHead} border-t`}>Map pin</div>
           <div className="p-3.5">
-            <MapPicker initial={pin} addressFieldIds={["add-address", "add-city", "add-state", "add-postal_code"]} />
+            <PinField initial={pin} addressFieldIds={["add-address", "add-city", "add-state", "add-postal_code"]} />
           </div>
         </section>
 
@@ -115,7 +121,7 @@ export default function AddPlaceForm({
         </label>
         <div className="flex flex-wrap items-center gap-3">
           <button disabled={pending} className="min-h-11 cursor-pointer rounded-lg bg-neutral-900 px-4 text-[13px] font-medium text-white hover:bg-neutral-700 disabled:opacity-50">
-            {pending ? "Saving…" : "Add place"}
+            {pending ? "Saving…" : submitLabel}
           </button>
           <span className="text-xs text-neutral-600">Everything you enter is recorded as edited by hand, so sources can suggest changes but never overwrite it.</span>
         </div>

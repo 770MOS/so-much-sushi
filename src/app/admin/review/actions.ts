@@ -14,7 +14,10 @@ function ids(formData: FormData, key: string): number[] {
 
 // Only ever send the admin back to a path inside the review section.
 function back(formData: FormData, notice: string): never {
-  const raw = String(formData.get("return") ?? "");
+  backTo(String(formData.get("return") ?? ""), notice);
+}
+
+function backTo(raw: string, notice: string): never {
   const path = raw.startsWith("/admin/review") ? raw : "/admin/review";
   const sep = path.includes("?") ? "&" : "?";
   revalidatePath("/admin", "layout");
@@ -134,4 +137,37 @@ export async function acceptSourceChanges(formData: FormData) {
 
 export async function rejectSourceChanges(formData: FormData) {
   await decideSourceChanges(formData, false);
+}
+
+// A place request turns out to be a place we already have.
+export async function linkPlaceRequest(formData: FormData) {
+  const { db, email } = await requireAdmin();
+  const request = Number(formData.get("request"));
+  const place = String(formData.get("place") ?? "").trim();
+  if (!Number.isInteger(request) || request <= 0) back(formData, "Missing the request.");
+  if (!UUID.test(place)) back(formData, "Choose the place it is, or paste its id.");
+  const { error } = await db.rpc("admin_link_place_request", {
+    p_id: request,
+    p_entity: place,
+    p_decided_by: email,
+    p_note: String(formData.get("note") ?? "").trim() || null,
+  });
+  if (error) back(formData, `Could not save: ${error.message}`);
+  backTo("/admin/review?type=requests", "Marked as already listed.");
+}
+
+// Decline the ticked place requests (or the one on the request screen).
+export async function declinePlaceRequests(formData: FormData) {
+  const { db, email } = await requireAdmin();
+  const selected = ids(formData, "request");
+  if (selected.length === 0) back(formData, "Nothing was ticked.");
+  const reason = String(formData.get("reason") ?? "").trim();
+  const note = String(formData.get("note") ?? "").trim();
+  const { data, error } = await db.rpc("admin_decline_place_requests", {
+    p_ids: selected,
+    p_decided_by: email,
+    p_note: [reason, note].filter(Boolean).join(": ") || null,
+  });
+  if (error) back(formData, `Could not save: ${error.message}`);
+  backTo("/admin/review?type=requests", `Declined ${data}.`);
 }

@@ -22,3 +22,10 @@ export async function requireAdmin() {
 
   return { db, email: user.email ?? user.id };
 }
+
+// Whether a user is on the admins list, for showing admin shortcuts on ordinary pages.
+// Never use this to protect anything: admin pages and actions call requireAdmin().
+export async function isAdmin(userId: string): Promise<boolean> {
+  const { data } = await createServiceRoleClient().from("admins").select("user_id").eq("user_id", userId).maybeSingle();
+  return Boolean(data);
+}

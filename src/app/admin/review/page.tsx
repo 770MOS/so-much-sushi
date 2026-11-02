@@ -7,12 +7,13 @@ import {
   acceptSourceChanges,
   acceptTagsSelected,
   acceptTickedRejectRest,
+  declinePlaceRequests,
   keepSeparateSelected,
   mergeSelected,
   rejectSourceChanges,
   rejectTagsSelected,
 } from "./actions";
-import type { MergeRow, SourceChangeRow, TagCount, TagRow } from "./types";
+import type { MergeRow, PlaceRequestRow, SourceChangeRow, TagCount, TagRow } from "./types";
 
 const TAG_PAGE = 200;
 
@@ -51,18 +52,22 @@ export default async function ReviewQueue({
   const { db } = await requireAdmin();
   const params = await searchParams;
   const requested = one(params.type);
-  const type = requested === "tags" ? "tags" : requested === "changes" ? "changes" : "merges";
+  const type =
+    requested === "tags" ? "tags" : requested === "changes" ? "changes" : requested === "requests" ? "requests" : "merges";
   const tag = one(params.tag) ?? null;
   const notice = one(params.notice);
 
-  const [mergesRes, countsRes, changesRes] = await Promise.all([
+  const [mergesRes, countsRes, changesRes, requestsRes] = await Promise.all([
     db.rpc("admin_pending_merges"),
     db.rpc("admin_pending_tag_counts"),
     db.rpc("admin_pending_source_changes"),
+    db.rpc("admin_pending_place_requests"),
   ]);
   if (mergesRes.error) throw new Error(mergesRes.error.message);
   if (countsRes.error) throw new Error(countsRes.error.message);
   if (changesRes.error) throw new Error(changesRes.error.message);
+  if (requestsRes.error) throw new Error(requestsRes.error.message);
+  const requests = (requestsRes.data ?? []) as PlaceRequestRow[];
   const changes = (changesRes.data ?? []) as SourceChangeRow[];
   const merges = (mergesRes.data ?? []) as MergeRow[];
   const counts = ((countsRes.data ?? []) as TagCount[]).map((c) => ({ ...c, pending: Number(c.pending) }));
@@ -80,7 +85,9 @@ export default async function ReviewQueue({
       ? `/admin/review?type=tags${tag ? `&tag=${encodeURIComponent(tag)}` : ""}`
       : type === "changes"
         ? "/admin/review?type=changes"
-        : "/admin/review";
+        : type === "requests"
+          ? "/admin/review?type=requests"
+          : "/admin/review";
   const tab = (active: boolean) =>
     `flex min-h-11 items-center gap-2 rounded-lg border px-3 text-[13px] ${
       active ? "border-neutral-900 bg-neutral-900 text-white" : "border-neutral-300 bg-white hover:bg-neutral-50"
@@ -99,6 +106,9 @@ export default async function ReviewQueue({
         <Link href="/admin/review?type=changes" className={tab(type === "changes")}>
           Source changes <span className="font-mono text-xs">{changes.length}</span>
         </Link>
+        <Link href="/admin/review?type=requests" className={tab(type === "requests")}>
+          Place requests <span className="font-mono text-xs">{requests.length}</span>
+        </Link>
       </div>
 
       {notice && (
@@ -107,7 +117,77 @@ export default async function ReviewQueue({
         </p>
       )}
 
-      {type === "changes" ? (
+      {type === "requests" ? (
+        requests.length === 0 ? (
+          <p className="px-4 py-10 text-neutral-600">No place requests are waiting.</p>
+        ) : (
+          <form>
+            <input type="hidden" name="return" value={here} />
+            <div className="flex flex-wrap items-center gap-2 border-b border-neutral-200 bg-neutral-50 px-4 py-2">
+              <button formAction={declinePlaceRequests} className={secondary}>
+                Decline ticked
+              </button>
+              <input name="note" placeholder="Reason (optional)" className="min-h-11 w-56 rounded-lg border border-neutral-300 bg-white px-2.5 text-[13px]" />
+              <span className="text-xs text-neutral-600">
+                Missing places people asked for. Open one to add it, link it to a place we have, or decline it.
+              </span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[900px] border-collapse text-[13px]">
+                <thead>
+                  <tr className="bg-neutral-50">
+                    <th className={th}><SelectAll /></th>
+                    <th className={th}>Requested place</th>
+                    <th className={th}>Kind</th>
+                    <th className={th}>Where</th>
+                    <th className={th}>Asked by</th>
+                    <th className={th}>Possible matches</th>
+                    <th className={th}>Sent</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {requests.map((q) => (
+                    <tr key={q.id} className="has-[:checked]:bg-orange-50">
+                      <td className={td}>
+                        <label className="flex min-h-11 min-w-11 cursor-pointer items-center justify-center">
+                          <input type="checkbox" name="request" value={q.id} aria-label={`Select ${q.name}`} className="h-4 w-4 accent-neutral-900" />
+                        </label>
+                      </td>
+                      <td className={td}>
+                        <Link href={`/admin/review/requests/${q.id}`} className="inline-flex min-h-11 items-center font-medium underline decoration-neutral-300 hover:text-orange-700">
+                          {q.name}
+                        </Link>
+                        {q.note && <div className="max-w-xs text-xs text-neutral-600">“{q.note}”</div>}
+                      </td>
+                      <td className={td}>{q.main_category_name}</td>
+                      <td className={td}>
+                        {q.address ?? <span className="text-neutral-400">No street given</span>}
+                        <div className="text-xs text-neutral-500">{place(q.city, q.state)}</div>
+                      </td>
+                      <td className={td}>
+                        {q.requested_by ?? <span className="text-neutral-400">Deleted account</span>}
+                        {q.requested_by_handle && q.requested_by_handle !== q.requested_by && (
+                          <div className="text-xs text-neutral-500">@{q.requested_by_handle}</div>
+                        )}
+                      </td>
+                      <td className={td}>
+                        {q.possible_matches > 0 ? (
+                          <span className="font-medium text-orange-800">{q.possible_matches}</span>
+                        ) : (
+                          <span className="text-neutral-500">None</span>
+                        )}
+                      </td>
+                      <td className={`${td} whitespace-nowrap text-neutral-600`}>
+                        {new Date(q.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </form>
+        )
+      ) : type === "changes" ? (
         changes.length === 0 ? (
           <p className="px-4 py-10 text-neutral-600">No changes from source loads are waiting.</p>
         ) : (

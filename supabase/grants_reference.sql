@@ -313,6 +313,17 @@ REVOKE EXECUTE ON FUNCTION handle_new_user() FROM PUBLIC;
 -- rls_auto_enable: appears to be a NocoDB-internal utility function (not
 -- called by this app). Not covered here.
 
+-- place_requests: "Request a place" (supabase/migrations/20261102010000_place_requests.sql).
+-- The table is reachable only through functions: signed-in people use the three
+-- SECURITY DEFINER functions below (each checks auth.uid() itself); the admin_*
+-- request functions in that migration are service_role only, like every admin function.
+REVOKE ALL ON TABLE place_requests FROM anon, authenticated;
+GRANT ALL ON TABLE place_requests TO service_role;
+REVOKE EXECUTE ON FUNCTION request_similar_places(double precision, double precision, text, text),
+                           submit_place_request(jsonb), my_place_requests() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION request_similar_places(double precision, double precision, text, text),
+                          submit_place_request(jsonb), my_place_requests() TO authenticated, service_role;
+
 -- =============================================================================
 -- Explicitly out of scope: NocoDB's own internal tables
 -- =============================================================================
