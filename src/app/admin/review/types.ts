@@ -21,3 +21,14 @@ export type SourceChangeRow = {
   field: string | null; current_value: string | null; proposed_value: string | null; reason: string | null;
   release: string | null; created_at: string;
 };
+
+// One place request, as admin_pending_place_requests / admin_get_place_request return it.
+export type PlaceRequestRow = {
+  id: number; name: string; main_category: string; main_category_name: string;
+  address: string | null; city: string | null; state: string | null; postal_code: string | null;
+  phone: string | null; website: string | null; note: string | null; lat: number; lng: number;
+  status: "pending" | "added" | "already_listed" | "declined";
+  entity_id: string | null; decided_by: string | null; decided_at: string | null; decision_note: string | null;
+  created_at: string; requested_by: string | null; requested_by_handle: string | null;
+  requests_by_this_person: number; possible_matches: number;
+};

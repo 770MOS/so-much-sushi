@@ -62,13 +62,20 @@ export default function AccountMenu({ supabase, email, firstName, displayName, h
       </button>
 
       {open && (
-        <div className="absolute right-0 z-10 mt-1 w-40 rounded-lg border border-zinc-300 bg-white p-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
+        <div className="absolute right-0 z-10 mt-1 w-44 rounded-lg border border-zinc-300 bg-white p-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
           <Link
             href="/profile"
             onClick={() => setOpen(false)}
             className="block rounded px-3 py-1.5 text-sm text-zinc-950 hover:bg-zinc-100 dark:text-zinc-50 dark:hover:bg-zinc-800"
           >
             Profile
+          </Link>
+          <Link
+            href="/request"
+            onClick={() => setOpen(false)}
+            className="block rounded px-3 py-1.5 text-sm text-zinc-950 hover:bg-zinc-100 dark:text-zinc-50 dark:hover:bg-zinc-800"
+          >
+            Request a place
           </Link>
           <button
             type="button"

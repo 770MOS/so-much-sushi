@@ -8,6 +8,7 @@ import LocationInput from "@/components/LocationInput";
 import RadiusSlider from "@/components/RadiusSlider";
 import TypeSelect from "@/components/TypeSelect";
 import SearchResultsView from "@/components/SearchResultsView";
+import RequestPlaceLink from "@/components/RequestPlaceLink";
 import { useEntitySearch } from "@/lib/useEntitySearch";
 import { useGeolocation } from "@/lib/useGeolocation";
 import { reverseGeocode } from "@/lib/reverseGeocode";
@@ -338,6 +339,8 @@ export default function DiscoverPage() {
             </>
           }
         />
+
+        {search.results !== null && !search.loading && <RequestPlaceLink />}
       </div>
     </main>
   );

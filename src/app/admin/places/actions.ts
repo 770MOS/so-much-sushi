@@ -101,37 +101,68 @@ export type AddPlaceState = {
 };
 const ADD_FIELDS = ["name", "address", "city", "state", "postal_code", "phone", "website", "main_category", "status", "lat", "lng", "note"] as const;
 
-// Add a place by hand. The first try shows possible existing matches; ticking
-// "add it anyway" saves regardless.
-export async function addPlace(prev: AddPlaceState, formData: FormData): Promise<AddPlaceState> {
-  const { db, email } = await requireAdmin();
+type AddCheck =
+  | { ok: false; state: AddPlaceState }
+  | { ok: true; place: Record<string, string>; note: string; tags: string[]; keep: AddPlaceState };
+
+// Reads and checks the "Add a place" form. The first try returns possible existing
+// matches; ticking "add it anyway" goes ahead regardless.
+async function checkAddForm(db: Awaited<ReturnType<typeof requireAdmin>>["db"], prev: AddPlaceState, formData: FormData): Promise<AddCheck> {
   const values: Record<string, string> = {};
   for (const f of ADD_FIELDS) values[f] = String(formData.get(f) ?? "").trim();
   const tags = formData.getAll("tag").map(String);
   const attempt = (prev.attempt ?? 0) + 1;
   const keep = { values, tags, attempt };
 
-  if (!values.name) return { ...keep, error: "A place needs a name." };
-  if (!values.lat || !values.lng) return { ...keep, error: "Place the pin on the map." };
-  if (!values.main_category) return { ...keep, error: "Choose a main category." };
+  if (!values.name) return { ok: false, state: { ...keep, error: "A place needs a name." } };
+  if (!values.lat || !values.lng) return { ok: false, state: { ...keep, error: "Place the pin on the map." } };
+  if (!values.main_category) return { ok: false, state: { ...keep, error: "Choose a main category." } };
 
   if (formData.get("confirm") !== "on") {
     const { data, error } = await db.rpc("admin_similar_places", {
       p_lat: Number(values.lat), p_lng: Number(values.lng), p_name: values.name, p_phone: values.phone || null,
     });
-    if (error) return { ...keep, error: `Could not check for existing places: ${error.message}` };
+    if (error) return { ok: false, state: { ...keep, error: `Could not check for existing places: ${error.message}` } };
     const similar = (data ?? []) as SimilarPlace[];
-    if (similar.length > 0) return { ...keep, similar };
+    if (similar.length > 0) return { ok: false, state: { ...keep, similar } };
   }
 
   const { note, ...place } = values;
-  const { data: id, error } = await db.rpc("admin_add_place", { p_values: place, p_decided_by: email, p_note: note || null });
-  if (error) return { ...keep, error: `Not saved: ${error.message}` };
-  if (tags.length) {
-    const tagged = await db.rpc("admin_set_place_tags", { p_id: id, p_tags: tags, p_decided_by: email });
+  return { ok: true, place, note, tags, keep };
+}
+
+// Add a place by hand.
+export async function addPlace(prev: AddPlaceState, formData: FormData): Promise<AddPlaceState> {
+  const { db, email } = await requireAdmin();
+  const check = await checkAddForm(db, prev, formData);
+  if (!check.ok) return check.state;
+  const { data: id, error } = await db.rpc("admin_add_place", { p_values: check.place, p_decided_by: email, p_note: check.note || null });
+  if (error) return { ...check.keep, error: `Not saved: ${error.message}` };
+  if (check.tags.length) {
+    const tagged = await db.rpc("admin_set_place_tags", { p_id: id, p_tags: check.tags, p_decided_by: email });
     if (tagged.error) goTo(String(id), `Place added, but tags were not saved: ${tagged.error.message}`);
   }
   goTo(String(id), "Place added.");
+}
+
+// Add the place someone requested, with any corrections made on the request screen.
+export async function approvePlaceRequest(prev: AddPlaceState, formData: FormData): Promise<AddPlaceState> {
+  const { db, email } = await requireAdmin();
+  const request = Number(formData.get("request"));
+  if (!Number.isInteger(request) || request <= 0) return { ...prev, error: "Missing the request." };
+  const check = await checkAddForm(db, prev, formData);
+  if (!check.ok) return check.state;
+  const { data: id, error } = await db.rpc("admin_approve_place_request", {
+    p_id: request, p_values: check.place, p_decided_by: email, p_note: check.note || null,
+  });
+  if (error) return { ...check.keep, error: `Not saved: ${error.message}` };
+  let notice = `Added “${check.place.name}” from the request.`;
+  if (check.tags.length) {
+    const tagged = await db.rpc("admin_set_place_tags", { p_id: id, p_tags: check.tags, p_decided_by: email });
+    if (tagged.error) notice += ` Tags were not saved: ${tagged.error.message}`;
+  }
+  revalidatePath("/admin", "layout");
+  redirect(`/admin/review?type=requests&notice=${encodeURIComponent(notice)}`);
 }
 
 type BulkResult = { places_changed: number; fields_changed: number; places_with_tag_changes: number; skipped_merged: number };
