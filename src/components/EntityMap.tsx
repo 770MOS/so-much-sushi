@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import maplibregl from "maplibre-gl";
+import type { GeoJSONSource, MapLayerMouseEvent, Offset } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { getMapStyleUrl, DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM } from "@/lib/mapConfig";
 import { closedLabel } from "@/lib/entityStatus";
@@ -82,16 +83,116 @@ const CATEGORY_ICON_PATHS: Record<Exclude<EntityType, "all">, string[]> = {
 };
 
 // The category icon renders inside the pin's white circle (r=4.5, centered
-// at 12,12 of the pin's own 24x32 viewBox - see PIN_SVG below). Tabler
+// at 12,12 of the pin's own 24x32 viewBox - see pinImageSvg below). Tabler
 // icons are natively a 24x24 viewBox; scaling by 1/3 and translating by
 // (8,8) maps that down to an 8x8 box spanning (8,8)-(16,16), just inside
-// the circle. stroke="currentColor" (not a hardcoded color) so the icon
-// always matches the pin's own status color (amber/zinc/etc) - color still
-// means personal status, the icon shape is the only new signal here.
-function categoryIconMarkup(entityType: Exclude<EntityType, "all"> | null | undefined): string {
+// the circle. The stroke is the pin's own status color (amber/zinc) - color
+// still means personal status, the icon shape is the only category signal.
+function categoryIconMarkup(entityType: Exclude<EntityType, "all"> | null | undefined, color: string): string {
   if (!entityType) return "";
   const pathElements = CATEGORY_ICON_PATHS[entityType].map((d) => `<path d="${d}"/>`).join("");
-  return `<g transform="translate(8,8) scale(0.333)" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">${pathElements}</g>`;
+  return `<g transform="translate(8,8) scale(0.333)" fill="none" stroke="${color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">${pathElements}</g>`;
+}
+
+// Pins are drawn by MapLibre as one symbol layer (not one HTML element per
+// place), so a search with up to 1,000 results stays smooth to pan and zoom.
+// Each look a pin can have - category icon x starred x recommended badge - is
+// registered once as a map image and picked per place by its "icon" property.
+const SOURCE_ID = "sms-places";
+const LAYER_ID = "sms-places-pins";
+const PIN_TYPES: (Exclude<EntityType, "all"> | null)[] = ["restaurants", "drinks", "coffee", "markets", null];
+const RECOMMENDED_COLOR = "#fb7185"; // rose-400 - matches the heart icon elsewhere in the app
+
+// Image size in CSS pixels: the pin itself is 28x36 as before, plus 2px to the
+// right and above so the recommended badge, which sticks out past the pin's
+// top-right corner, isn't clipped. Drawn at 2x so pins stay sharp on retina.
+const IMAGE_WIDTH = 30;
+const IMAGE_HEIGHT = 38;
+const IMAGE_SCALE = 2;
+// The pin's tip is at x=14 of the 30px-wide image; the layer anchors the
+// image's bottom-centre (x=15) on the place, so nudge it 1px right.
+const ICON_OFFSET: [number, number] = [1, 0];
+// Popups open above the pin's head (it now points at the place with its tip),
+// or beside/below it when there isn't room above.
+const POPUP_OFFSET: Offset = {
+  center: [0, -IMAGE_HEIGHT / 2],
+  top: [0, 0],
+  "top-left": [0, 0],
+  "top-right": [0, 0],
+  bottom: [0, -IMAGE_HEIGHT],
+  "bottom-left": [0, -IMAGE_HEIGHT],
+  "bottom-right": [0, -IMAGE_HEIGHT],
+  left: [14, -IMAGE_HEIGHT / 2],
+  right: [-14, -IMAGE_HEIGHT / 2],
+};
+
+function pinImageId(entityType: Exclude<EntityType, "all"> | null | undefined, starred: boolean, recommended: boolean) {
+  return `sms-pin-${entityType ?? "none"}-${starred ? 1 : 0}-${recommended ? 1 : 0}`;
+}
+
+function pinImageSvg(entityType: Exclude<EntityType, "all"> | null, color: string, recommended: boolean): string {
+  // The badge matches the old HTML marker's: 13px across, 1.5px white border,
+  // 2px past the pin's top-right corner.
+  const badge = recommended
+    ? `<circle cx="23.5" cy="6.5" r="5.75" fill="${RECOMMENDED_COLOR}" stroke="white" stroke-width="1.5"/>`
+    : "";
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${IMAGE_WIDTH * IMAGE_SCALE}" height="${IMAGE_HEIGHT * IMAGE_SCALE}" viewBox="0 0 ${IMAGE_WIDTH} ${IMAGE_HEIGHT}">
+    <svg x="0" y="2" width="28" height="36" viewBox="0 0 24 32">
+      <path d="M12 0C5.373 0 0 5.373 0 12c0 9 12 20 12 20s12-11 12-20c0-6.627-5.373-12-12-12z" fill="${color}"/>
+      <circle cx="12" cy="12" r="4.5" fill="white" fill-opacity="0.9"/>
+      ${categoryIconMarkup(entityType, color)}
+    </svg>
+    ${badge}
+  </svg>`;
+}
+
+function loadSvgImage(svg: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image(IMAGE_WIDTH * IMAGE_SCALE, IMAGE_HEIGHT * IMAGE_SCALE);
+    image.onload = () => resolve(image);
+    image.onerror = reject;
+    image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+  });
+}
+
+async function addPinImages(map: maplibregl.Map, isCancelled: () => boolean) {
+  const jobs: Promise<void>[] = [];
+  for (const entityType of PIN_TYPES) {
+    for (const starred of [false, true]) {
+      for (const recommended of [false, true]) {
+        const id = pinImageId(entityType, starred, recommended);
+        if (map.hasImage(id)) continue;
+        const color = starred ? STARRED_COLOR : UNSTARRED_COLOR;
+        jobs.push(
+          loadSvgImage(pinImageSvg(entityType, color, recommended)).then((image) => {
+            if (!isCancelled() && !map.hasImage(id)) map.addImage(id, image, { pixelRatio: IMAGE_SCALE });
+          })
+        );
+      }
+    }
+  }
+  await Promise.all(jobs);
+}
+
+function toFeatureCollection(entities: MapMarkerEntity[]): GeoJSON.FeatureCollection<GeoJSON.Point> {
+  return {
+    type: "FeatureCollection",
+    features: entities.map((entity) => {
+      const filterOpacity = entity.matchesFilter ? 1 : 0.25;
+      const statusOpacity = entity.status && entity.status !== "active" ? 0.55 : 1;
+      return {
+        type: "Feature",
+        geometry: { type: "Point", coordinates: [entity.lng, entity.lat] },
+        properties: {
+          id: entity.id,
+          icon: pinImageId(entity.entityType, entity.isStarred, entity.recommendedCount > 0),
+          opacity: filterOpacity * statusOpacity,
+          // Starred, then recommended, pins draw on top where pins overlap.
+          sortKey: entity.isStarred ? 2 : entity.recommendedCount > 0 ? 1 : 0,
+        },
+      };
+    }),
+  };
 }
 
 function escapeHtml(s: string | null | undefined) {
@@ -104,53 +205,6 @@ function escapeHtml(s: string | null | undefined) {
     "'": "&#39;",
   };
   return s.replace(/[&<>"']/g, (c) => map[c]);
-}
-
-function pinSvg(entityType: Exclude<EntityType, "all"> | null | undefined): string {
-  return `
-    <svg viewBox="0 0 24 32" width="28" height="36" xmlns="http://www.w3.org/2000/svg">
-      <path d="M12 0C5.373 0 0 5.373 0 12c0 9 12 20 12 20s12-11 12-20c0-6.627-5.373-12-12-12z" fill="currentColor"/>
-      <circle cx="12" cy="12" r="4.5" fill="white" fill-opacity="0.9"/>
-      ${categoryIconMarkup(entityType)}
-    </svg>
-  `;
-}
-
-function createMarkerElement(
-  isStarred: boolean,
-  recommendedCount: number,
-  entityType: Exclude<EntityType, "all"> | null | undefined
-): HTMLDivElement {
-  const wrapper = document.createElement("div");
-  // This element becomes the root of a maplibregl.Marker, which requires
-  // `position: absolute` (see .maplibregl-marker in maplibre-gl.css) so it
-  // can be placed via a CSS transform. An inline `position: relative` here
-  // used to override that (inline styles beat class rules), leaving every
-  // marker in normal document flow instead - each one stacking ~36px below
-  // the last rather than at its actual map position, which is what caused
-  // all pins to render in a single vertical line regardless of their real
-  // coordinates. `absolute` still gives the recommended-count badge below
-  // a valid positioning context, so it doesn't need `relative` specifically.
-  wrapper.style.position = "absolute";
-  wrapper.style.width = "28px";
-  wrapper.style.height = "36px";
-  wrapper.style.color = isStarred ? STARRED_COLOR : UNSTARRED_COLOR;
-  wrapper.innerHTML = pinSvg(entityType);
-
-  if (recommendedCount > 0) {
-    const badge = document.createElement("div");
-    badge.style.position = "absolute";
-    badge.style.top = "-2px";
-    badge.style.right = "-2px";
-    badge.style.width = "13px";
-    badge.style.height = "13px";
-    badge.style.borderRadius = "9999px";
-    badge.style.background = "#fb7185"; // rose-400 - matches the heart icon elsewhere in the app
-    badge.style.border = "1.5px solid white";
-    wrapper.appendChild(badge);
-  }
-
-  return wrapper;
 }
 
 function setStarButtonAppearance(button: HTMLButtonElement, isStarred: boolean) {
@@ -230,11 +284,19 @@ export default function EntityMap({ entities, jumpTo, onBoundsChange, onToggleSt
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
-  const markersRef = useRef<Map<string, maplibregl.Marker>>(new Map());
-  const starButtonsRef = useRef<Map<string, HTMLButtonElement>>(new Map());
+  // True once the pin images, source and layer exist on the current map.
+  const layerReadyRef = useRef(false);
+  const entitiesRef = useRef(entities);
+  const entityByIdRef = useRef<Map<string, MapMarkerEntity>>(new Map());
+  const popupRef = useRef<{ id: string; popup: maplibregl.Popup; starButton: HTMLButtonElement } | null>(null);
   const initialFitDoneRef = useRef(false);
+  const routerRef = useRef(router);
   const onBoundsChangeRef = useRef(onBoundsChange);
   const onToggleStarRef = useRef(onToggleStar);
+
+  useEffect(() => {
+    routerRef.current = router;
+  }, [router]);
 
   useEffect(() => {
     onBoundsChangeRef.current = onBoundsChange;
@@ -247,13 +309,12 @@ export default function EntityMap({ entities, jumpTo, onBoundsChange, onToggleSt
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
-    // A fresh map instance means no markers actually exist on it yet, even if
-    // markersRef (a plain ref) still remembers marker objects from a previous
-    // instance - matters in dev because React Strict Mode destroys and
-    // recreates the map once on mount, and refs survive that cycle.
-    markersRef.current.forEach((m) => m.remove());
-    markersRef.current.clear();
-    starButtonsRef.current.clear();
+    // A fresh map instance has no pins or popup yet, even if refs (which
+    // survive React Strict Mode's mount/unmount/mount in dev) remember them
+    // from a previous instance.
+    let cancelled = false;
+    layerReadyRef.current = false;
+    popupRef.current = null;
     initialFitDoneRef.current = false;
 
     const map = new maplibregl.Map({
@@ -275,77 +336,118 @@ export default function EntityMap({ entities, jumpTo, onBoundsChange, onToggleSt
       });
     }
 
+    function openPopup(entity: MapMarkerEntity) {
+      const open = popupRef.current;
+      open?.popup.remove();
+      // Clicking the pin whose popup is already open closes it, as before.
+      if (open?.id === entity.id) return;
+
+      const { element, starButton, nameLink } = createPopupContent(entity);
+      starButton.addEventListener("click", (event) => {
+        event.stopPropagation();
+        onToggleStarRef.current?.(entity.id);
+      });
+      nameLink.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        routerRef.current.push(`/venue/${entity.id}`);
+      });
+
+      const popup = new maplibregl.Popup({ offset: POPUP_OFFSET })
+        .setLngLat([entity.lng, entity.lat])
+        .setDOMContent(element)
+        .addTo(map);
+      const current = { id: entity.id, popup, starButton };
+      popupRef.current = current;
+      popup.on("close", () => {
+        if (popupRef.current === current) popupRef.current = null;
+      });
+    }
+
     map.on("moveend", emitBounds);
     map.on("zoomend", emitBounds);
     map.on("load", emitBounds);
+
+    map.on("load", async () => {
+      await addPinImages(map, () => cancelled);
+      if (cancelled) return;
+      map.addSource(SOURCE_ID, { type: "geojson", data: toFeatureCollection(entitiesRef.current) });
+      map.addLayer({
+        id: LAYER_ID,
+        type: "symbol",
+        source: SOURCE_ID,
+        layout: {
+          "icon-image": ["get", "icon"],
+          "icon-anchor": "bottom",
+          "icon-offset": ICON_OFFSET,
+          // Every pin is shown, even where pins overlap, as with the old markers.
+          "icon-allow-overlap": true,
+          "icon-ignore-placement": true,
+          "symbol-sort-key": ["get", "sortKey"],
+        },
+        paint: {
+          "icon-opacity": ["get", "opacity"],
+        },
+      });
+      layerReadyRef.current = true;
+    });
+
+    map.on("click", LAYER_ID, (event: MapLayerMouseEvent) => {
+      const id = event.features?.[0]?.properties?.id as string | undefined;
+      const entity = id ? entityByIdRef.current.get(id) : undefined;
+      if (entity) openPopup(entity);
+    });
+    map.on("mouseenter", LAYER_ID, () => {
+      map.getCanvas().style.cursor = "pointer";
+    });
+    map.on("mouseleave", LAYER_ID, () => {
+      map.getCanvas().style.cursor = "";
+    });
+
     mapRef.current = map;
 
     return () => {
+      cancelled = true;
+      layerReadyRef.current = false;
+      popupRef.current = null;
       map.remove();
       mapRef.current = null;
     };
   }, []);
 
   useEffect(() => {
+    entitiesRef.current = entities;
+    entityByIdRef.current = new Map(entities.map((e) => [e.id, e]));
+
     const map = mapRef.current;
     if (!map) return;
 
-    const currentIds = new Set(entities.map((e) => e.id));
-    for (const [id, marker] of markersRef.current) {
-      if (!currentIds.has(id)) {
-        marker.remove();
-        markersRef.current.delete(id);
-        starButtonsRef.current.delete(id);
-      }
+    // Before the layer exists, the load handler picks up entitiesRef instead.
+    if (layerReadyRef.current) {
+      (map.getSource(SOURCE_ID) as GeoJSONSource | undefined)?.setData(toFeatureCollection(entities));
     }
 
-    const bounds = new maplibregl.LngLatBounds();
-    for (const entity of entities) {
-      bounds.extend([entity.lng, entity.lat]);
-
-      let marker = markersRef.current.get(entity.id);
-      if (!marker) {
-        const element = createMarkerElement(entity.isStarred, entity.recommendedCount, entity.entityType);
-        const { element: popupContent, starButton, nameLink } = createPopupContent(entity);
-        starButton.addEventListener("click", (event) => {
-          event.stopPropagation();
-          onToggleStarRef.current?.(entity.id);
-        });
-        starButtonsRef.current.set(entity.id, starButton);
-        nameLink.addEventListener("click", (event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          router.push(`/venue/${entity.id}`);
-        });
-
-        marker = new maplibregl.Marker({ element })
-          .setLngLat([entity.lng, entity.lat])
-          .setPopup(new maplibregl.Popup({ offset: 20 }).setDOMContent(popupContent))
-          .addTo(map);
-        markersRef.current.set(entity.id, marker);
-      } else {
-        // Popup content (and the star button inside it) is only built once,
-        // at marker creation - refresh it in place here so a starred state
-        // that changed since then (e.g. the user just toggled it, from this
-        // popup or anywhere else) is reflected without recreating the popup.
-        const starButton = starButtonsRef.current.get(entity.id);
-        if (starButton) setStarButtonAppearance(starButton, entity.isStarred);
-      }
-
-      // The pin's own color is set once at creation too - keep it in sync
-      // with starred state for the same reason as the popup button above.
-      marker.getElement().style.color = entity.isStarred ? STARRED_COLOR : UNSTARRED_COLOR;
-
-      const filterOpacity = entity.matchesFilter ? 1 : 0.25;
-      const statusOpacity = entity.status && entity.status !== "active" ? 0.55 : 1;
-      marker.getElement().style.opacity = String(filterOpacity * statusOpacity);
+    // Keep an open popup in step: its star button follows starred state
+    // changed anywhere, and it closes if its place is no longer in the results.
+    const open = popupRef.current;
+    if (open) {
+      const entity = entityByIdRef.current.get(open.id);
+      if (entity) setStarButtonAppearance(open.starButton, entity.isStarred);
+      else open.popup.remove();
     }
 
     if (entities.length > 0 && !initialFitDoneRef.current) {
-      map.fitBounds(bounds, { padding: 40, maxZoom: 15, duration: 0 });
+      const bounds = new maplibregl.LngLatBounds();
+      for (const entity of entities) bounds.extend([entity.lng, entity.lat]);
+      // Extra room at the top: pins stand above the point they mark.
+      map.fitBounds(bounds, {
+        padding: { top: 40 + IMAGE_HEIGHT, bottom: 40, left: 40, right: 40 },
+        maxZoom: 15,
+        duration: 0,
+      });
       initialFitDoneRef.current = true;
     }
-  }, [entities, router]);
+  }, [entities]);
 
   useEffect(() => {
     if (jumpTo && mapRef.current) {
