@@ -314,11 +314,11 @@ export default function AccountSettings({ userId }: Props) {
           </div>
         ) : (
           <div className="flex flex-col gap-2">
-            <label htmlFor="home-location" className="text-xs text-zinc-500 dark:text-zinc-400">
+            <label htmlFor="home-area" className="text-xs text-zinc-500 dark:text-zinc-400">
               Home location
             </label>
             <LocationInput
-              id="home-location"
+              id="home-area"
               value={locationValue}
               onChange={(v) => {
                 setLocationValue(v);
