@@ -1,4 +1,5 @@
 import { extractCityState, type CityState, type NominatimAddress } from "@/lib/reverseGeocode";
+import { pickedLocationFor } from "@/lib/locationLookup";
 
 const TIMEOUT_MS = 5000;
 
@@ -11,6 +12,10 @@ export type ForwardGeocodeResult = CityState & { lat: number; lng: number };
 // null if the address can't be found, the request fails, or times out -
 // callers should show their own "couldn't find that location" message.
 export async function forwardGeocodeCityState(query: string): Promise<ForwardGeocodeResult | null> {
+  // A suggestion picked from the location box already carries its point, city and state.
+  const pick = pickedLocationFor(query);
+  if (pick) return { lat: pick.lat, lng: pick.lng, city: pick.city, state: pick.state };
+
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
 

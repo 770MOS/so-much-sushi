@@ -12,6 +12,7 @@ import RequestPlaceLink from "@/components/RequestPlaceLink";
 import { useEntitySearch } from "@/lib/useEntitySearch";
 import { useGeolocation } from "@/lib/useGeolocation";
 import { reverseGeocode } from "@/lib/reverseGeocode";
+import { geocodeLocationText } from "@/lib/locationLookup";
 import { addSearchHistory } from "@/lib/searchHistory";
 import { CURRENT_LOCATION_LABEL } from "@/lib/lastSearchCoords";
 import { categoryPathForType, type EntityType } from "@/lib/entityTypes";
@@ -93,18 +94,12 @@ export default function DiscoverPage() {
         return;
       }
 
-      const geocodeRes = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=us&q=${encodeURIComponent(location)}`
-      );
-      const geocodeData = await geocodeRes.json();
-
-      if (!geocodeRes.ok || !geocodeData.length) {
+      // A picked suggestion's point, or the typed text looked up as before.
+      const coords = await geocodeLocationText(location);
+      if (!coords) {
         search.setError("We couldn't find that location. Try a ZIP code or a fuller address.");
         return;
       }
-
-      const { lat, lon } = geocodeData[0];
-      const coords = { lat: parseFloat(lat), lng: parseFloat(lon) };
       setLastCoords(coords);
       await search.runSearch({
         lat: coords.lat,
@@ -217,13 +212,13 @@ export default function DiscoverPage() {
         <form onSubmit={handleSearch} className="flex flex-col gap-8">
           <div className="flex flex-col gap-2">
             <label
-              htmlFor="location"
+              htmlFor="near"
               className="text-sm font-medium text-zinc-700 dark:text-zinc-300"
             >
               Location
             </label>
             <LocationInput
-              id="location"
+              id="near"
               value={location}
               onChange={(v) => {
                 geo.setGeoError(null);

@@ -324,6 +324,17 @@ REVOKE EXECUTE ON FUNCTION request_similar_places(double precision, double preci
 GRANT EXECUTE ON FUNCTION request_similar_places(double precision, double precision, text, text),
                           submit_place_request(jsonb), my_place_requests() TO authenticated, service_role;
 
+-- localities, locality_names: the place-name list behind location suggestions
+-- (supabase/migrations/20261109000000_localities.sql). Census reference data, written only
+-- by scripts/localities/load_census.py over a direct connection. The API roles read it only
+-- through suggest_localities (SECURITY DEFINER), which is open to anon as well as
+-- authenticated: the location box is used before signing in once browsing opens.
+REVOKE ALL ON TABLE localities, locality_names FROM anon, authenticated;
+GRANT ALL ON TABLE localities, locality_names TO service_role;
+REVOKE EXECUTE ON FUNCTION suggest_localities(text, double precision, double precision, integer) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION suggest_localities(text, double precision, double precision, integer)
+  TO anon, authenticated, service_role;
+
 -- =============================================================================
 -- Explicitly out of scope: NocoDB's own internal tables
 -- =============================================================================

@@ -1,0 +1,91 @@
+name: Load place-name list
+
+# The list behind location suggestions (public.localities): every US city, town and ZIP code
+# area from the Census Bureau. Run by hand after the migration is applied, and again when a
+# new Gazetteer year comes out (each summer).
+#
+# On a pull request that changes the loader, it also runs against a throwaway database with
+# the real Census files and shows sample suggestions, without touching staging or production.
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Which database"
+        type: choice
+        options: [staging, production]
+        default: staging
+      year:
+        description: "Census Gazetteer year"
+        default: "2024"
+  pull_request:
+    paths:
+      - "scripts/localities/**"
+      - "supabase/migrations/*localities*.sql"
+      - ".github/workflows/localities.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Place-name list (real Census data, throwaway database)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgis/postgis:17-3.5
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      PGHOST: localhost
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/places_check
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install the PostgreSQL client
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client
+      - name: Throwaway database with every migration
+        run: |
+          psql -qX -d postgres -c "create database places_check"
+          cat supabase/tests/shim.sql supabase/migrations/*.sql | psql -qX -v ON_ERROR_STOP=1 -d places_check > /dev/null
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install "psycopg[binary]>=3.2,<4"
+      - name: Load the real Census files and show sample suggestions
+        run: python scripts/localities/load_census.py --year 2024
+
+  load:
+    name: Load into ${{ inputs.target }}
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: ${{ inputs.target }}
+    concurrency:
+      group: ${{ inputs.target == 'production' && 'production-db' || 'ingest-sandbox' }}
+      cancel-in-progress: false
+    env:
+      TARGET: ${{ inputs.target }}
+      DATABASE_URL: ${{ inputs.target == 'production' && secrets.PRODUCTION_DB_URL || secrets.STAGING_DB_URL }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Check the target
+        run: |
+          if [ "$TARGET" = production ]; then ref=ajkgveeuurzltttdfhgv; name=PRODUCTION_DB_URL; else ref=mfngcidhbzjexbxtgbeh; name=STAGING_DB_URL; fi
+          if [ -z "$DATABASE_URL" ]; then echo "::error title=Missing secret::Add $name to the $TARGET environment."; exit 1; fi
+          case "$DATABASE_URL" in *$ref*) ;; *) echo "::error title=Wrong database::$name does not point at $TARGET ($ref). Refusing to run."; exit 1 ;; esac
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install "psycopg[binary]>=3.2,<4"
+      - name: Load the place-name list
+        env:
+          YEAR: ${{ inputs.year }}
+        run: python scripts/localities/load_census.py --year "$YEAR"
