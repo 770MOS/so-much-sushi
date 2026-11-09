@@ -16,6 +16,9 @@ export type SearchResult = {
   status: string;
   categories: string[] | null;
   category_paths: string[] | null;
+  // How many places matched in all; search returns at most the nearest 1,000.
+  // Missing from databases that predate 20261108000000_nearest_first_search.
+  total_count?: number;
 };
 
 export type SortMode = "nearest" | "az";

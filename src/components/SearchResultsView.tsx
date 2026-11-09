@@ -109,11 +109,19 @@ export default function SearchResultsView({
 
   if (results === null) return null;
 
+  // Search returns at most the nearest 1,000 places; total_count says how many
+  // matched in all, so a capped list says so rather than looking complete.
+  const totalCount = results.length > 0 ? (results[0].total_count ?? results.length) : 0;
+  const capped = totalCount > results.length;
+  const formatCount = (n: number) => n.toLocaleString("en-US");
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-          {results.length} {results.length === 1 ? "result" : "results"}
+          {capped
+            ? `Nearest ${formatCount(results.length)} of ${formatCount(totalCount)} results`
+            : `${formatCount(results.length)} ${results.length === 1 ? "result" : "results"}`}
         </h2>
         <div className="flex items-center gap-2">
           {extraControls}
@@ -155,6 +163,13 @@ export default function SearchResultsView({
       </div>
 
       {note}
+
+      {capped && (
+        <p className="text-xs text-zinc-500 dark:text-zinc-400">
+          Only the nearest {formatCount(results.length)} are shown. A smaller radius, a category or a name
+          narrows the list.
+        </p>
+      )}
 
       {results.length === 0 ? (
         <p className="py-8 text-center text-sm text-zinc-500 dark:text-zinc-400">{emptyMessage}</p>
