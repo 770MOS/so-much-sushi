@@ -6,8 +6,10 @@ Sources, all US Census Bureau (public domain, US government work):
     its internal point.                     {year}_Gaz_place_national.zip
   * Gazetteer, ZIP code tabulation areas: every ZIP area with its internal point.
                                             {year}_Gaz_zcta_national.zip
-  * 2020 census populations of places (redistricting data, Census API, no key needed). Used
-    only to order far-away suggestions; places without a count still load.
+  * Populations, used only to order far-away suggestions (places without one still load):
+    2020 census counts from the Census API when it answers (these include census-designated
+    places), otherwise the latest city and town population estimates file (incorporated
+    places only).
   * 2020 ZIP-area-to-place relationship file: each ZIP area's main place (largest land
     overlap), shown as the suggestion's second line, "22201 · Arlington, VA". A ZIP area that
     overlaps no place gets the nearest place within 30 km, "near Foo, VA".
@@ -28,14 +30,23 @@ from common import STATE_NAMES  # noqa: E402  (two-letter code -> name, incl. DC
 USER_AGENT = "so-much-sushi-localities/1.0 (+https://github.com/770MOS/so-much-sushi)"
 GAZ = "https://www2.census.gov/geo/docs/maps-data/data/gazetteer/{year}_Gazetteer/{year}_Gaz_{kind}_national.zip"
 POP_URL = "https://api.census.gov/data/2020/dec/pl?get=P1_001N&for=place:*&in=state:*"
+POPEST_URLS = [  # newest first; the first that downloads is used
+    "https://www2.census.gov/programs-surveys/popest/datasets/2020-2024/cities/totals/sub-est2024.csv",
+    "https://www2.census.gov/programs-surveys/popest/datasets/2020-2023/cities/totals/sub-est2023.csv",
+]
 REL_URL = "https://www2.census.gov/geo/docs/maps-data/data/rel2020/zcta520/tab20_zcta520_place20_natl.txt"
 
 # What the Census appends to a place's name, by its legal/statistical area description code
 # (LSAD). Stripped for display: "Abbeville city" -> "Abbeville", "Arlington CDP" -> "Arlington".
 LSAD_SUFFIX = {
-    "21": "borough", "25": "city", "37": "municipality", "43": "town", "44": "township",
-    "47": "village", "53": "city and borough", "55": "comunidad", "57": "CDP", "62": "zona urbana",
+    "21": "borough", "25": "city", "35": "metro township", "37": "municipality", "43": "town",
+    "44": "township", "47": "village", "53": "city and borough", "55": "comunidad", "57": "CDP",
+    "62": "zona urbana", "CG": "consolidated government", "CN": "corporation",
+    "MG": "metropolitan government", "MT": "metro government", "UC": "urban county",
+    "UG": "unified government",
 }
+# For "(balance)" names and codes without a fixed suffix ("00"): any of these, longest first.
+DESCRIPTORS = sorted({*LSAD_SUFFIX.values(), "city", "town", "village", "borough"}, key=len, reverse=True)
 # Consolidated governments whose Census name is long; shown by the name people use.
 DISPLAY_NAMES = {
     ("TN", "Nashville-Davidson"): "Nashville",
@@ -48,6 +59,9 @@ DISPLAY_NAMES = {
     ("ID", "Boise City"): "Boise",
     ("MT", "Butte-Silver Bow"): "Butte",
     ("MT", "Anaconda-Deer Lodge County"): "Anaconda",
+    ("TN", "Lynchburg, Moore County"): "Lynchburg",
+    ("GA", "Cusseta-Chattahoochee County"): "Cusseta",
+    ("GA", "Georgetown-Quitman County"): "Georgetown",
 }
 NICKNAMES = {
     ("NY", "New York"): ["NYC", "New York City"],
@@ -117,16 +131,20 @@ def read_gazetteer(year, kind):
 
 
 def clean_place_name(name, lsad):
+    """The Census name without its description: "Abbeville city" -> "Abbeville". The code's
+    own suffix is removed when present; any known description only for "(balance)" names and
+    codes with no fixed suffix, so a name like "Carson City" keeps its "City"."""
     n = name.strip()
-    if n.endswith(" (balance)"):
+    balance = n.endswith(" (balance)")
+    if balance:
         n = n[: -len(" (balance)")]
-    for long_form in (" metropolitan government", " metro government", " unified government",
-                      " consolidated government"):
-        if n.endswith(long_form):
-            return n[: -len(long_form)]
     suffix = LSAD_SUFFIX.get(lsad)
     if suffix and n.endswith(" " + suffix):
-        n = n[: -len(suffix) - 1]
+        return n[: -len(suffix) - 1]
+    if balance or lsad not in LSAD_SUFFIX:
+        for d in DESCRIPTORS:
+            if n.endswith(" " + d):
+                return n[: -len(d) - 1]
     return n
 
 
@@ -162,14 +180,39 @@ def names_for(display, official, state, aliases):
 
 
 def load_populations():
+    """Place GEOID -> population, and where it came from."""
+    problems = []
+    raw = b""
     try:
-        rows = json.loads(fetch(POP_URL))
+        raw = fetch(POP_URL, tries=2)
+        rows = json.loads(raw)
+        header = rows[0]
+        i_pop, i_state, i_place = header.index("P1_001N"), header.index("state"), header.index("place")
+        pops = {r[i_state] + r[i_place]: int(r[i_pop]) for r in rows[1:] if r[i_pop].isdigit()}
+        if pops:
+            return pops, "2020 census counts (Census API)"
     except Exception as exc:
-        note("Populations not loaded", f"{exc}. Far-away suggestions will be ordered by name instead.")
-        return {}
-    header = rows[0]
-    i_pop, i_state, i_place = header.index("P1_001N"), header.index("state"), header.index("place")
-    return {r[i_state] + r[i_place]: int(r[i_pop]) for r in rows[1:] if r[i_pop].isdigit()}
+        problems.append(f"Census API: {exc}; it answered: {raw[:200]!r}")
+    for url in POPEST_URLS:
+        try:
+            reader = csv.DictReader(io.StringIO(decode(fetch(url, tries=2))))
+            columns = [c for c in (reader.fieldnames or []) if re.fullmatch(r"POPESTIMATE\d{4}", c)]
+            latest = max(columns)
+            pops = {}
+            for r in reader:
+                # 162: incorporated place; 170: consolidated city. Counties and towns-within-
+                # counties (minor civil divisions) have other levels and are skipped.
+                if r.get("SUMLEV") not in ("162", "170") or not (r.get(latest) or "").isdigit():
+                    continue
+                geoid = r["STATE"].zfill(2) + r["PLACE"].zfill(5)
+                pops[geoid] = max(pops.get(geoid, 0), int(r[latest]))
+            if pops:
+                note("Populations", "\n".join(problems + [f"Used {latest} from {url}"]))
+                return pops, f"{latest} estimates ({url.rsplit('/', 1)[1]})"
+        except Exception as exc:
+            problems.append(f"{url}: {exc}")
+    note("Populations not loaded", "\n".join(problems) + "\nFar-away suggestions will be ordered by name instead.")
+    return {}, "none"
 
 
 def load_zip_main_places():
@@ -195,7 +238,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--year", default="2024", help="Gazetteer year")
     ap.add_argument("--samples", default="albany|new york, ny|nyc|albny|st louis|saint paul|arlington|"
-                    "washington dc|pittsburg|brooklyn|nashville|222|10001|san juan pr|winston salem|new")
+                    "washington dc|pittsburg|brooklyn|nashville|222|10001|san juan pr|winston salem|new|"
+                    "carson city|kansas city|salt lake city|oklahoma city|boise|honolulu|lexington ky|"
+                    "louisville|indianapolis|juneau|anchorage|milford ct|springfield|portland|chicgo")
     ap.add_argument("--from-dir", help="read the Census files from this folder instead of downloading")
     args = ap.parse_args()
     global FROM_DIR
@@ -207,7 +252,7 @@ def main():
 
     place_url, place_header, place_rows = read_gazetteer(args.year, "place")
     zcta_url, zcta_header, zcta_rows = read_gazetteer(args.year, "zcta")
-    pops = load_populations()
+    pops, pop_source = load_populations()
     zip_main = load_zip_main_places()
 
     lsad_examples = defaultdict(list)
@@ -231,12 +276,25 @@ def main():
             "code": r["GEOID"], "name": display, "official": official, "state": state,
             "lat": lat, "lng": lng, "population": pops.get(r["GEOID"]),
             "aliases": NICKNAMES.get((state, display), []),
+            "rank": (pops.get(r["GEOID"]) or -1, r.get("LSAD") != "57", float(r.get("ALAND") or 0)),
         })
     for code, name, lat, lng, pop in BOROUGHS:
         places.append({"code": code, "name": name, "official": name, "state": "NY", "lat": lat,
-                       "lng": lng, "population": pop, "aliases": []})
+                       "lng": lng, "population": pop, "aliases": [], "rank": (pop, True, 0.0)})
 
-    by_geoid = {p["code"]: p for p in places}
+    # Two places with the same name in the same state ("San Juan, TX" twice) would show as two
+    # identical suggestions. Keep the bigger one: more people, then a town over a census-
+    # designated place, then more land.
+    best = {}
+    for p in places:
+        k = (p["name"], p["state"])
+        if k not in best or p["rank"] > best[k]["rank"]:
+            best[k] = p
+    duplicates = len(places) - len(best)
+    all_places = places
+    places = list(best.values())
+
+    by_geoid = {p["code"]: p for p in all_places}  # a ZIP's main place may be a dropped duplicate
     zips = []
     for r in zcta_rows:
         code = r.get("GEOID", "")
@@ -295,7 +353,9 @@ def main():
 
         note("Loaded", "\n".join([
             f"source: {source}",
-            f"places: {n_places:,} (no 2020 population: {place_no_pop:,}); names to match on: {name_count:,}",
+            f"places: {n_places:,} (same name and state as a bigger place, left out: {duplicates:,}); "
+            f"names to match on: {name_count:,}",
+            f"populations: {pop_source}; places without one: {place_no_pop:,}",
             f"ZIP areas: {n_zips:,} (main place from the relationship file: {len(zip_main):,}; "
             f"nearest place within 30 km: {near_count:,}; no place named: {zip_no_detail:,})",
             f"skipped: {dict(skipped) or 'none'}",

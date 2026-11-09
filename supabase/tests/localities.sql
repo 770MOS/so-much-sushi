@@ -22,6 +22,8 @@ insert into fx values
   ('5103000', 'Arlington', 'VA', 238643, 38.8786, -77.1011, '{}'),
   ('4804000', 'Arlington', 'TX', 394266, 32.7007, -97.1247, '{}'),
   ('1150000', 'Washington', 'DC', 689545, 38.9047, -77.0163, '{DC}'),
+  ('4279600', 'Washington', 'PA', 13176, 40.1740, -80.2462, '{}'),
+  ('3482000', 'West New York', 'NJ', 52912, 40.7857, -74.0094, '{}'),
   ('3651000', 'New York', 'NY', 8804190, 40.6635, -73.9387, '{NYC,New York City}'),
   ('2965000', 'St. Louis', 'MO', 301578, 38.6358, -90.2451, '{Saint Louis}'),
   ('2758000', 'St. Paul', 'MN', 311527, 44.9489, -93.1039, '{Saint Paul}'),
@@ -37,7 +39,7 @@ cross join lateral (
   union select b || ' ' || fx.state, true from unnest(array[fx.name] || fx.extra) b
   union select b || ' ' || s.full_name, true from unnest(array[fx.name] || fx.extra) b,
         (values ('NY','New York'),('GA','Georgia'),('IL','Illinois'),('VA','Virginia'),('TX','Texas'),
-                ('DC','District of Columbia'),('MO','Missouri'),('MN','Minnesota'),('NM','New Mexico')) s(code, full_name)
+                ('DC','District of Columbia'),('PA','Pennsylvania'),('NJ','New Jersey'),('MO','Missouri'),('MN','Minnesota'),('NM','New Mexico')) s(code, full_name)
         where s.code = fx.state
 ) v(n, w);
 insert into localities(kind, code, name, state, label, detail, city, location, source) values
@@ -69,11 +71,17 @@ insert into r select 'not a typo: saint paul does not suggest Saint Louis',
   (select array_agg(label) from suggest_localities('saint paul')) = array['St. Paul, MN'];
 insert into r select 'not a typo: arlington does not suggest Washington',
   not exists (select 1 from suggest_localities('arlington') where label like 'Washington%');
-insert into r select 'typing the state does not pull in other places in it',
+insert into r select 'a whole-name match adds no close spellings (new york, ny)',
   (select array_agg(label) from suggest_localities('new york, ny')) = array['New York, NY'];
-insert into r select 'ZIP: digits match ZIP codes, with their main place',
+insert into r select 'a whole-name match adds no close spellings (washington dc)',
+  (select array_agg(label) from suggest_localities('washington dc')) = array['Washington, DC'];
+insert into r select 'without a whole-name match, close spellings still come',
+  (select label from suggest_localities('washingtn') limit 1) = 'Washington, DC';
+insert into r select 'ZIP: digits match ZIP codes in number order, with their main place',
   (select array_agg(label || ' ' || detail) from suggest_localities('222', 38.9, -77.04))
   = array['22201 Arlington, VA', '22202 Arlington, VA'];
+insert into r select 'ZIP: number order even when a later code is nearer',
+  (select array_agg(label) from suggest_localities('2220', 38.857, -77.051)) = array['22201', '22202'];
 insert into r select 'ZIP: a whole code comes back first, with city and state',
   (select label = '10001' and city = 'New York' and state = 'NY' from suggest_localities('10001') limit 1);
 insert into r select 'a picked place carries city, state and a point',

@@ -68,6 +68,9 @@ GRANT ALL ON public.localities, public.locality_names TO service_role;
 --     'new york ny' looks close to 'albany new york'), and need a trigram similarity of 0.36:
 --     measured 2026-11-09, that keeps typos like 'new yrok' (0.38) and 'albny' (0.44) and drops
 --     'saint paul' -> Saint Louis (0.35) and 'arlington' -> Washington (0.31).
+--   * Close spellings are only added when nothing's whole name matches: "new york, ny" lists
+--     New York, NY alone, not West New York, NJ (seen on the real Census list, 2026-11-09).
+--   * ZIP codes come in number order.
 --   * Within a tier (close spellings: closest spelling first), places within 80 km of near_lat/
 --     near_lng (where the person's map is) come first, nearest first; then bigger places.
 --     So 'albany' typed in DC lists Albany, NY before Albany, GA, and 'arlington' typed in DC
@@ -102,15 +105,18 @@ CREATE FUNCTION public.suggest_localities(
     GROUP BY n.locality_id
   ),
   hits AS (
-    SELECT * FROM zip_hits UNION ALL SELECT * FROM name_hits
+    SELECT h.*, bool_or(h.tier = 1) OVER () AS has_exact
+    FROM (SELECT * FROM zip_hits UNION ALL SELECT * FROM name_hits) h
   )
   SELECT l.kind, l.label, l.detail, l.city, l.state,
          ST_Y(l.location::geometry) AS lat, ST_X(l.location::geometry) AS lng
   FROM hits h
   JOIN localities l ON l.id = h.id
   CROSS JOIN q
+  WHERE h.tier < 3 OR NOT h.has_exact
   ORDER BY h.tier,
            CASE WHEN h.tier = 3 THEN h.sim END DESC NULLS LAST,
+           CASE WHEN l.kind = 'zip' THEN l.code END,
            CASE WHEN q.near IS NOT NULL AND ST_DWithin(l.location, q.near, 80000) THEN 0 ELSE 1 END,
            CASE WHEN q.near IS NOT NULL AND ST_DWithin(l.location, q.near, 80000)
                 THEN ST_Distance(l.location, q.near) END,
