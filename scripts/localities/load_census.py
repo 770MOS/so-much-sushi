@@ -7,9 +7,9 @@ Sources, all US Census Bureau (public domain, US government work):
   * Gazetteer, ZIP code tabulation areas: every ZIP area with its internal point.
                                             {year}_Gaz_zcta_national.zip
   * Populations, used only to order far-away suggestions (places without one still load):
-    2020 census counts from the Census API when it answers (these include census-designated
-    places), otherwise the latest city and town population estimates file (incorporated
-    places only).
+    2020 census counts from the Census API, which needs a free key (CENSUS_API_KEY, from
+    https://api.census.gov/data/key_signup.html) and includes census-designated places;
+    otherwise the latest city and town population estimates file (incorporated places only).
   * 2020 ZIP-area-to-place relationship file: each ZIP area's main place (largest land
     overlap), shown as the suggestion's second line, "22201 · Arlington, VA". A ZIP area that
     overlaps no place gets the nearest place within 30 km, "near Foo, VA".
@@ -96,6 +96,11 @@ def note(title, message):
 FROM_DIR = None  # --from-dir: read the files from a folder instead of downloading (offline tests)
 
 
+def shown(url):
+    """A URL safe for the (public) run log: any API key masked."""
+    return re.sub(r"key=[^&]+", "key=***", url)
+
+
 def fetch(url, tries=4):
     if FROM_DIR:
         name = "population_2020.json" if "api.census.gov" in url else url.rsplit("/", 1)[1]
@@ -107,7 +112,7 @@ def fetch(url, tries=4):
                 return r.read()
         except Exception as exc:  # network hiccups: retry, then give up loudly
             if attempt == tries:
-                raise RuntimeError(f"could not download {url}: {exc}") from exc
+                raise RuntimeError(f"could not download {shown(url)}: {type(exc).__name__}") from None
             time.sleep(5 * attempt)
 
 
@@ -183,8 +188,11 @@ def load_populations():
     """Place GEOID -> population, and where it came from."""
     problems = []
     raw = b""
+    key = os.environ.get("CENSUS_API_KEY", "").strip()
     try:
-        raw = fetch(POP_URL, tries=2)
+        if not key:
+            raise RuntimeError("no CENSUS_API_KEY set")
+        raw = fetch(f"{POP_URL}&key={key}", tries=2)
         rows = json.loads(raw)
         header = rows[0]
         i_pop, i_state, i_place = header.index("P1_001N"), header.index("state"), header.index("place")
@@ -192,7 +200,7 @@ def load_populations():
         if pops:
             return pops, "2020 census counts (Census API)"
     except Exception as exc:
-        problems.append(f"Census API: {exc}; it answered: {raw[:200]!r}")
+        problems.append(f"Census API: {exc}" + (f"; it answered: {raw[:120]!r}" if raw else ""))
     for url in POPEST_URLS:
         try:
             reader = csv.DictReader(io.StringIO(decode(fetch(url, tries=2))))

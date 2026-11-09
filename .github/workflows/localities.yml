@@ -47,6 +47,9 @@ jobs:
       PGUSER: postgres
       PGPASSWORD: postgres
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/places_check
+      # Optional free key for 2020 census counts (incl. census-designated places). Pull requests
+      # from forks don't get secrets; the loader then uses the estimates file instead.
+      CENSUS_API_KEY: ${{ secrets.CENSUS_API_KEY }}
     steps:
       - uses: actions/checkout@v5
       - name: Install the PostgreSQL client
@@ -74,6 +77,7 @@ jobs:
     env:
       TARGET: ${{ inputs.target }}
       DATABASE_URL: ${{ inputs.target == 'production' && secrets.PRODUCTION_DB_URL || secrets.STAGING_DB_URL }}
+      CENSUS_API_KEY: ${{ secrets.CENSUS_API_KEY }}
     steps:
       - uses: actions/checkout@v5
       - name: Check the target
