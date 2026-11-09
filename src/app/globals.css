@@ -28,3 +28,19 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Safari adds a button offering to fill in the person's own contact card to any box it
+   guesses belongs to an address or name form ("Name", "Location"), and it ignores
+   autocomplete="off" and type="search" for this. No box in this app asks for the person's
+   contact details (on Request a place it would fill in their address, not the place's),
+   so the button is hidden everywhere. Password AutoFill is a different button and stays. */
+input::-webkit-contacts-auto-fill-button {
+  visibility: hidden;
+  display: none !important;
+  pointer-events: none;
+  position: absolute;
+  right: 0;
+  width: 0;
+  height: 0;
+  margin: 0;
+}
