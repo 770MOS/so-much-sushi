@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import SearchForm from "@/components/results/SearchForm";
@@ -31,6 +31,7 @@ import { geocodeLocationText } from "@/lib/locationLookup";
 import { startArea } from "@/lib/searchArea";
 import { fetchIpArea } from "@/lib/ipArea";
 import { pushResults, replaceResults } from "@/lib/resultsNav";
+import { placeIdFromPath, setSheetStart } from "@/lib/placePanel";
 import { topLevelTypeForCategoryPaths, TYPE_OPTIONS } from "@/lib/entityTypes";
 import { useGeolocation } from "@/lib/useGeolocation";
 import { reverseGeocode } from "@/lib/reverseGeocode";
@@ -67,8 +68,17 @@ function ListIcon() {
 // area to search when the address has none, runs the search and its counts, and shows List,
 // Split or Map. The map area is the search area: moving the map offers "Search this area".
 export default function ResultsPage() {
-  const params = useSearchParams();
-  const query = useMemo(() => parseResultsQuery(params), [params]);
+  const router = useRouter();
+  const pathname = usePathname();
+  const liveParams = useSearchParams().toString();
+  // While a place panel is open the address is the place's own (/venue/<id>) and this page
+  // stays behind it; its search is the one from before the panel opened.
+  const onResults = pathname === "/";
+  const [keptParams, setKeptParams] = useState(liveParams);
+  if (onResults && keptParams !== liveParams) setKeptParams(liveParams);
+  const paramsText = onResults ? liveParams : keptParams;
+  const query = useMemo(() => parseResultsQuery(new URLSearchParams(paramsText)), [paramsText]);
+  const selectedId = placeIdFromPath(pathname);
   const supabase = useMemo(() => createClient(), []);
   const [user, setUser] = useState<User | null | undefined>(undefined);
   const [joinOpen, setJoinOpen] = useState(false);
@@ -91,7 +101,10 @@ export default function ResultsPage() {
     return () => subscription.unsubscribe();
   }, [supabase]);
 
-  const update = useCallback((patch: Partial<ResultsQuery>) => replaceResults(resultsHref({ ...query, ...patch })), [query]);
+  const update = useCallback(
+    (patch: Partial<ResultsQuery>) => replaceResults(resultsHref({ ...query, ...patch })),
+    [query]
+  );
 
   // The search area, kept as the same object while its edges stay the same, so changing a
   // filter doesn't move the map.
@@ -175,9 +188,31 @@ export default function ResultsPage() {
   const search = useResults(userId, args, mapShowing);
 
   useEffect(() => {
-    setResultsState({ origin: point, facets: search.facets });
+    setResultsState({ origin: point, facets: search.facets, query });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [point?.lat, point?.lng, search.facets]);
+  }, [point?.lat, point?.lng, search.facets, paramsText]);
+  // The header's search boxes show this search while a place panel is open over it.
+  useEffect(() => () => setResultsState({ query: null }), []);
+
+  // Opening a place: its panel over this page (the address becomes the place's link). With a
+  // panel already open, the next place replaces it, so Close and Back return to the results.
+  // On a phone the sheet opens as a short card over the map, or at full height over the list.
+  const openPlace = useCallback(
+    (id: string) => {
+      setSheetStart(isDesktop === false && query.view === "map" ? "peek" : "full");
+      if (selectedId) router.replace(`/venue/${id}`, { scroll: false });
+      else router.push(`/venue/${id}`, { scroll: false });
+    },
+    [isDesktop, query.view, selectedId, router]
+  );
+
+  // The open place's row: keep it in view in the list.
+  const listRef = useRef<HTMLUListElement>(null);
+  useEffect(() => {
+    if (!selectedId) return;
+    const row = listRef.current?.querySelector(`[data-place-id="${selectedId}"]`);
+    row?.scrollIntoView({ block: "nearest" });
+  }, [selectedId]);
 
   const rows = useMemo(() => {
     const all = (search.results ?? []).filter((r) => query.hidden || !search.hiddenIds.has(r.id));
@@ -298,7 +333,7 @@ export default function ResultsPage() {
           {search.error ?? "No places match. Try another kind, a larger map area, or turning a filter off."}
         </div>
       ) : (
-        <ul className={card ? "grid gap-3 px-4 py-3 md:px-6 lg:grid-cols-2" : ""} aria-busy={search.loading}>
+        <ul ref={listRef} className={card ? "grid gap-3 px-4 py-3 md:px-6 lg:grid-cols-2" : ""} aria-busy={search.loading}>
           {rows.map((r) => (
             <ResultRow
               key={r.id}
@@ -311,7 +346,9 @@ export default function ResultsPage() {
               onToggleHide={() => search.toggleHide(r.id)}
               onLocked={() => setJoinOpen(true)}
               onHover={setHoverId}
-              highlighted={hoverId === r.id}
+              highlighted={hoverId === r.id || selectedId === r.id}
+              selected={selectedId === r.id}
+              onOpen={openPlace}
             />
           ))}
         </ul>
@@ -395,7 +432,9 @@ export default function ResultsPage() {
       cells={search.cells}
       area={area}
       highlightId={hoverId}
-      onToggleStar={(id) => (userId ? search.toggleStar(id) : setJoinOpen(true))}
+      selectedId={selectedId}
+      onSelect={openPlace}
+      revealInset={isDesktop ? { right: 440, bottom: 0 } : { right: 0, bottom: Math.round((typeof window === "undefined" ? 800 : window.innerHeight) * 0.46) }}
       onMoved={onMoved}
       onSearchBox={searchBox}
       className={className}
@@ -415,6 +454,7 @@ export default function ResultsPage() {
       <div className="border-b border-line px-4 py-3 md:hidden">
         <SearchForm layout="stacked" />
       </div>
+      <div data-place-panel-top>
       <FilterBar
         query={query}
         facets={search.facets}
@@ -423,6 +463,7 @@ export default function ResultsPage() {
         onChange={update}
         onLocked={() => setJoinOpen(true)}
       />
+      </div>
 
       {/* Phone: one view at a time, with a button to switch. */}
       {isDesktop === false && (

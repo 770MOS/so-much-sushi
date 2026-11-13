@@ -1,21 +1,16 @@
 "use client";
 
 import { useEffect, useRef, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
 import maplibregl from "maplibre-gl";
 import type { GeoJSONSource, LngLatBoundsLike, MapGeoJSONFeature, MapLayerMouseEvent } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { getMapStyleUrl } from "@/lib/mapConfig";
 import {
   addPinImages,
-  createPopupContent,
   ICON_OFFSET,
-  MARK_SIZE,
   markFor,
   pinImageId,
-  POPUP_OFFSET,
   RECOMMENDED_COLOR,
-  setStarButtonAppearance,
   STARRED_COLOR,
   type MapMarkerEntity,
 } from "@/components/EntityMap";
@@ -37,8 +32,12 @@ type Props = {
   places: MapMarkerEntity[];
   cells: AreaCell[] | null;
   area: Box;
-  highlightId?: string | null;
-  onToggleStar?: (id: string) => void;
+  highlightId?: string | null; // a row the pointer is over
+  selectedId?: string | null; // the place whose panel is open
+  onSelect?: (id: string) => void; // a pin was clicked: open its place
+  // How much of the map the place panel covers (right on a computer, bottom on a phone), so
+  // the open place can be moved into the part still showing.
+  revealInset?: { right: number; bottom: number };
   onMoved?: (view: Box) => void;
   onSearchBox?: (box: Box) => void;
   className?: string;
@@ -179,6 +178,11 @@ function toFeatures(places: MapMarkerEntity[], cells: AreaCell[] | null): GeoJSO
   };
 }
 
+// Pins grow for the row the pointer is over, and more for the place whose panel is open.
+function pinSize(hoverId: string | null, selectedId: string | null): maplibregl.ExpressionSpecification {
+  return ["case", ["==", ["get", "id"], selectedId ?? ""], 1.45, ["==", ["get", "id"], hoverId ?? ""], 1.3, 1];
+}
+
 function boundsBox(map: maplibregl.Map): Box {
   const b = map.getBounds();
   return { west: b.getWest(), south: b.getSouth(), east: b.getEast(), north: b.getNorth() };
@@ -203,8 +207,7 @@ function areaBounds(area: Box): LngLatBoundsLike {
   ];
 }
 
-export default function ResultsMap({ places, cells, area, highlightId, onToggleStar, onMoved, onSearchBox, className, children }: Props) {
-  const router = useRouter();
+export default function ResultsMap({ places, cells, area, highlightId, selectedId, onSelect, revealInset, onMoved, onSearchBox, className, children }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const readyRef = useRef(false);
@@ -212,26 +215,24 @@ export default function ResultsMap({ places, cells, area, highlightId, onToggleS
   // True while the bubbles come from the database's counted squares.
   const cellsRef = useRef(cells !== null);
   const placeByIdRef = useRef<Map<string, MapMarkerEntity>>(new Map());
-  const popupRef = useRef<{ id: string; popup: maplibregl.Popup; starButton: HTMLButtonElement } | null>(null);
+  const labelRef = useRef<maplibregl.Marker | null>(null);
   const areaRef = useRef(area);
   const highlightRef = useRef<string | null>(highlightId ?? null);
-  const routerRef = useRef(router);
-  const onToggleStarRef = useRef(onToggleStar);
+  const selectedRef = useRef<string | null>(selectedId ?? null);
+  const onSelectRef = useRef(onSelect);
   const onMovedRef = useRef(onMoved);
   const onSearchBoxRef = useRef(onSearchBox);
 
   useEffect(() => {
-    routerRef.current = router;
-    onToggleStarRef.current = onToggleStar;
+    onSelectRef.current = onSelect;
     onMovedRef.current = onMoved;
     onSearchBoxRef.current = onSearchBox;
-  }, [router, onToggleStar, onMoved, onSearchBox]);
+  }, [onSelect, onMoved, onSearchBox]);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
     let cancelled = false;
     readyRef.current = false;
-    popupRef.current = null;
     const bubbleImages = new Set<string>();
     // Set when the person starts moving the map (drag, wheel, buttons) or clicks a bubble; the
     // move's end then tells the page.
@@ -290,31 +291,6 @@ export default function ResultsMap({ places, cells, area, highlightId, onToggleS
       }
     });
 
-    function openPopup(place: MapMarkerEntity) {
-      const open = popupRef.current;
-      open?.popup.remove();
-      if (open?.id === place.id) return;
-      const { element, starButton, nameLink } = createPopupContent(place);
-      starButton.addEventListener("click", (event) => {
-        event.stopPropagation();
-        onToggleStarRef.current?.(place.id);
-      });
-      nameLink.addEventListener("click", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        routerRef.current.push(`/venue/${place.id}`);
-      });
-      const popup = new maplibregl.Popup({ offset: markFor(place) ? MARK_SIZE / 2 : POPUP_OFFSET })
-        .setLngLat([place.lng, place.lat])
-        .setDOMContent(element)
-        .addTo(map);
-      const current = { id: place.id, popup, starButton };
-      popupRef.current = current;
-      popup.on("close", () => {
-        if (popupRef.current === current) popupRef.current = null;
-      });
-    }
-
     map.on("load", async () => {
       // The bubbles' numbers are drawn in the page's typeface, so wait for it.
       await Promise.all([addPinImages(map, () => cancelled), document.fonts?.ready]);
@@ -341,7 +317,7 @@ export default function ResultsMap({ places, cells, area, highlightId, onToggleS
           "icon-image": ["get", "icon"],
           "icon-anchor": ["get", "anchor"],
           "icon-offset": ["get", "offset"],
-          "icon-size": ["case", ["==", ["get", "id"], highlightRef.current ?? ""], 1.3, 1],
+          "icon-size": pinSize(highlightRef.current, selectedRef.current),
           "icon-allow-overlap": true,
           "icon-ignore-placement": true,
           "symbol-sort-key": ["get", "sortKey"],
@@ -377,8 +353,7 @@ export default function ResultsMap({ places, cells, area, highlightId, onToggleS
 
     map.on("click", PINS_LAYER, (event: MapLayerMouseEvent) => {
       const id = event.features?.[0]?.properties?.id as string | undefined;
-      const place = id ? placeByIdRef.current.get(id) : undefined;
-      if (place) openPopup(place);
+      if (id) onSelectRef.current?.(id);
     });
 
     map.on("click", BUBBLES_LAYER, async (event: MapLayerMouseEvent) => {
@@ -425,26 +400,20 @@ export default function ResultsMap({ places, cells, area, highlightId, onToggleS
       cancelled = true;
       resizeObserver.disconnect();
       readyRef.current = false;
-      popupRef.current = null;
+      labelRef.current?.remove();
+      labelRef.current = null;
       map.remove();
       mapRef.current = null;
     };
   }, []);
 
-  // New places or counts: redraw them, and keep an open popup in step.
+  // New places or counts: redraw them.
   useEffect(() => {
     dataRef.current = toFeatures(places, cells);
     cellsRef.current = cells !== null;
     placeByIdRef.current = new Map(places.map((p) => [p.id, p]));
     const map = mapRef.current;
-    if (!map) return;
-    if (readyRef.current) (map.getSource(SOURCE_ID) as GeoJSONSource | undefined)?.setData(dataRef.current);
-    const open = popupRef.current;
-    if (open) {
-      const place = cells ? undefined : placeByIdRef.current.get(open.id);
-      if (place) setStarButtonAppearance(open.starButton, place.isStarred);
-      else open.popup.remove();
-    }
+    if (map && readyRef.current) (map.getSource(SOURCE_ID) as GeoJSONSource | undefined)?.setData(dataRef.current);
   }, [places, cells]);
 
   // A new search area: show it, unless the map already does (e.g. it came from this map).
@@ -459,10 +428,41 @@ export default function ResultsMap({ places, cells, area, highlightId, onToggleS
 
   useEffect(() => {
     highlightRef.current = highlightId ?? null;
+    selectedRef.current = selectedId ?? null;
     const map = mapRef.current;
     if (!map || !readyRef.current) return;
-    map.setLayoutProperty(PINS_LAYER, "icon-size", ["case", ["==", ["get", "id"], highlightId ?? ""], 1.3, 1]);
-  }, [highlightId]);
+    map.setLayoutProperty(PINS_LAYER, "icon-size", pinSize(highlightId ?? null, selectedId ?? null));
+  }, [highlightId, selectedId]);
+
+  // The open place: its name over its marker, and moved out from under the panel if hidden.
+  useEffect(() => {
+    const map = mapRef.current;
+    labelRef.current?.remove();
+    labelRef.current = null;
+    const place = selectedId ? placeByIdRef.current.get(selectedId) : undefined;
+    if (!map || !place) return;
+    const label = document.createElement("div");
+    label.className = "pointer-events-none whitespace-nowrap rounded-lg bg-[#141414] px-2.5 py-1 text-[13px] font-medium text-white shadow-[0_2px_6px_rgba(0,0,0,0.25)]";
+    label.textContent = place.name;
+    labelRef.current = new maplibregl.Marker({ element: label, anchor: "bottom", offset: [0, markFor(place) ? -24 : -48] })
+      .setLngLat([place.lng, place.lat])
+      .addTo(map);
+
+    const inset = revealInset ?? { right: 0, bottom: 0 };
+    const canvas = map.getCanvas();
+    const width = canvas.clientWidth;
+    const height = canvas.clientHeight;
+    const at = map.project([place.lng, place.lat]);
+    const margin = 48;
+    const hidden = at.x < margin || at.y < margin || at.x > width - inset.right - margin || at.y > height - inset.bottom - margin;
+    if (hidden) {
+      // Centre it in the part of the map the panel leaves showing. Not a move by the person,
+      // so no "Search this area".
+      map.easeTo({ center: [place.lng, place.lat], offset: [-inset.right / 2, -inset.bottom / 2], duration: 400 });
+    }
+    // Only when the open place changes, not on every new inset or list.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId, places]);
 
   return (
     <div className={`relative ${className ?? ""}`}>

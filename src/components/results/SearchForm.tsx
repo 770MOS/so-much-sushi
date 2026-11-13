@@ -46,9 +46,13 @@ function LocateIcon() {
 export default function SearchForm({ layout }: { layout: Layout }) {
   const pathname = usePathname();
   const params = useSearchParams();
-  const current = pathname === "/" ? parseResultsQuery(params) : emptyQuery();
+  // On the results page, its search; with a place panel open over it, the search behind.
+  const { query: behind } = useResultsState();
+  const current = pathname === "/" ? parseResultsQuery(params) : (behind ?? emptyQuery());
   // Starts again from the address whenever the search there changes (Back, a new search).
-  return <SearchFormInner key={`${current.q}|${current.where}`} layout={layout} current={current} onResultsPage={pathname === "/"} />;
+  // The results page is showing, or is behind an open place panel: change its address in place.
+  const onResultsPage = pathname === "/" || behind !== null;
+  return <SearchFormInner key={`${current.q}|${current.where}`} layout={layout} current={current} onResultsPage={onResultsPage} />;
 }
 
 function SearchFormInner({ layout, current, onResultsPage }: { layout: Layout; current: ResultsQuery; onResultsPage: boolean }) {

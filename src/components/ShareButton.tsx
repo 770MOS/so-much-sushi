@@ -11,6 +11,8 @@ type Props = {
   // sitemap.ts does.
   path: string;
   title: string;
+  // "button": icon and word (the place page); "icon": icon only (the place panel's top bar).
+  look?: "button" | "icon";
 };
 
 function subscribeNoop() {
@@ -25,7 +27,7 @@ function getCanShareServerSnapshot() {
   return false;
 }
 
-export default function ShareButton({ path, title }: Props) {
+export default function ShareButton({ path, title, look = "button" }: Props) {
   // navigator.share isn't available during SSR - useSyncExternalStore (not
   // an effect + setState) is React's own recommended way to read a
   // browser-only value like this without a hydration mismatch: the server
@@ -75,27 +77,36 @@ export default function ShareButton({ path, title }: Props) {
       <button
         type="button"
         onClick={handleClick}
-        aria-label="Share"
+        aria-label={look === "icon" ? (copied ? "Link copied" : "Share") : undefined}
         aria-expanded={canShare ? undefined : open}
-        className="flex items-center gap-1.5 rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+        title={look === "icon" && copied ? "Link copied" : undefined}
+        className={
+          look === "icon"
+            ? "inline-flex h-11 w-11 items-center justify-center rounded-[10px] text-zinc-950 hover:bg-zinc-100"
+            : "inline-flex h-[42px] items-center gap-1.5 rounded-[10px] border border-[#dddddd] bg-white px-3.5 text-sm font-medium text-zinc-950 hover:bg-zinc-50"
+        }
       >
         <ShareIcon />
-        {copied ? "Copied!" : "Share"}
+        {look === "button" && (copied ? "Link copied" : "Share")}
       </button>
 
       {open && !canShare && (
-        <div className="absolute left-0 z-10 mt-1 w-40 rounded-lg border border-zinc-300 bg-white p-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
+        <div
+          className={`absolute z-30 mt-1.5 w-44 rounded-xl border border-line bg-white p-1 shadow-[0_12px_30px_rgba(0,0,0,0.12)] ${
+            look === "icon" ? "right-0" : "left-0"
+          }`}
+        >
           <button
             type="button"
             onClick={copyLink}
-            className="w-full rounded px-2 py-1.5 text-left text-sm text-zinc-950 hover:bg-zinc-100 dark:text-zinc-50 dark:hover:bg-zinc-800"
+            className="flex min-h-11 w-full items-center rounded-lg px-3 text-left text-[15px] text-zinc-950 hover:bg-zinc-50"
           >
             Copy link
           </button>
           <button
             type="button"
             onClick={emailLink}
-            className="w-full rounded px-2 py-1.5 text-left text-sm text-zinc-950 hover:bg-zinc-100 dark:text-zinc-50 dark:hover:bg-zinc-800"
+            className="flex min-h-11 w-full items-center rounded-lg px-3 text-left text-[15px] text-zinc-950 hover:bg-zinc-50"
           >
             Email
           </button>
