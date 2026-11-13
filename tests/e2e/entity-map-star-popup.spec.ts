@@ -180,11 +180,11 @@ test("search page: starring and unstarring from the map popup persists", async (
   const popup = page.locator(".maplibregl-popup");
   await expect(popup.getByText(FIXTURE_SEARCH)).toBeVisible();
 
-  const starButton = popup.getByRole("button", { name: "Star this place" });
+  const starButton = popup.getByRole("button", { name: "Add to your favorites" });
   await expect(starButton).toBeVisible();
 
   await starButton.click();
-  await expect(popup.getByRole("button", { name: "Unstar this place" })).toBeVisible({
+  await expect(popup.getByRole("button", { name: "Remove from your favorites" })).toBeVisible({
     timeout: 10_000,
   });
   await expect
@@ -199,13 +199,13 @@ test("search page: starring and unstarring from the map popup persists", async (
   await page.getByRole("button", { name: "Map", exact: true }).click();
   await page.locator(".maplibregl-marker").click();
   await expect(
-    page.locator(".maplibregl-popup").getByRole("button", { name: "Unstar this place" })
+    page.locator(".maplibregl-popup").getByRole("button", { name: "Remove from your favorites" })
   ).toBeVisible();
 
   // Unstar it back, confirm that also persists.
-  await page.locator(".maplibregl-popup").getByRole("button", { name: "Unstar this place" }).click();
+  await page.locator(".maplibregl-popup").getByRole("button", { name: "Remove from your favorites" }).click();
   await expect(
-    page.locator(".maplibregl-popup").getByRole("button", { name: "Star this place" })
+    page.locator(".maplibregl-popup").getByRole("button", { name: "Add to your favorites" })
   ).toBeVisible({ timeout: 10_000 });
   await expect
     .poll(() => isStarredInDb(starUser.id, fixtureIds.search), { timeout: 10_000 })
@@ -225,7 +225,7 @@ test("search page: clicking the popup star while signed out prompts sign-in inst
   await page.locator(".maplibregl-marker").click();
 
   const popup = page.locator(".maplibregl-popup");
-  await popup.getByRole("button", { name: "Star this place" }).click();
+  await popup.getByRole("button", { name: "Add to your favorites" }).click();
 
   await page.waitForURL("/sign-in", { timeout: 10_000 });
 
@@ -242,10 +242,10 @@ test("profile Starred map: unstarring from the popup removes it after reload", a
 
   const popup = page.locator(".maplibregl-popup");
   await expect(popup.getByText(FIXTURE_PROFILE_STARRED)).toBeVisible();
-  await expect(popup.getByRole("button", { name: "Unstar this place" })).toBeVisible();
+  await expect(popup.getByRole("button", { name: "Remove from your favorites" })).toBeVisible();
 
-  await popup.getByRole("button", { name: "Unstar this place" }).click();
-  await expect(popup.getByRole("button", { name: "Star this place" })).toBeVisible({
+  await popup.getByRole("button", { name: "Remove from your favorites" }).click();
+  await expect(popup.getByRole("button", { name: "Add to your favorites" })).toBeVisible({
     timeout: 10_000,
   });
   await expect
@@ -271,10 +271,10 @@ test("Recommended map: starring a friend-recommended place from the popup persis
   const popup = page.locator(".maplibregl-popup");
   await expect(popup.getByText(FIXTURE_RECOMMENDED)).toBeVisible();
   // starUser hasn't personally starred this yet - only friendUser has.
-  await expect(popup.getByRole("button", { name: "Star this place" })).toBeVisible();
+  await expect(popup.getByRole("button", { name: "Add to your favorites" })).toBeVisible();
 
-  await popup.getByRole("button", { name: "Star this place" }).click();
-  await expect(popup.getByRole("button", { name: "Unstar this place" })).toBeVisible({
+  await popup.getByRole("button", { name: "Add to your favorites" }).click();
+  await expect(popup.getByRole("button", { name: "Remove from your favorites" })).toBeVisible({
     timeout: 10_000,
   });
   await expect
@@ -286,6 +286,6 @@ test("Recommended map: starring a friend-recommended place from the popup persis
   await page.getByRole("button", { name: "Map", exact: true }).click();
   await page.locator(".maplibregl-marker").click();
   await expect(
-    page.locator(".maplibregl-popup").getByRole("button", { name: "Unstar this place" })
+    page.locator(".maplibregl-popup").getByRole("button", { name: "Remove from your favorites" })
   ).toBeVisible();
 });

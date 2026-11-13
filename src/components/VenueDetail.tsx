@@ -8,7 +8,8 @@ import { createClient } from "@/lib/supabase/client";
 import StatusBadge from "@/components/StatusBadge";
 import WantToGoButton from "@/components/WantToGoButton";
 import ShareButton from "@/components/ShareButton";
-import { StarIcon } from "@/components/icons";
+import { FavoriteIcon } from "@/components/icons";
+import { formatPhone, phoneHref, websiteHost } from "@/lib/format";
 import type { MapMarkerEntity } from "@/components/EntityMap";
 import { topLevelTypeForCategoryPaths } from "@/lib/entityTypes";
 
@@ -112,8 +113,8 @@ export default function VenueDetail({ entity }: { entity: EntityDetail }) {
       <div className="flex flex-col gap-1 text-sm text-zinc-700 dark:text-zinc-300">
         <p>{entity.address}</p>
         {entity.phone && (
-          <a href={`tel:${entity.phone}`} className="w-fit text-primary hover:underline">
-            {entity.phone}
+          <a href={phoneHref(entity.phone)} className="w-fit text-link hover:underline">
+            {formatPhone(entity.phone)}
           </a>
         )}
         {entity.website && (
@@ -121,9 +122,9 @@ export default function VenueDetail({ entity }: { entity: EntityDetail }) {
             href={entity.website}
             target="_blank"
             rel="noopener noreferrer"
-            className="w-fit text-primary hover:underline"
+            className="w-fit text-link hover:underline"
           >
-            Visit website
+            {websiteHost(entity.website)}
           </a>
         )}
         <p className="text-zinc-500 dark:text-zinc-400">{hoursDisplay(entity)}</p>
@@ -140,11 +141,10 @@ export default function VenueDetail({ entity }: { entity: EntityDetail }) {
           type="button"
           onClick={toggleStar}
           aria-pressed={isStarred}
-          aria-label={isStarred ? "Unstar" : "Star"}
           className="flex items-center gap-1.5 rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
         >
-          <StarIcon filled={isStarred} />
-          {isStarred ? "Starred" : "Star"}
+          <FavoriteIcon filled={isStarred} />
+          {isStarred ? "Favorited" : "Favorite"}
         </button>
         <WantToGoButton userId={user?.id ?? null} entityId={entity.id} />
         <ShareButton path={`/venue/${entity.id}`} title={entity.name} />

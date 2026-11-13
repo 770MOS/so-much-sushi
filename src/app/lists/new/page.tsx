@@ -62,14 +62,14 @@ export default function NewList() {
 
   if (user === undefined) {
     return (
-      <main className="flex min-h-screen flex-1 flex-col items-center justify-center bg-white px-6 dark:bg-black">
+      <main className="flex flex-1 flex-col items-center justify-center bg-white px-6 dark:bg-black">
         <p className="text-sm text-zinc-500 dark:text-zinc-400">Loading…</p>
       </main>
     );
   }
 
   return (
-    <main className="flex min-h-screen flex-1 flex-col items-center bg-white px-6 py-16 dark:bg-black">
+    <main className="flex flex-1 flex-col items-center bg-white px-6 py-16 dark:bg-black">
       <div className="flex w-full max-w-xl flex-col gap-8">
         <div className="flex items-start justify-between gap-4">
           <h1 className="text-2xl font-semibold text-zinc-950 dark:text-zinc-50">

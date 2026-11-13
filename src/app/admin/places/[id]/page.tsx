@@ -91,7 +91,7 @@ export default async function PlaceEditor({
       {merged && mergedBy && (
         <div className="flex flex-wrap items-center gap-3 text-[13px]">
           {undoButton(mergedBy, "Undo this merge")}
-          <span className="text-neutral-600">Brings this place back as it was, with its source records, stars and list entries.</span>
+          <span className="text-neutral-600">Brings this place back as it was, with its source records, favorites and list entries.</span>
         </div>
       )}
 
@@ -161,7 +161,7 @@ export default async function PlaceEditor({
             <div className={panelHead}>At a glance</div>
             <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 p-3.5 text-[13px]">
               <dt className="text-neutral-500">Saved by</dt>
-              <dd>{p.saved.stars} {p.saved.stars === 1 ? "star" : "stars"} · on {p.saved.lists} {p.saved.lists === 1 ? "list" : "lists"}</dd>
+              <dd>{p.saved.stars} {p.saved.stars === 1 ? "favorite" : "favorites"} · on {p.saved.lists} {p.saved.lists === 1 ? "list" : "lists"}</dd>
               <dt className="text-neutral-500">Location</dt>
               <dd className="font-mono text-xs">{p.lat.toFixed(5)}, {p.lng.toFixed(5)}</dd>
               <dt className="text-neutral-500">Last changed</dt>

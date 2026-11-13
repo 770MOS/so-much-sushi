@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { BackArrowIcon, CloseIcon } from "@/components/icons";
 
 // Wraps the intercepted /venue/[id] route's content. Same component either
-// way, responsive via Tailwind's md: breakpoint (matching Sidebar.tsx's own
+// way, responsive via Tailwind's md: breakpoint (matching the header and phone tab bar's own
 // desktop/mobile split) rather than two separate implementations:
 //   - desktop: dimmed backdrop + a right-hand slide-over panel, closed via
 //     an X in the corner.

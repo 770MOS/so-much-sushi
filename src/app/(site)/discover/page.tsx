@@ -207,7 +207,7 @@ export default function DiscoverPage() {
   }
 
   return (
-    <main className="flex min-h-screen flex-1 flex-col items-center bg-white px-6 pt-10 pb-16 dark:bg-black">
+    <main className="flex flex-1 flex-col items-center bg-white px-6 pt-10 pb-16 dark:bg-black">
       <div className="flex w-full max-w-xl flex-col gap-10">
         <form onSubmit={handleSearch} className="flex flex-col gap-8">
           <div className="flex flex-col gap-2">
@@ -301,7 +301,7 @@ export default function DiscoverPage() {
           note={
             recommendedOnly ? (
               <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                Showing places starred by your connections
+                Showing your friends’ favorites
               </p>
             ) : undefined
           }
@@ -317,7 +317,7 @@ export default function DiscoverPage() {
                     : "border-zinc-300 text-zinc-600 hover:text-zinc-900 dark:border-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-100"
                 }`}
               >
-                Recommended only
+                Friends’ favorites
               </button>
               <button
                 type="button"

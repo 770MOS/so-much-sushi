@@ -12,7 +12,7 @@ import { getLastSearchCoords } from "@/lib/lastSearchCoords";
 
 const DEFAULT_RADIUS = 10;
 
-export default function StarredQuickView() {
+export default function FavoritesQuickView() {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
 
@@ -71,27 +71,27 @@ export default function StarredQuickView() {
 
   if (user === undefined) {
     return (
-      <main className="flex min-h-screen flex-1 flex-col items-center justify-center bg-white px-6 dark:bg-black">
+      <main className="flex flex-1 flex-col items-center justify-center bg-white px-6 dark:bg-black">
         <p className="text-sm text-zinc-500 dark:text-zinc-400">Loading…</p>
       </main>
     );
   }
 
   return (
-    <main className="flex min-h-screen flex-1 flex-col items-center bg-white px-6 py-16 dark:bg-black">
+    <main className="flex flex-1 flex-col items-center bg-white px-6 py-16 dark:bg-black">
       <div className="flex w-full max-w-xl flex-col gap-8">
         <div className="flex items-start justify-between gap-4">
           <div className="flex flex-col gap-2">
-            <h1 className="text-2xl font-semibold text-zinc-950 dark:text-zinc-50">Starred</h1>
+            <h1 className="text-2xl font-semibold text-zinc-950 dark:text-zinc-50">Favorites</h1>
             <p className="text-zinc-600 dark:text-zinc-400">
-              Your starred places near your current search location.
+              Your favorites near your current search location. Your friends see your favorites.
             </p>
           </div>
           <Link
             href="/profile"
             className="shrink-0 pt-1 text-sm text-zinc-500 underline hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
           >
-            Browse all starred places
+            See all your favorites
           </Link>
         </div>
 
@@ -118,7 +118,7 @@ export default function StarredQuickView() {
           hiddenIds={search.hiddenIds}
           toggleHide={search.toggleHide}
           user={user}
-          emptyMessage="No starred places found nearby. Browse all your starred places instead."
+          emptyMessage="No favorites nearby. See all your favorites instead."
         />
       </div>
     </main>

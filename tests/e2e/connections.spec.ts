@@ -69,11 +69,11 @@ test.afterAll(async () => {
   }
 });
 
-test("sidebar Connections link navigates to the dedicated /connections route", async ({ page }) => {
+test("header Friends link navigates to the /friends page", async ({ page }) => {
   await signIn(page, userA);
-  await page.locator('nav[aria-label="Main"]:visible').getByRole("link", { name: "Connections" }).click();
-  await expect(page).toHaveURL(/\/connections$/);
-  await expect(page.locator("h1").getByText("Connections")).toBeVisible();
+  await page.locator('nav[aria-label="Main"]:visible').getByRole("link", { name: "Friends" }).click();
+  await expect(page).toHaveURL(/\/friends$/);
+  await expect(page.locator("h1").getByText("Friends")).toBeVisible();
 });
 
 test("/profile no longer has a Connections tab", async ({ page }) => {
@@ -81,8 +81,8 @@ test("/profile no longer has a Connections tab", async ({ page }) => {
   await page.goto("/profile");
 
   // /profile no longer has any tab switcher at all (Lists moved to /lists,
-  // Connections moved to /connections) - just Starred content directly.
-  await expect(page.getByRole("button", { name: "Starred", exact: true })).toHaveCount(0);
+  // Connections moved to /friends) - just the favorites content directly.
+  await expect(page.getByRole("button", { name: "Favorites", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Connections", exact: true })).toHaveCount(0);
   await expect(page.getByText("Find people")).toHaveCount(0);
 });
@@ -91,16 +91,16 @@ test("the old ?tab=connections deep link falls back sensibly instead of breaking
   await signIn(page, userA);
   await page.goto("/profile?tab=connections");
 
-  // Falls back to the plain Profile page (no tabs, just Starred content)
+  // Falls back to the plain Account page (no tabs, just the favorites content)
   // rather than erroring or showing a blank/broken Connections tab that no
   // longer exists.
-  await expect(page.getByRole("heading", { name: "Profile", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Account", exact: true })).toBeVisible();
   await expect(page.getByText("Find people")).toHaveCount(0);
 });
 
-test("search, send request, decline, and accept all work on /connections", async ({ page, browser }) => {
+test("search, send request, decline, and accept all work on /friends", async ({ page, browser }) => {
   await signIn(page, userA);
-  await page.goto("/connections");
+  await page.goto("/friends");
 
   // Incoming request from C, seeded in beforeAll.
   await expect(page.getByText("Incoming requests (1)")).toBeVisible();
@@ -112,22 +112,22 @@ test("search, send request, decline, and accept all work on /connections", async
   await page.locator('input[placeholder="Search by handle"]').fill(userB.handle);
   await page.getByRole("button", { name: "Search", exact: true }).click();
   await expect(page.getByText("Conn User B")).toBeVisible();
-  await page.getByRole("button", { name: "Connect" }).click();
+  await page.getByRole("button", { name: "Add friend" }).click();
   await expect(page.getByText("Requested")).toBeVisible();
 
   // As B, accept the incoming request from A.
   const bPage = await (await browser.newContext()).newPage();
   await signIn(bPage, userB);
-  await bPage.goto("/connections");
+  await bPage.goto("/friends");
   await expect(bPage.getByText("Incoming requests (1)")).toBeVisible();
   await expect(bPage.getByText("Conn User A")).toBeVisible();
   await bPage.getByRole("button", { name: "Accept" }).click();
-  await expect(bPage.getByText("Connections (1)")).toBeVisible();
+  await expect(bPage.getByText("Your friends (1)")).toBeVisible();
   await expect(bPage.getByText("Conn User A").last()).toBeVisible();
 
-  // Back as A, confirm B now shows under Connections, then remove it.
+  // Back as A, confirm B now shows under Your friends, then remove it.
   await page.reload();
-  await expect(page.getByText("Connections (1)")).toBeVisible();
+  await expect(page.getByText("Your friends (1)")).toBeVisible();
   await expect(page.getByText("Conn User B")).toBeVisible();
   await page.getByRole("button", { name: "Remove" }).click();
   await expect(page.getByText("You haven't connected with anyone yet.")).toBeVisible();

@@ -10,6 +10,7 @@ import type { MapBounds, MapMarkerEntity } from "@/components/EntityMap";
 import StatusBadge from "@/components/StatusBadge";
 import { isNonActive } from "@/lib/entityStatus";
 import AccountSettings from "@/components/AccountSettings";
+import AccountLinks from "@/components/AccountLinks";
 import type { Recommender } from "@/lib/searchTypes";
 import { topLevelTypeForCategoryPaths } from "@/lib/entityTypes";
 
@@ -113,7 +114,7 @@ export default function Profile() {
       const { data, error } = await supabase.rpc("get_my_starred_entities");
       if (cancelled) return;
       if (error) {
-        setLoadError("Something went wrong loading your starred places.");
+        setLoadError("Something went wrong loading your favorites.");
         return;
       }
       setRows(data ?? []);
@@ -302,7 +303,7 @@ export default function Profile() {
 
   if (user === undefined || rows === null) {
     return (
-      <main className="flex min-h-screen flex-1 flex-col items-center justify-center bg-white px-6 dark:bg-black">
+      <main className="flex flex-1 flex-col items-center justify-center bg-white px-6 dark:bg-black">
         {loadError ? (
           <p className="text-sm text-red-600 dark:text-red-400">{loadError}</p>
         ) : (
@@ -313,12 +314,12 @@ export default function Profile() {
   }
 
   return (
-    <main className="flex min-h-screen flex-1 flex-col items-center bg-white px-6 py-16 dark:bg-black">
+    <main className="flex flex-1 flex-col items-center bg-white px-6 py-16 dark:bg-black">
       <div className="flex w-full max-w-3xl flex-col gap-8">
         <div className="flex items-start justify-between gap-4">
           <div className="flex flex-col gap-2">
-            <h1 className="text-2xl font-semibold text-zinc-950 dark:text-zinc-50">Profile</h1>
-            <p className="text-zinc-600 dark:text-zinc-400">Your starred places.</p>
+            <h1 className="text-2xl font-semibold text-zinc-950 dark:text-zinc-50">Account</h1>
+            <p className="text-zinc-600 dark:text-zinc-400">Your details and settings, and every place you’ve favorited.</p>
           </div>
           <Link
             href="/"
@@ -328,12 +329,14 @@ export default function Profile() {
           </Link>
         </div>
 
+        <AccountLinks />
+
         {user && <AccountSettings userId={user.id} />}
 
         {rows.length === 0 ? (
           <p className="py-16 text-center text-sm text-zinc-500 dark:text-zinc-400">
-            You haven&apos;t starred any restaurants yet. Head back to search and tap the star
-            on a place you like.
+            You haven&apos;t favorited any places yet. Tap the heart on a place you like and
+            it shows up here.
           </p>
         ) : (
           <>
@@ -416,7 +419,7 @@ export default function Profile() {
                   </h2>
                   {mapViewportList.length === 0 ? (
                     <p className="py-8 text-center text-sm text-zinc-500 dark:text-zinc-400">
-                      No starred places match here. Pan/zoom the map or adjust the filters.
+                      No favorites match here. Move or zoom the map, or change the filters.
                     </p>
                   ) : (
                     <ul className="flex flex-col divide-y divide-zinc-200 dark:divide-zinc-800">
@@ -499,7 +502,7 @@ export default function Profile() {
                   </h2>
                   {browseList.length === 0 ? (
                     <p className="py-8 text-center text-sm text-zinc-500 dark:text-zinc-400">
-                      No starred places match those filters.
+                      No favorites match those filters.
                     </p>
                   ) : (
                     <ul className="flex flex-col divide-y divide-zinc-200 dark:divide-zinc-800">

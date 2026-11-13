@@ -71,29 +71,29 @@ export default function RecommendedQuickView() {
 
   if (user === undefined) {
     return (
-      <main className="flex min-h-screen flex-1 flex-col items-center justify-center bg-white px-6 dark:bg-black">
+      <main className="flex flex-1 flex-col items-center justify-center bg-white px-6 dark:bg-black">
         <p className="text-sm text-zinc-500 dark:text-zinc-400">Loading…</p>
       </main>
     );
   }
 
   return (
-    <main className="flex min-h-screen flex-1 flex-col items-center bg-white px-6 py-16 dark:bg-black">
+    <main className="flex flex-1 flex-col items-center bg-white px-6 py-16 dark:bg-black">
       <div className="flex w-full max-w-xl flex-col gap-8">
         <div className="flex items-start justify-between gap-4">
           <div className="flex flex-col gap-2">
             <h1 className="text-2xl font-semibold text-zinc-950 dark:text-zinc-50">
-              Recommended
+              Friends’ favorites
             </h1>
             <p className="text-zinc-600 dark:text-zinc-400">
-              Places your connections have starred, near your current search location.
+              Places your friends have favorited, near your current search location.
             </p>
           </div>
           <Link
-            href="/connections"
+            href="/friends"
             className="shrink-0 pt-1 text-sm text-zinc-500 underline hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
           >
-            Manage connections
+            Your friends
           </Link>
         </div>
 
@@ -120,7 +120,7 @@ export default function RecommendedQuickView() {
           hiddenIds={search.hiddenIds}
           toggleHide={search.toggleHide}
           user={user}
-          emptyMessage="None of your connections have starred anything nearby yet."
+          emptyMessage="None of your friends have favorited anything nearby yet."
         />
       </div>
     </main>

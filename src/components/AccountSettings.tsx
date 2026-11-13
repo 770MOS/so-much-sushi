@@ -244,7 +244,7 @@ export default function AccountSettings({ userId }: Props) {
           <label htmlFor="handle" className="text-xs text-zinc-500 dark:text-zinc-400">
             Handle
           </label>
-          <p className="text-xs text-zinc-400 dark:text-zinc-500">How connections find you.</p>
+          <p className="text-xs text-zinc-400 dark:text-zinc-500">How friends find you.</p>
           <div className="flex items-center gap-1">
             <span className="text-zinc-400">@</span>
             <input

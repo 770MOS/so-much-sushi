@@ -42,18 +42,19 @@ type Props = {
   className?: string;
 };
 
-// Shared with the star icon/pin coloring below, so the popup's star button,
-// the pin itself, and the list view's StarIcon (src/components/icons.tsx)
-// never disagree on what "starred" looks like.
-const STARRED_COLOR = "#fbbf24"; // amber-400
-const UNSTARRED_COLOR = "#a1a1aa"; // zinc-400
+// Shared with the heart icon/pin coloring below, so the popup's heart button,
+// the pin itself, and the list view's FavoriteIcon (src/components/icons.tsx)
+// never disagree on what "favorite" looks like. (The data still calls a
+// favorite a "star": the table is stars.)
+const STARRED_COLOR = "#e04e76"; // --favorite, the rose heart
+const UNSTARRED_COLOR = "#222222"; // plain places: the dark pin from the mockups
 
-// Same path as StarIcon in src/components/icons.tsx - duplicated here
+// Same path as FavoriteIcon in src/components/icons.tsx - duplicated here
 // because this element is built with raw DOM APIs (a React component can't
 // be rendered into a MapLibre marker/popup), not because it's a different
 // icon.
 const STAR_ICON_PATH =
-  "M12 3.5l2.6 5.27 5.82.85-4.21 4.1.99 5.8L12 16.9l-5.2 2.62.99-5.8-4.21-4.1 5.82-.85L12 3.5z";
+  "M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572";
 
 // Same path data as RestaurantTypeIcon/BarTypeIcon/CoffeeTypeIcon/
 // BakeryTypeIcon in src/components/icons.tsx (drinks uses the bar icon,
@@ -86,7 +87,7 @@ const CATEGORY_ICON_PATHS: Record<Exclude<EntityType, "all">, string[]> = {
 // at 12,12 of the pin's own 24x32 viewBox - see pinImageSvg below). Tabler
 // icons are natively a 24x24 viewBox; scaling by 1/3 and translating by
 // (8,8) maps that down to an 8x8 box spanning (8,8)-(16,16), just inside
-// the circle. The stroke is the pin's own status color (amber/zinc) - color
+// the circle. The stroke is the pin's own status color (rose/dark) - color
 // still means personal status, the icon shape is the only category signal.
 function categoryIconMarkup(entityType: Exclude<EntityType, "all"> | null | undefined, color: string): string {
   if (!entityType) return "";
@@ -101,7 +102,7 @@ function categoryIconMarkup(entityType: Exclude<EntityType, "all"> | null | unde
 const SOURCE_ID = "sms-places";
 const LAYER_ID = "sms-places-pins";
 const PIN_TYPES: (Exclude<EntityType, "all"> | null)[] = ["restaurants", "drinks", "coffee", "markets", null];
-const RECOMMENDED_COLOR = "#fb7185"; // rose-400 - matches the heart icon elsewhere in the app
+const RECOMMENDED_COLOR = "#19693f"; // --friends, the dark green of the friends' thumbs up
 
 // Image size in CSS pixels: the pin itself is 28x36 as before, plus 2px to the
 // right and above so the recommended badge, which sticks out past the pin's
@@ -214,7 +215,7 @@ function setStarButtonAppearance(button: HTMLButtonElement, isStarred: boolean) 
     svg.setAttribute("stroke", isStarred ? STARRED_COLOR : UNSTARRED_COLOR);
   }
   button.setAttribute("aria-pressed", String(isStarred));
-  button.setAttribute("aria-label", isStarred ? "Unstar this place" : "Star this place");
+  button.setAttribute("aria-label", isStarred ? "Remove from your favorites" : "Add to your favorites");
 }
 
 function createStarButton(isStarred: boolean): HTMLButtonElement {
@@ -228,7 +229,7 @@ function createStarButton(isStarred: boolean): HTMLButtonElement {
   button.style.border = "none";
   button.style.background = "none";
   button.style.cursor = "pointer";
-  button.innerHTML = `<svg viewBox="0 0 24 24" width="18" height="18" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="${STAR_ICON_PATH}"/></svg>`;
+  button.innerHTML = `<svg viewBox="0 0 24 24" width="18" height="18" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="${STAR_ICON_PATH}"/></svg>`;
   setStarButtonAppearance(button, isStarred);
   return button;
 }

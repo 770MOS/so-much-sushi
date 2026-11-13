@@ -97,7 +97,7 @@ test.afterAll(async () => {
   }
 });
 
-test("sidebar Lists link navigates to the dedicated /lists route", async ({ page }) => {
+test("header Lists link navigates to the dedicated /lists route", async ({ page }) => {
   await signIn(page, friend);
   await page.locator('nav[aria-label="Main"]:visible').getByRole("link", { name: "Lists" }).click();
   await expect(page).toHaveURL(/\/lists$/);

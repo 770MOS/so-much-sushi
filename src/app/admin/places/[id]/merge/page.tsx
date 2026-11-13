@@ -74,7 +74,7 @@ export default async function MergePlace({
             <input type="hidden" name="a" value={a.id} />
             <input type="hidden" name="b" value={b.id} />
             <p className="text-[13px] text-neutral-600">
-              Pick which value to keep for each field that differs. Place B becomes a pointer to A, and its source records, stars and list entries move to A. You can undo this from either place&apos;s page.
+              Pick which value to keep for each field that differs. Place B becomes a pointer to A, and its source records, favorites and list entries move to A. You can undo this from either place&apos;s page.
             </p>
             <MergeChooser a={a} b={b} categories={categories} />
             <label className="flex max-w-xl flex-col gap-1 text-xs font-medium text-neutral-700">

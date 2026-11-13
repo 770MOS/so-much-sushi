@@ -41,7 +41,7 @@ export default function SignIn() {
   }
 
   return (
-    <main className="flex min-h-screen flex-1 flex-col items-center bg-white px-6 py-16 dark:bg-black">
+    <main className="flex flex-1 flex-col items-center bg-white px-6 py-16 dark:bg-black">
       <div className="flex w-full max-w-xl flex-col gap-10">
         <div className="flex flex-col gap-2">
           <h1 className="text-2xl font-semibold text-zinc-950 dark:text-zinc-50">Sign in</h1>

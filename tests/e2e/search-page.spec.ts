@@ -73,8 +73,8 @@ test.afterAll(async () => {
   await supabase.from("entities").delete().eq("id", fixtureEntityId);
 });
 
-test.describe("sidebar nav", () => {
-  test("Search appears in the desktop sidebar", async ({ page }) => {
+test.describe("header nav", () => {
+  test("Search appears in the desktop header", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto("/");
 
@@ -83,13 +83,14 @@ test.describe("sidebar nav", () => {
     await expect(nav.getByRole("link", { name: "Search" })).toBeVisible();
   });
 
-  test("Search appears in the mobile bottom tab bar", async ({ page }) => {
+  test("on a phone, visitors get Sign in and Join free instead of the tab bar", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/");
 
-    const nav = page.locator('nav[aria-label="Main"]:visible');
-    await expect(nav).toHaveCount(1);
-    await expect(nav.getByRole("link", { name: "Search" })).toBeVisible();
+    // The five-tab bar (Search, Favs, Lists, Friends, Account) is for members only.
+    await expect(page.locator('nav[aria-label="Main"]:visible')).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Join free" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Sign in" })).toBeVisible();
   });
 });
 

@@ -51,7 +51,7 @@ export default async function ReviewOne({
       {notice && <p role="status" className="rounded-lg border border-orange-200 bg-orange-50 px-3.5 py-2 text-[13px] text-orange-900">{notice}</p>}
       <h1 className="text-lg font-semibold">Are these the same place?</h1>
       <p className="text-[13px] text-neutral-600">
-        If they are, pick which value to keep for each field that differs. Place B becomes a pointer to A, and its source records, stars and list entries move to A.
+        If they are, pick which value to keep for each field that differs. Place B becomes a pointer to A, and its source records, favorites and list entries move to A.
       </p>
       <form className="flex flex-col gap-3">
         <input type="hidden" name="id" value={m.event_id} />
