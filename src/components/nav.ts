@@ -6,7 +6,7 @@ export function sectionForPath(pathname: string): Section {
   if (pathname === "/" || pathname.startsWith("/search") || pathname.startsWith("/venue")) return "search";
   if (pathname.startsWith("/favorites")) return "favorites";
   if (pathname.startsWith("/lists")) return "lists";
-  if (pathname.startsWith("/friends") || pathname.startsWith("/u/")) return "friends";
-  if (pathname.startsWith("/profile") || pathname.startsWith("/request")) return "account";
+  if (pathname.startsWith("/friends") || pathname.startsWith("/u/") || pathname.startsWith("/invite")) return "friends";
+  if (pathname.startsWith("/settings") || pathname.startsWith("/profile") || pathname.startsWith("/request")) return "account";
   return null;
 }

@@ -1,7 +1,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_PREFIXES = ["/sign-in", "/sign-up", "/auth"];
+// Invite links too, so a friend can see who invited them and join.
+const PUBLIC_PREFIXES = ["/sign-in", "/sign-up", "/auth", "/invite"];
 
 function isPublicPath(pathname: string) {
   return PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"));

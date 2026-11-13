@@ -44,6 +44,9 @@ type Props = {
   heartBadge?: boolean;
   // Buttons at the end of each row.
   rowEnd?: (p: BrowserPlace) => ReactNode;
+  // A line under a place (e.g. "Also your favorite"); friends' names are left out when false.
+  rowNote?: (p: BrowserPlace) => ReactNode;
+  showFriends?: boolean;
   empty: ReactNode;
   footer?: ReactNode;
   // The map's label for its places, e.g. "favorites".
@@ -178,6 +181,8 @@ function PlaceRow({
   heartBadge,
   street,
   end,
+  note,
+  showFriends,
   highlighted,
   selected,
   onOpen,
@@ -187,13 +192,15 @@ function PlaceRow({
   heartBadge: boolean;
   street: boolean;
   end?: ReactNode;
+  note?: ReactNode;
+  showFriends: boolean;
   highlighted: boolean;
   selected: boolean;
   onOpen: (id: string) => void;
   onHover: (id: string | null) => void;
 }) {
   const kind = kindLabel(p);
-  const friends = friendsLabel(p.recommended_by, p.recommended_count);
+  const friends = showFriends ? friendsLabel(p.recommended_by, p.recommended_count) : null;
   const where = street ? p.street ?? p.address : p.address;
   return (
     <li
@@ -237,13 +244,14 @@ function PlaceRow({
             <span className="truncate">{friends}</span>
           </p>
         )}
+        {note}
       </div>
       {end && <div className="flex shrink-0 items-center">{end}</div>}
     </li>
   );
 }
 
-export default function PlacesBrowser({ places, here, heading, toolbar, filters, groupByTown, heartBadge, rowEnd, empty, footer, mapNoun }: Props) {
+export default function PlacesBrowser({ places, here, heading, toolbar, filters, groupByTown, heartBadge, rowEnd, rowNote, showFriends = true, empty, footer, mapNoun }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const selectedId = placeIdFromPath(pathname);
@@ -377,6 +385,8 @@ export default function PlacesBrowser({ places, here, heading, toolbar, filters,
       heartBadge={Boolean(heartBadge)}
       street={Boolean(groupByTown)}
       end={rowEnd?.(p)}
+      note={rowNote?.(p)}
+      showFriends={showFriends}
       highlighted={hoverId === p.id || selectedId === p.id}
       selected={selectedId === p.id}
       onOpen={openPlace}

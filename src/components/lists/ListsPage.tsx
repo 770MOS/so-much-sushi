@@ -8,6 +8,7 @@ import JoinPanel from "@/components/lists/JoinPanel";
 import NewListDialog from "@/components/lists/NewListDialog";
 import { VisibilityIcon } from "@/components/lists/VisibilityMenu";
 import { SortSelect } from "@/components/lists/PlacesBrowser";
+import { avatarColors } from "@/components/Avatar";
 import { FLAG_PATH, formatMiles, placeWord, townsLine, VISIBILITY, type ListCardData } from "@/lib/lists";
 import { useUserId } from "@/lib/useSignedIn";
 import { useHerePoint } from "@/lib/useHerePoint";
@@ -55,19 +56,6 @@ function CardMap({ points, want }: { points: [number, number][]; want: boolean }
       ))}
     </span>
   );
-}
-
-const AVATAR_COLORS = [
-  ["#e7f4ec", "#17603a"],
-  ["#e8eefb", "#2c4a9a"],
-  ["#fbeef2", "#9c2c4e"],
-  ["#f6efe3", "#7a5212"],
-  ["#efe9f8", "#4b2f8a"],
-];
-function avatarColors(seed: string) {
-  let h = 0;
-  for (const c of seed) h = (h * 31 + c.charCodeAt(0)) >>> 0;
-  return AVATAR_COLORS[h % AVATAR_COLORS.length];
 }
 
 export default function ListsPage() {

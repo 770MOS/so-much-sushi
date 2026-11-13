@@ -4,26 +4,10 @@ import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { safeNext } from "@/lib/friends";
 import { HANDLE_PATTERN, HANDLE_HINT, handleTakenMessage } from "@/lib/handleValidation";
 import PasswordInput from "@/components/PasswordInput";
-
-const MIN_PASSWORD_LENGTH = 8;
-// Project's configured password policy also requires at least one of each
-// character class (checked here client-side for instant feedback - the
-// server enforces the same policy regardless, so this doesn't loosen
-// anything, it just avoids a round trip for an obviously-weak password).
-const PASSWORD_HINT =
-  "At least 8 characters, with an uppercase letter, a lowercase letter, a number, and a special character.";
-
-function passwordMeetsPolicy(password: string) {
-  return (
-    password.length >= MIN_PASSWORD_LENGTH &&
-    /[a-z]/.test(password) &&
-    /[A-Z]/.test(password) &&
-    /[0-9]/.test(password) &&
-    /[^A-Za-z0-9]/.test(password)
-  );
-}
+import { PASSWORD_HINT, passwordMeetsPolicy } from "@/lib/password";
 
 const inputClass =
   "w-full rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-zinc-950 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50";
@@ -88,12 +72,14 @@ export default function SignUp() {
       return;
     }
 
+    // Where to go once the account exists (an invite link, say).
+    const next = safeNext(new URLSearchParams(window.location.search).get("next"));
     const { data, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
       options: {
         data: { handle: trimmedHandle, first_name: trimmedFirstName, last_name: trimmedLastName },
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        emailRedirectTo: `${window.location.origin}/auth/callback${next ? `?next=${encodeURIComponent(next)}` : ""}`,
       },
     });
     setLoading(false);
@@ -120,7 +106,7 @@ export default function SignUp() {
     if (data.session) {
       // Only happens if email confirmation isn't required for this project;
       // handle it defensively even though "Confirm email" is on today.
-      router.push("/");
+      router.push(next ?? "/");
       router.refresh();
       return;
     }

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import PasswordInput from "@/components/PasswordInput";
+import { safeNext } from "@/lib/friends";
 
 const inputClass =
   "w-full rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-zinc-950 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50";
@@ -36,7 +37,8 @@ export default function SignIn() {
       return;
     }
 
-    router.push("/");
+    // Back to where they came from (an invite link, say), else the results page.
+    router.push(safeNext(new URLSearchParams(window.location.search).get("next")) ?? "/");
     router.refresh();
   }
 

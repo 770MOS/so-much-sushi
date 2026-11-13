@@ -105,7 +105,7 @@ export default function AccountMenu({ supabase, email, firstName, displayName, h
           className="absolute right-0 z-30 mt-2 w-64 rounded-xl border border-line bg-white p-1.5 shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
         >
           <p className="truncate px-3 pb-2 pt-1.5 text-sm text-muted">{name}</p>
-          <Link href="/profile" role="menuitem" onClick={close} className={itemClass}>
+          <Link href="/settings" role="menuitem" onClick={close} className={itemClass}>
             Account settings
           </Link>
           <Link href="/request#your-requests" role="menuitem" onClick={close} className={itemClass}>

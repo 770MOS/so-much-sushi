@@ -87,7 +87,7 @@ export default function ListButton({ userId, placeId, onChange }: Props) {
     setBusy(true);
     const { data, error } = await supabase
       .from("lists")
-      .insert({ owner_id: userId, name, visibility: "private" })
+      .insert({ owner_id: userId, name })
       .select("id, name, is_default_list")
       .single();
     if (!error && data) {
