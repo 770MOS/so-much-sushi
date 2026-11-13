@@ -33,3 +33,25 @@ export function setLastSearchCoords(coords: Coords) {
     // ignore - e.g. private browsing storage restrictions
   }
 }
+
+const LABEL_KEY = "sms:lastSearchLabel";
+
+// The place name shown for the last search point ("Clarendon, Arlington, VA"), so the
+// results page can come back to it in the same words. Session-only, like the point.
+export function getLastSearchLabel(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return sessionStorage.getItem(LABEL_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setLastSearchLabel(label: string) {
+  if (typeof window === "undefined") return;
+  try {
+    if (label.trim()) sessionStorage.setItem(LABEL_KEY, label.trim());
+  } catch {
+    // ignore
+  }
+}

@@ -10,10 +10,11 @@ type Props = {
   entityId: string;
 };
 
+// Tabler's playlist-add: a list with a plus.
 function PlusIcon() {
   return (
-    <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" />
+    <svg viewBox="0 0 24 24" width={22} height={22} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M19 8h-14M5 12h9M11 16h-6M15 16h6M18 13v6" />
     </svg>
   );
 }
@@ -103,13 +104,13 @@ export default function AddToListMenu({ userId, entityId }: Props) {
         onClick={handleToggle}
         aria-label="Add to list"
         aria-expanded={open}
-        className="rounded p-1 text-zinc-400 transition-colors hover:bg-zinc-200 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+        className="flex h-11 w-10 items-center justify-center rounded-lg text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900"
       >
         <PlusIcon />
       </button>
 
       {open && (
-        <div className="absolute right-0 z-10 mt-1 w-56 rounded-lg border border-zinc-300 bg-white p-2 shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
+        <div className="absolute right-0 z-20 mt-1 w-60 rounded-xl border border-line bg-white p-2 shadow-[0_8px_24px_rgba(0,0,0,0.12)]">
           {lists === null ? (
             <p className="px-2 py-1 text-sm text-zinc-500 dark:text-zinc-400">Loading…</p>
           ) : lists.length === 0 ? (

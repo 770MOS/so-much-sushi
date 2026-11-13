@@ -3,9 +3,9 @@
 export const TYPE_OPTIONS = [
   { key: "all", label: "All" },
   { key: "restaurants", label: "Restaurants" },
-  { key: "drinks", label: "Drinks" },
+  { key: "drinks", label: "Bars & drinks" },
   { key: "coffee", label: "Coffee" },
-  { key: "markets", label: "Bakeries and Markets" },
+  { key: "markets", label: "Bakeries & markets" },
 ] as const;
 
 export type EntityType = (typeof TYPE_OPTIONS)[number]["key"];
@@ -28,4 +28,11 @@ export function topLevelTypeForCategoryPaths(
     if (MAIN_TYPES.includes(root)) return root;
   }
   return null;
+}
+
+// The type a category path belongs to ("restaurants.italian" -> "restaurants"), or null.
+export function typeForPath(path: string | null | undefined): Exclude<EntityType, "all"> | null {
+  if (!path) return null;
+  const root = path.split(".")[0] as Exclude<EntityType, "all">;
+  return MAIN_TYPES.includes(root) ? root : null;
 }

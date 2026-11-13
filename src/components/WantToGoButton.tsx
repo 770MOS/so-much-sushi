@@ -10,7 +10,7 @@ type Props = {
   entityId: string;
 };
 
-// "Want to Go" quick-saves an entity to the signed-in user's one default
+// "Want to try" quick-saves an entity to the signed-in user's one default
 // list (lists.is_default_list) - created lazily on first use, named "Want
 // to Go", private. Still a completely normal list afterward - editable/
 // renameable/deletable from /lists like any other, this button just knows
@@ -71,7 +71,7 @@ export default function WantToGoButton({ userId, entityId }: Props) {
 
     const { data: created, error: createError } = await supabase
       .from("lists")
-      .insert({ owner_id: ownerId, name: "Want to Go", visibility: "private", is_default_list: true })
+      .insert({ owner_id: ownerId, name: "Want to try", visibility: "private", is_default_list: true })
       .select("id")
       .single();
     if (!createError) return created.id;
@@ -129,11 +129,11 @@ export default function WantToGoButton({ userId, entityId }: Props) {
       onClick={handleClick}
       disabled={busy || saved === null}
       aria-pressed={!!saved}
-      aria-label={saved ? "Remove from Want to Go" : "Want to Go"}
+      aria-label={saved ? "Remove from Want to try" : "Want to try"}
       className="flex items-center gap-1.5 rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-700 transition-colors hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
     >
       <BookmarkIcon filled={!!saved} />
-      Want to Go
+      Want to try
     </button>
   );
 }

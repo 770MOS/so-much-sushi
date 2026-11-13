@@ -1,0 +1,32 @@
+"use client";
+
+import { useSyncExternalStore } from "react";
+import type { Coords } from "@/lib/lastSearchCoords";
+import type { Facets } from "@/lib/searchTypes";
+
+// What the results page has worked out, shared with the header's search boxes: the point it
+// searched around (so suggestions start nearby) and the filter counts (so a suggested kind
+// can say "12 nearby" without counting the area again). In memory only.
+type ResultsState = { origin: Coords | null; facets: Facets | null };
+
+const EMPTY: ResultsState = { origin: null, facets: null };
+let state: ResultsState = EMPTY;
+const listeners = new Set<() => void>();
+
+export function setResultsState(patch: Partial<ResultsState>) {
+  state = { ...state, ...patch };
+  listeners.forEach((l) => l());
+}
+
+function subscribe(listener: () => void) {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+export function useResultsState(): ResultsState {
+  return useSyncExternalStore(
+    subscribe,
+    () => state,
+    () => EMPTY
+  );
+}
