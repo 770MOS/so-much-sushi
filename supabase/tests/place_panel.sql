@@ -42,8 +42,10 @@ insert into stars(user_id, entity_id, created_at) values
   ('55555555-5555-5555-5555-555555555555', pid('Mazaro'), now() - interval '1 day'),
   ('66666666-6666-6666-6666-666666666666', pid('Mazaro'), now()),
   ('11111111-1111-1111-1111-111111111111', pid('Mazaro'), now());
+-- Want to try comes with the account (20261113010000_favorites_and_lists.sql); give it a known id.
+update lists set id = 'aaaaaaaa-0000-0000-0000-000000000001'
+where owner_id = '11111111-1111-1111-1111-111111111111' and is_default_list;
 insert into lists(id, owner_id, name, is_default_list) values
-  ('aaaaaaaa-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', 'Want to try', true),
   ('aaaaaaaa-0000-0000-0000-000000000002', '11111111-1111-1111-1111-111111111111', 'date night', false),
   ('aaaaaaaa-0000-0000-0000-000000000003', '11111111-1111-1111-1111-111111111111', 'Brunch', false),
   ('aaaaaaaa-0000-0000-0000-000000000004', '22222222-2222-2222-2222-222222222222', 'Priya''s picks', false);

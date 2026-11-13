@@ -37,8 +37,9 @@ insert into stars(user_id, entity_id) values
   ('22222222-2222-2222-2222-222222222222', pid('A1 fav and friend')),
   ('22222222-2222-2222-2222-222222222222', pid('A2 friend')),
   ('22222222-2222-2222-2222-222222222222', pid('A3 friend and want'));
-insert into lists(id, owner_id, name, is_default_list) values
-  ('aaaaaaaa-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', 'Want to try', true);
+-- Want to try comes with the account (20261113010000_favorites_and_lists.sql); give it a known id.
+update lists set id = 'aaaaaaaa-0000-0000-0000-000000000001'
+where owner_id = '11111111-1111-1111-1111-111111111111' and is_default_list;
 insert into list_items(list_id, entity_id) values
   ('aaaaaaaa-0000-0000-0000-000000000001', pid('A3 friend and want')),
   ('aaaaaaaa-0000-0000-0000-000000000001', pid('B1 want'));
