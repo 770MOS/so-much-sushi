@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
@@ -323,6 +324,13 @@ export default function SettingsPage() {
       </nav>
 
       <main className="flex min-w-0 flex-[1_1_520px] flex-col">
+        {/* Phone: back to the Account tab. */}
+        <Link href="/account" className="-ml-1 mb-2 inline-flex h-10 items-center gap-1 self-start text-[15px] font-medium text-zinc-950 md:hidden">
+          <svg viewBox="0 0 24 24" width={20} height={20} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M15 6l-6 6l6 6" />
+          </svg>
+          Account
+        </Link>
         <h1 className="mb-2 text-3xl font-medium tracking-tight text-zinc-950">Account settings</h1>
         {error && <p className="text-sm text-red-700">{error}</p>}
         {!s ? (

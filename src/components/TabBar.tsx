@@ -18,7 +18,7 @@ const TABS: { href: string; label: string; section: Section; d: string }[] = [
     d: "M9 7m-4 0a4 4 0 1 0 8 0a4 4 0 1 0 -8 0M3 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2M16 3.13a4 4 0 0 1 0 7.75M21 21v-2a4 4 0 0 0 -3 -3.85",
   },
   {
-    href: "/settings",
+    href: "/account",
     label: "Account",
     section: "account",
     d: "M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0M9 10a3 3 0 1 0 6 0a3 3 0 1 0 -6 0M6.168 18.849a4 4 0 0 1 3.832 -2.849h4a4 4 0 0 1 3.834 2.855",
@@ -26,7 +26,8 @@ const TABS: { href: string; label: string; section: Section; d: string }[] = [
 ];
 
 // The phone's five tabs, for members only (visitors get Sign in and Join in the
-// header). Hidden from the medium breakpoint up, where the header has the links.
+// header). Hidden from the medium breakpoint up, where the header has the links, and
+// on the phone's full-screen map (globals.css).
 export default function TabBar() {
   const pathname = usePathname();
   const signedIn = useSignedIn();
@@ -36,9 +37,10 @@ export default function TabBar() {
   return (
     <>
       {/* Keeps the end of each page clear of the bar. */}
-      <div aria-hidden="true" className="h-[74px] md:hidden" />
+      <div aria-hidden="true" data-tab-bar className="h-[74px] md:hidden" />
       <nav
         aria-label="Main"
+        data-tab-bar
         className="fixed inset-x-0 bottom-0 z-20 grid h-[74px] grid-cols-5 border-t border-line bg-white px-1 pb-3.5 pt-1.5 md:hidden"
       >
         {TABS.map(({ href, label, section, d }) => {

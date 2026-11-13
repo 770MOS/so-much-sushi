@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import LocationInput from "@/components/LocationInput";
 import WhatBox from "@/components/results/WhatBox";
@@ -13,9 +13,10 @@ import { emptyQuery, MAP_AREA_LABEL, parseResultsQuery, resultsHref, type Result
 import { useResultsState } from "@/lib/resultsStore";
 import { startArea } from "@/lib/searchArea";
 import { pushResults, replaceResults } from "@/lib/resultsNav";
+import { TYPE_OPTIONS } from "@/lib/entityTypes";
 import { createClient } from "@/lib/supabase/client";
 
-type Layout = "bar" | "stacked";
+type Layout = "bar" | "stacked" | "screen";
 
 function PinIcon() {
   return (
@@ -41,9 +42,19 @@ function LocateIcon() {
   );
 }
 
-// The What and Where boxes: in the header on a computer ("bar"), at the top of the results
-// page on a phone ("stacked"). Searching opens the results page with the search in its address.
-export default function SearchForm({ layout }: { layout: Layout }) {
+function BackIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width={24} height={24} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M5 12h14M5 12l6 6M5 12l6 -6" />
+    </svg>
+  );
+}
+
+// The What and Where boxes: in the header on a computer ("bar"), or the phone's full-screen
+// search ("screen", opened from the summary at the top of the results page). Searching opens
+// the results page with the search in its address. ("stacked" is the two boxes one above the
+// other, without the screen around them.)
+export default function SearchForm({ layout, onClose }: { layout: Layout; onClose?: () => void }) {
   const pathname = usePathname();
   const params = useSearchParams();
   // On the results page, its search; with a place panel open over it, the search behind.
@@ -52,20 +63,54 @@ export default function SearchForm({ layout }: { layout: Layout }) {
   // Starts again from the address whenever the search there changes (Back, a new search).
   // The results page is showing, or is behind an open place panel: change its address in place.
   const onResultsPage = pathname === "/" || behind !== null;
-  return <SearchFormInner key={`${current.q}|${current.where}`} layout={layout} current={current} onResultsPage={onResultsPage} />;
+  return (
+    <SearchFormInner key={`${current.q}|${current.where}`} layout={layout} current={current} onResultsPage={onResultsPage} onClose={onClose} />
+  );
 }
 
-function SearchFormInner({ layout, current, onResultsPage }: { layout: Layout; current: ResultsQuery; onResultsPage: boolean }) {
+function SearchFormInner({
+  layout,
+  current,
+  onResultsPage,
+  onClose,
+}: {
+  layout: Layout;
+  current: ResultsQuery;
+  onResultsPage: boolean;
+  onClose?: () => void;
+}) {
   const router = useRouter();
   // Already on the results page: change its address in place (src/lib/resultsNav.ts).
   // Elsewhere: go to it.
-  const go = (href: string) => (onResultsPage ? pushResults(href) : router.push(href));
+  // The phone's search screen closes once the search is made.
+  const go = (href: string) => {
+    if (onResultsPage) pushResults(href);
+    else router.push(href);
+    onClose?.();
+  };
   const supabase = useMemo(() => createClient(), []);
   const { origin, facets } = useResultsState();
   const [what, setWhat] = useState(current.q);
   const [where, setWhere] = useState(current.where);
   const [error, setError] = useState<string | null>(null);
   const geo = useGeolocation();
+  // Where the phone's search screen lists the What box's suggestions.
+  const [listEl, setListEl] = useState<HTMLElement | null>(null);
+
+  // The search screen: the page behind it stays still, and Escape closes it.
+  useEffect(() => {
+    if (layout !== "screen") return;
+    const before = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose?.();
+    }
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = before;
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [layout, onClose]);
 
   const here: Coords | null = current.lat !== null && current.lng !== null ? { lat: current.lat, lng: current.lng } : null;
   const near = origin ?? here ?? getLastSearchCoords();
@@ -120,8 +165,133 @@ function SearchFormInner({ layout, current, onResultsPage }: { layout: Layout; c
 
   const box = "flex h-[46px] min-w-0 items-center gap-2 rounded-[10px] border border-[#dddddd] bg-white px-3 focus-within:border-zinc-500";
   const input = "w-full min-w-0 bg-transparent text-[15px] text-zinc-950 placeholder:text-zinc-500 focus:outline-none";
-  const whatId = layout === "bar" ? "what-bar" : "what-stacked";
-  const whereId = layout === "bar" ? "where-bar" : "where-stacked";
+  const whatId = `what-${layout}`;
+  const whereId = `where-${layout}`;
+
+  if (layout === "screen") {
+    const row = "flex h-[52px] min-w-0 items-center gap-2.5 px-3.5";
+    const field = "w-full min-w-0 bg-transparent text-base text-zinc-950 placeholder:text-zinc-500 focus:outline-none";
+    return (
+      <div role="dialog" aria-modal="true" aria-label="Search" className="fixed inset-0 z-50 flex flex-col bg-white md:hidden">
+        <form role="search" aria-label="Find places" onSubmit={handleSubmit} className="flex items-start gap-1 border-b border-line py-3 pl-1.5 pr-4">
+          <button type="button" aria-label="Back" onClick={onClose} className="flex h-[52px] w-11 shrink-0 items-center justify-center text-zinc-950">
+            <BackIcon />
+          </button>
+          <div className="min-w-0 flex-1 rounded-2xl border border-[#dddddd] bg-white shadow-[0_2px_10px_rgba(0,0,0,0.06)]">
+            <div className={row}>
+              <span className="text-zinc-500">
+                <SearchIcon />
+              </span>
+              <label htmlFor={whatId} className="sr-only">
+                What
+              </label>
+              <WhatBox
+                id={whatId}
+                value={what}
+                onChange={setWhat}
+                onPickKind={(path) => {
+                  setWhat("");
+                  void search({ q: "", kind: path });
+                }}
+                onPickPlace={(id) => {
+                  onClose?.();
+                  router.push(`/venue/${id}`);
+                }}
+                onSubmitText={() => void search({ q: what })}
+                near={near}
+                facets={facets}
+                inputClassName={field}
+                autoFocus
+                listTarget={listEl}
+              />
+              {what && (
+                <button
+                  type="button"
+                  aria-label="Clear"
+                  onClick={() => {
+                    setWhat("");
+                    document.getElementById(whatId)?.focus();
+                  }}
+                  className="-mr-1.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-zinc-500"
+                >
+                  <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden="true">
+                    <path d="M18 6l-12 12M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
+            <div className="mx-3.5 h-px bg-line" />
+            <div className={row}>
+              <span className="text-zinc-500">
+                <PinIcon />
+              </span>
+              <label htmlFor={whereId} className="sr-only">
+                Where
+              </label>
+              <LocationInput
+                id={whereId}
+                value={where}
+                onChange={(v) => {
+                  geo.setGeoError(null);
+                  setWhere(v);
+                }}
+                onUseMyLocation={locateMe}
+                locating={geo.locating}
+                near={near}
+                inputClassName={field}
+                hideLocateButton
+              />
+              <button
+                type="button"
+                onClick={locateMe}
+                disabled={geo.locating}
+                aria-label={geo.locating ? "Finding your location…" : "Use my location"}
+                className="-mr-1.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-link disabled:opacity-50"
+              >
+                <LocateIcon />
+              </button>
+            </div>
+          </div>
+          <button type="submit" className="sr-only">
+            Search
+          </button>
+        </form>
+        {(error || geo.geoError) && (
+          <p role="alert" className="px-4 pt-3 text-sm text-red-700">
+            {error || geo.geoError}
+          </p>
+        )}
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <div ref={setListEl} />
+          {/* Nothing typed yet: the four types, with how many are in the area searched. */}
+          {!what.trim() && (
+            <div className="py-1">
+              <p className="px-4 pb-1 pt-3 text-[13px] font-medium text-muted">Kinds of places</p>
+              {TYPE_OPTIONS.filter((t) => t.key !== "all").map((t) => {
+                const n = facets?.types[t.key];
+                return (
+                  <button
+                    key={t.key}
+                    type="button"
+                    onClick={() => void search({ q: "", kind: t.key })}
+                    className="flex min-h-14 w-full items-center gap-3 px-4 py-2 text-left text-[15px]"
+                  >
+                    <span className="flex-1 font-medium text-link">{t.label}</span>
+                    {n !== undefined && <span className="text-[13px] text-muted">{n.toLocaleString("en-US")} nearby</span>}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        <div className="border-t border-line px-4 pb-6 pt-3">
+          <button type="button" onClick={() => void search({ q: what })} className="h-[52px] w-full rounded-xl bg-primary text-base font-medium text-white">
+            Search
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <form
