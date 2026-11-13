@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { HEART_PATH, THUMB_PATH } from "@/components/icons";
 import { TYPE_OPTIONS, typeForPath } from "@/lib/entityTypes";
-import { RADIUS_OPTIONS, type Only, type ResultsQuery, type View } from "@/lib/resultsQuery";
+import type { Only, ResultsQuery, View } from "@/lib/resultsQuery";
 import type { Facets } from "@/lib/searchTypes";
 
 const FLAG_PATH = "M5 5a5 5 0 0 1 7 0a5 5 0 0 0 7 0v9a5 5 0 0 1 -7 0a5 5 0 0 0 -7 0v-9zM5 21v-7";
@@ -130,7 +130,7 @@ function CuisineMenu({ query, facets, kindName, onChange }: Pick<Props, "query" 
 }
 
 // The row of filters above the results: type, cuisine, your places, then sort, distance and
-// view. Counts come from public.search_facets for the same area and name.
+// view. Counts come from public.area_facets for the same area and name.
 export default function FilterBar({ query, facets, signedIn, kindName, onChange, onLocked }: Props) {
   const type = typeForPath(query.kind);
 
@@ -211,8 +211,9 @@ export default function FilterBar({ query, facets, signedIn, kindName, onChange,
   );
 }
 
-// Sort and distance, shown under the result count.
-export function SortAndDistance({ query, onChange }: Pick<Props, "query" | "onChange">) {
+// Sort, shown under the result count. (There is no distance menu: the map area is the search
+// area, build step 3.)
+export function SortMenu({ query, onChange }: Pick<Props, "query" | "onChange">) {
   const select = "h-9 appearance-none bg-transparent pl-0 pr-6 text-sm font-medium text-zinc-950 focus:outline-none";
   return (
     <div className="flex items-center gap-4">
@@ -221,19 +222,6 @@ export function SortAndDistance({ query, onChange }: Pick<Props, "query" | "onCh
         <select value={query.sort} onChange={(e) => onChange({ sort: e.target.value === "az" ? "az" : "nearest" })} className={select}>
           <option value="nearest">Nearest first</option>
           <option value="az">Name A–Z</option>
-        </select>
-        <span className="pointer-events-none absolute right-1 top-2.5">
-          <Icon d="M6 9l6 6l6 -6" color="#141414" size={16} />
-        </span>
-      </label>
-      <label className="relative">
-        <span className="sr-only">How far</span>
-        <select value={query.r} onChange={(e) => onChange({ r: Number(e.target.value) })} className={select}>
-          {RADIUS_OPTIONS.map((r) => (
-            <option key={r} value={r}>
-              Within {r} mi
-            </option>
-          ))}
         </select>
         <span className="pointer-events-none absolute right-1 top-2.5">
           <Icon d="M6 9l6 6l6 -6" color="#141414" size={16} />

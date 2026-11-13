@@ -96,6 +96,23 @@ insert into r select 'max_results respected',
 insert into r select 'max_results above 20 is held to 20',
   (select count(*) <= 20 from suggest_localities('a', null, null, 500));
 
+-- How wide the map opens on a picked place (20261112010000_localities_land_area.sql): a circle
+-- with the place's land area, held between 0.5 and 25 miles; nothing when the area isn't known.
+update localities set land_sq_m = round(25.97 * 2589988.11) where code = '5103000';  -- Arlington, VA: 25.97 sq mi
+update localities set land_sq_m = 20000 where code = '3512150';                      -- a tiny place
+update localities set land_sq_m = round(2500 * 2589988.11) where code = '4804000';   -- 2,500 sq mi
+update localities set land_sq_m = round(6.2 * 2589988.11) where code = '22201';      -- a ZIP area
+insert into r select 'radius: a circle with the land area (Arlington, VA: about 2.9 mi)',
+  (select abs(radius_miles - 2.88) < 0.02 from suggest_localities('arlington va') limit 1);
+insert into r select 'radius: ZIP areas too',
+  (select abs(radius_miles - 1.40) < 0.02 from suggest_localities('22201') limit 1);
+insert into r select 'radius: at least half a mile',
+  (select radius_miles = 0.5 from suggest_localities('canon city') limit 1);
+insert into r select 'radius: at most 25 miles',
+  (select radius_miles = 25 from suggest_localities('arlington tx') limit 1);
+insert into r select 'radius: none when the land area is not loaded',
+  (select radius_miles is null from suggest_localities('albany ny') limit 1);
+
 -- Grants: anyone can ask for suggestions; nobody reads the tables directly through the API.
 insert into r select 'API roles can ask for suggestions, PUBLIC cannot',
   has_function_privilege('anon', 'suggest_localities(text,double precision,double precision,integer)', 'execute')

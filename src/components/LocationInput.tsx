@@ -23,7 +23,12 @@ type Props = {
   placeholder?: string;
 };
 
-type Suggestion = PickedLocation & { kind: "place" | "zip"; detail: string | null };
+// As public.suggest_localities returns it.
+type Suggestion = Omit<PickedLocation, "radiusMiles"> & {
+  kind: "place" | "zip";
+  detail: string | null;
+  radius_miles: number | null;
+};
 
 // Suggestions start after two characters, a short pause after the last keystroke.
 const MIN_CHARS = 2;
@@ -107,6 +112,7 @@ export default function LocationInput({
       lng: suggestion.lng,
       city: suggestion.city,
       state: suggestion.state,
+      radiusMiles: suggestion.radius_miles ?? null,
     });
     setPickedLabel(suggestion.label);
     setActive(-1);
