@@ -8,6 +8,7 @@ import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import SearchForm from "@/components/results/SearchForm";
 import FilterBar, { SortMenu } from "@/components/results/FilterBar";
+import FiltersSheet from "@/components/results/FiltersSheet";
 import ResultRow from "@/components/results/ResultRow";
 import JoinNote from "@/components/results/JoinNote";
 import type { MapMarkerEntity } from "@/components/EntityMap";
@@ -24,15 +25,17 @@ import {
   resultsHref,
   sameBox,
   type Box,
+  type Only,
   type ResultsQuery,
 } from "@/lib/resultsQuery";
+import type { Facets } from "@/lib/searchTypes";
 import { CURRENT_LOCATION_LABEL, getLastSearchArea, setLastSearchArea } from "@/lib/lastSearchCoords";
 import { geocodeLocationText } from "@/lib/locationLookup";
 import { startArea } from "@/lib/searchArea";
 import { fetchIpArea } from "@/lib/ipArea";
 import { pushResults, replaceResults } from "@/lib/resultsNav";
 import { placeIdFromPath, setSheetStart } from "@/lib/placePanel";
-import { topLevelTypeForCategoryPaths, TYPE_OPTIONS } from "@/lib/entityTypes";
+import { topLevelTypeForCategoryPaths, typeForPath, TYPE_OPTIONS } from "@/lib/entityTypes";
 import { useGeolocation } from "@/lib/useGeolocation";
 import { reverseGeocode } from "@/lib/reverseGeocode";
 import { useIsDesktop } from "@/lib/useIsDesktop";
@@ -51,6 +54,14 @@ function RefreshIcon() {
   return (
     <svg viewBox="0 0 24 24" width={16} height={16} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M20 11a8.1 8.1 0 0 0 -15.5 -2m-.5 -4v4h4M4 13a8.1 8.1 0 0 0 15.5 2m.5 4v-4h-4" />
+    </svg>
+  );
+}
+
+function SearchIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width={20} height={20} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M10 10m-7 0a7 7 0 1 0 14 0a7 7 0 1 0 -14 0M21 21l-6 -6" />
     </svg>
   );
 }
@@ -82,6 +93,9 @@ export default function ResultsPage() {
   const supabase = useMemo(() => createClient(), []);
   const [user, setUser] = useState<User | null | undefined>(undefined);
   const [joinOpen, setJoinOpen] = useState(false);
+  // Phone: the full-screen search and the filters sheet.
+  const [searching, setSearching] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [hoverId, setHoverId] = useState<string | null>(null);
   const [locating, setLocating] = useState(false);
   const [placeError, setPlaceError] = useState<string | null>(null);
@@ -239,6 +253,50 @@ export default function ResultsPage() {
 
   const kindName = useCallback((path: string) => names.get(path) ?? path.split(".").pop()!.replace(/_/g, " "), [names]);
 
+  // The filters sheet's counts for choices not made yet: the same area and name.
+  const countFor = useCallback(
+    async (kind: string | null, only: Only[]): Promise<Facets | null> => {
+      if (!area) return null;
+      const { data, error } = await supabase.rpc("area_facets", {
+        west: area.west,
+        south: area.south,
+        east: area.east,
+        north: area.north,
+        type_key: typeForPath(kind),
+        cuisine_path: kind && kind.includes(".") ? kind : null,
+        name_query: query.q.trim() || null,
+        only_favorites: only.includes("favorites"),
+        only_friends: only.includes("friends"),
+        only_want: only.includes("want"),
+        show_hidden: query.hidden,
+      });
+      return error ? null : (data as Facets);
+    },
+    [area, supabase, query.q, query.hidden]
+  );
+
+  // Phone map: it fills the screen below the filters, and the tab bar steps aside for it
+  // (globals.css), so the map has the whole height.
+  const phoneMap = isDesktop === false && !needsArea && showMapOnPhone(query.view);
+  const phoneMapRef = useRef<HTMLDivElement>(null);
+  const [phoneMapTop, setPhoneMapTop] = useState(210);
+  useEffect(() => {
+    if (!phoneMap) return;
+    const root = document.documentElement;
+    root.dataset.fullMap = "1";
+    function measure() {
+      const el = phoneMapRef.current;
+      if (el) setPhoneMapTop(Math.round(el.getBoundingClientRect().top + window.scrollY));
+    }
+    const frame = requestAnimationFrame(measure);
+    window.addEventListener("resize", measure);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("resize", measure);
+      delete root.dataset.fullMap;
+    };
+  }, [phoneMap]);
+
   async function locateMe() {
     const coords = await geo.requestLocation();
     if (!coords) return;
@@ -269,14 +327,42 @@ export default function ResultsPage() {
   const placeWord = (n: number) => (n === 1 ? "place" : "places");
   const whereWords = !query.where || query.where === MAP_AREA_LABEL ? " in this map area" : ` near ${query.where}`;
   const approximate = approxArea !== null && approxArea === areaKey;
+  const closeSearch = useCallback(() => setSearching(false), []);
+
+  // Phone: what's being searched, in one line; tapping it opens the full-screen search.
+  const summaryTitle = query.q ? `“${query.q}”` : query.kind ? kindName(query.kind) : "Search places to eat and drink";
+  const summaryWhere = needsArea
+    ? "Pick a town, or use your location"
+    : !query.where || query.where === MAP_AREA_LABEL
+      ? "Map area"
+      : approximate
+        ? `Around ${query.where}`
+        : `Near ${query.where}`;
+  const phoneSummary = (
+    <div className="border-b border-line px-4 py-3 md:hidden">
+      <button
+        type="button"
+        onClick={() => setSearching(true)}
+        className="flex h-14 w-full items-center gap-3 rounded-full border border-[#dddddd] bg-white px-4 text-left shadow-[0_2px_10px_rgba(0,0,0,0.08)]"
+      >
+        <span className="text-zinc-950">
+          <SearchIcon />
+        </span>
+        <span className="flex min-w-0 flex-col">
+          <span className="truncate text-[15px] font-medium text-zinc-950">{summaryTitle}</span>
+          <span className="truncate text-[13px] text-muted">{summaryWhere}</span>
+        </span>
+        <span className="sr-only">, change search</span>
+      </button>
+      {searching && <SearchForm layout="screen" onClose={closeSearch} />}
+    </div>
+  );
 
   // ------------------------------------------------------------------ no area yet
   if (needsArea) {
     return (
       <main className="flex flex-1 flex-col">
-        <div className="border-b border-line px-4 py-3 md:hidden">
-          <SearchForm layout="stacked" />
-        </div>
+        {phoneSummary}
         <section className="mx-auto flex w-full max-w-xl flex-1 flex-col gap-6 px-6 py-12">
           <h1 className="text-3xl font-medium leading-tight tracking-tight text-zinc-950">
             Every place to eat and drink. Nothing paid to the top.
@@ -451,25 +537,37 @@ export default function ResultsPage() {
 
   return (
     <main className="flex flex-1 flex-col">
-      <div className="border-b border-line px-4 py-3 md:hidden">
-        <SearchForm layout="stacked" />
-      </div>
+      {phoneSummary}
       <div data-place-panel-top>
-      <FilterBar
-        query={query}
-        facets={search.facets}
-        signedIn={Boolean(userId)}
-        kindName={kindName}
-        onChange={update}
-        onLocked={() => setJoinOpen(true)}
-      />
+        <FilterBar
+          query={query}
+          facets={search.facets}
+          signedIn={Boolean(userId)}
+          kindName={kindName}
+          onChange={update}
+          onLocked={() => setJoinOpen(true)}
+          onOpenFilters={isDesktop === false ? () => setFiltersOpen(true) : undefined}
+        />
       </div>
+      {filtersOpen && (
+        <FiltersSheet
+          query={query}
+          facets={search.facets}
+          signedIn={Boolean(userId)}
+          countFor={countFor}
+          onApply={update}
+          onLocked={() => setJoinOpen(true)}
+          onClose={() => setFiltersOpen(false)}
+        />
+      )}
 
       {/* Phone: one view at a time, with a button to switch. */}
       {isDesktop === false && (
         <div>
-          {showMapOnPhone(query.view) ? (
-            map("h-[calc(100dvh-230px)] w-full", null)
+          {phoneMap ? (
+            <div ref={phoneMapRef} style={{ height: `calc(100dvh - ${phoneMapTop}px)` }}>
+              {map("h-full w-full", null)}
+            </div>
           ) : (
             <>
               {header}
@@ -479,7 +577,7 @@ export default function ResultsPage() {
           <button
             type="button"
             onClick={() => update({ view: showMapOnPhone(query.view) ? "list" : "map" })}
-            className="fixed bottom-[92px] left-1/2 z-10 inline-flex h-12 -translate-x-1/2 items-center gap-2 rounded-full bg-primary px-5 text-[15px] font-medium text-white shadow-[0_4px_14px_rgba(0,0,0,0.25)]"
+            className={`fixed ${phoneMap || !userId ? "bottom-6" : "bottom-[92px]"} left-1/2 z-10 inline-flex h-12 -translate-x-1/2 items-center gap-2 rounded-full bg-primary px-5 text-[15px] font-medium text-white shadow-[0_4px_14px_rgba(0,0,0,0.25)]`}
           >
             {showMapOnPhone(query.view) ? <ListIcon /> : <MapIcon />}
             {showMapOnPhone(query.view) ? "List" : "Map"}

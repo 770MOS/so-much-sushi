@@ -47,7 +47,7 @@ export default function Footer() {
   return (
     // Until it's known whether someone is signed in, the phone gets no footer, so
     // members never see it flash up and disappear.
-    <footer className={`w-full border-t border-line bg-white ${signedIn === false ? "" : "hidden md:block"}`}>
+    <footer data-site-footer className={`w-full border-t border-line bg-white ${signedIn === false ? "" : "hidden md:block"}`}>
       <div className="mx-auto flex max-w-6xl flex-col gap-8 px-6 py-10">
         <div className="flex flex-wrap gap-x-12 gap-y-8">
           <div className="flex min-w-[200px] flex-1 flex-col gap-2">

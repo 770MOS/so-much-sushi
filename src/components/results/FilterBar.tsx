@@ -41,6 +41,8 @@ type Props = {
   kindName: (path: string) => string;
   onChange: (patch: Partial<ResultsQuery>) => void;
   onLocked: () => void;
+  // Phone: opens the filters sheet.
+  onOpenFilters?: () => void;
 };
 
 function CuisineMenu({ query, facets, kindName, onChange }: Pick<Props, "query" | "facets" | "kindName" | "onChange">) {
@@ -131,8 +133,11 @@ function CuisineMenu({ query, facets, kindName, onChange }: Pick<Props, "query" 
 
 // The row of filters above the results: type, cuisine, your places, then sort, distance and
 // view. Counts come from public.area_facets for the same area and name.
-export default function FilterBar({ query, facets, signedIn, kindName, onChange, onLocked }: Props) {
+export default function FilterBar({ query, facets, signedIn, kindName, onChange, onLocked, onOpenFilters }: Props) {
   const type = typeForPath(query.kind);
+  const cuisine = query.kind && query.kind.includes(".") ? query.kind : null;
+  // A cuisine counts once: it is a type too.
+  const active = (query.kind ? 1 : 0) + (signedIn ? query.only.length : 0);
 
   function toggleOnly(key: Only) {
     if (!signedIn) {
@@ -148,6 +153,15 @@ export default function FilterBar({ query, facets, signedIn, kindName, onChange,
       {/* On a phone the chips scroll sideways in one line; on a computer they wrap, with the
           view switch at the end of the last line. */}
       <div className="-mx-4 flex items-center gap-2 overflow-x-auto px-4 pb-0.5 md:contents">
+        {onOpenFilters && (
+          <button type="button" onClick={onOpenFilters} className={`${active ? chipOn : chipOff} md:hidden`} aria-label={active ? `Filters, ${active} on` : "Filters"}>
+            <Icon d="M4 6h8M16 6h4M4 12h2M10 12h10M4 18h11M19 18h1M14 4v4M8 10v4M17 16v4" color="currentColor" size={17} />
+            Filters
+            {active > 0 && (
+              <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-white px-1 text-xs font-medium text-zinc-950">{active}</span>
+            )}
+          </button>
+        )}
         <div role="group" aria-label="Type of place" className="flex gap-2">
           {TYPE_OPTIONS.map((t) => {
             const on = t.key === "all" ? !type : type === t.key;
@@ -165,7 +179,24 @@ export default function FilterBar({ query, facets, signedIn, kindName, onChange,
             );
           })}
         </div>
-        <CuisineMenu query={query} facets={facets} kindName={kindName} onChange={onChange} />
+        {/* On a phone the cuisine choice is in the filters sheet, where a list has room. */}
+        <div className={onOpenFilters ? "hidden md:contents" : "contents"}>
+          <CuisineMenu query={query} facets={facets} kindName={kindName} onChange={onChange} />
+        </div>
+        {onOpenFilters && type && (
+          <button
+            type="button"
+            onClick={onOpenFilters}
+            className={
+              cuisine
+                ? `${chipBase} border-[1.5px] border-link bg-[#eef2fb] pr-3 text-link md:hidden`
+                : `${chipOff} pr-3 md:hidden`
+            }
+          >
+            {cuisine ? kindName(cuisine) : "Cuisine"}
+            <Icon d="M6 9l6 6l6 -6" color="currentColor" size={16} />
+          </button>
+        )}
         <span aria-hidden="true" className="mx-1 h-6 w-px shrink-0 bg-[#dddddd]" />
         <div role="group" aria-label="Your places" className="flex gap-2">
           {STATUS.map((s) => {
