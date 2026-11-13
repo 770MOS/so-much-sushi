@@ -8,11 +8,13 @@ export function getMapStyleUrl(): string {
   if (!MAPTILER_API_KEY) {
     throw new Error("NEXT_PUBLIC_MAPTILER_API_KEY is not set");
   }
-  // MapTiler's "Streets" style, v4, in its light variant (2026-11-12): the
-  // same streets and labels as Streets, in paler colours that sit behind our
-  // own pins and match the site's white look. v4 is the current version and
-  // isn't a floating alias, so it won't change out from under us silently.
-  return `https://api.maptiler.com/maps/streets-v4-light/style.json?key=${MAPTILER_API_KEY}`;
+  // MapTiler's "Base" style, v4, light variant (2026-11-13): pale grey
+  // streets with street and neighbourhood names, and no shop, petrol-station
+  // or restaurant icons of its own, so nothing competes with our pins and it
+  // matches the site's white look. v4 is MapTiler's current generation and a
+  // fixed ID, so it won't change under us. (Streets v4 has no light variant -
+  // "streets-v4-light" returns 404 - and "streets-v2-light" is deprecated.)
+  return `https://api.maptiler.com/maps/base-v4-light/style.json?key=${MAPTILER_API_KEY}`;
 }
 
 export const DEFAULT_MAP_CENTER: [number, number] = [-77.1, 38.88]; // [lng, lat]
