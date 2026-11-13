@@ -336,6 +336,18 @@ GRANT EXECUTE ON FUNCTION suggest_localities(text, double precision, double prec
   TO anon, authenticated, service_role;
 
 -- =============================================================================
+-- Favorites, Lists and one list (20261113010000_favorites_and_lists.sql).
+--   list_page is open to visitors (public lists); my_favorites and
+--   lists_overview return nothing without a session. person_name,
+--   places_for_viewer and the Want to try trigger functions are internal.
+-- =============================================================================
+REVOKE EXECUTE ON FUNCTION my_favorites(), list_page(uuid), lists_overview(double precision, double precision) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION my_favorites(), list_page(uuid), lists_overview(double precision, double precision)
+  TO anon, authenticated, service_role;
+REVOKE EXECUTE ON FUNCTION person_name(text, text, text, text, boolean), places_for_viewer(uuid, uuid[]),
+  create_want_list(), lists_keep_want_to_try() FROM PUBLIC, anon, authenticated;
+
+-- =============================================================================
 -- Explicitly out of scope: NocoDB's own internal tables
 -- =============================================================================
 -- notification, workspace, workspace_user, xc_knex_migrationsv0,

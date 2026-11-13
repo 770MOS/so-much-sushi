@@ -46,11 +46,20 @@ export default async function sitemap({
 
   if (error || !data) return [];
 
-  return data.map((entity) => ({
-    url: `${SITE_URL}/venue/${entity.id}`,
-    // last_verified is null for every entity today (never backfilled) -
-    // omitted rather than guessing a date, per the same "don't guess"
-    // principle the venue page's hours fallback follows.
-    lastModified: entity.last_verified ? new Date(entity.last_verified) : undefined,
-  }));
+  // Public lists are open to search engines (decided 2026-11-12); they go in the first chunk.
+  const lists =
+    chunkIndex === 0
+      ? ((await supabase.from("lists").select("id").eq("visibility", "public").order("id").limit(5000)).data ?? [])
+      : [];
+
+  return [
+    ...lists.map((list) => ({ url: `${SITE_URL}/lists/${list.id}` })),
+    ...data.map((entity) => ({
+      url: `${SITE_URL}/venue/${entity.id}`,
+      // last_verified is null for every entity today (never backfilled) -
+      // omitted rather than guessing a date, per the same "don't guess"
+      // principle the venue page's hours fallback follows.
+      lastModified: entity.last_verified ? new Date(entity.last_verified) : undefined,
+    })),
+  ];
 }

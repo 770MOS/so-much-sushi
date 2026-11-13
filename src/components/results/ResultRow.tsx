@@ -50,7 +50,7 @@ export function friendsLabel(by: Recommender[] | null, count: number): ReactNode
 }
 
 // The kind shown under a name: its finer kinds if it has any ("Italian, Pizza"), else its type.
-export function kindLabel(r: SearchResult): string {
+export function kindLabel(r: { categories: string[] | null }): string {
   const cats = r.categories ?? [];
   const finer = cats.slice(1, 3);
   return finer.length ? finer.join(", ") : cats[0] ?? "";

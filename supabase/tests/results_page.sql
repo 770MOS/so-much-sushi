@@ -41,8 +41,10 @@ create function pid(n text) returns uuid language sql as $$ select id from entit
 -- u1: hides Hidden Gem, favorites Alpha Pizza, keeps Daily Grind on the ready-made list.
 insert into hidden_entities(user_id, entity_id) values ('11111111-1111-1111-1111-111111111111', pid('Hidden Gem'));
 insert into stars(user_id, entity_id) values ('11111111-1111-1111-1111-111111111111', pid('Alpha Pizza'));
+-- Want to try comes with the account (20261113010000_favorites_and_lists.sql); give it a known id.
+update lists set id = 'aaaaaaaa-0000-0000-0000-000000000001'
+where owner_id = '11111111-1111-1111-1111-111111111111' and is_default_list;
 insert into lists(id, owner_id, name, is_default_list) values
-  ('aaaaaaaa-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', 'Want to try', true),
   ('aaaaaaaa-0000-0000-0000-000000000002', '11111111-1111-1111-1111-111111111111', 'Date night', false);
 insert into list_items(list_id, entity_id) values
   ('aaaaaaaa-0000-0000-0000-000000000001', pid('Daily Grind Coffee')),
