@@ -3,13 +3,15 @@
 import { useSyncExternalStore } from "react";
 import type { Coords } from "@/lib/lastSearchCoords";
 import type { Facets } from "@/lib/searchTypes";
+import type { ResultsQuery } from "@/lib/resultsQuery";
 
 // What the results page has worked out, shared with the header's search boxes: the point it
 // searched around (so suggestions start nearby) and the filter counts (so a suggested kind
-// can say "12 nearby" without counting the area again). In memory only.
-type ResultsState = { origin: Coords | null; facets: Facets | null };
+// can say "12 nearby" without counting the area again), and its search while it's showing,
+// so the boxes keep showing it while a place panel is open over the page. In memory only.
+type ResultsState = { origin: Coords | null; facets: Facets | null; query: ResultsQuery | null };
 
-const EMPTY: ResultsState = { origin: null, facets: null };
+const EMPTY: ResultsState = { origin: null, facets: null, query: null };
 let state: ResultsState = EMPTY;
 const listeners = new Set<() => void>();
 

@@ -1,26 +1,11 @@
-import { notFound } from "next/navigation";
-import { getEntityDetail } from "@/lib/getEntityDetail";
-import VenueDetail from "@/components/VenueDetail";
-import VenueModal from "@/components/VenueModal";
+import { getPlaceDetail } from "@/lib/getPlaceDetail";
+import PlacePanel from "@/components/place/PlacePanel";
 
-// Intercepts client-side navigation to /venue/[id] (from search results,
-// map popups, or list rows) and renders the same content as a modal
-// instead of a full page transition - the URL still genuinely updates to
-// /venue/[id], scroll position/state on the page behind it is preserved.
-// A hard navigation (typed URL, shared link, refresh) never hits this file
-// at all; it goes straight to ../../../venue/[id]/page.tsx.
-export default async function InterceptedVenuePage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+// Opening a place from a page in the app (a result, a map pin, a list row) lands here instead
+// of on the full page: the address still changes to /venue/<id>, and the page behind stays as
+// it was. Typing or sharing the link, or reloading, goes to ../../../venue/[id]/page.tsx.
+export default async function PlacePanelRoute({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const entity = await getEntityDetail(id);
-  if (!entity) notFound();
-
-  return (
-    <VenueModal>
-      <VenueDetail entity={entity} />
-    </VenueModal>
-  );
+  const place = await getPlaceDetail(id);
+  return <PlacePanel place={place ?? "missing"} />;
 }

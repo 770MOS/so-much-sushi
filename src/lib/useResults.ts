@@ -6,6 +6,7 @@ import { setLastSearchCoords } from "@/lib/lastSearchCoords";
 import { typeForPath } from "@/lib/entityTypes";
 import type { AreaCell, Facets, SearchResult } from "@/lib/searchTypes";
 import type { Box, Only } from "@/lib/resultsQuery";
+import { announceMark, useMarkChanges } from "@/lib/placeMarks";
 
 export type ResultsArgs = {
   lat: number;
@@ -118,6 +119,25 @@ export function useResults(userId: string | null, args: ResultsArgs | null, want
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [needCells, key, supabase]);
 
+  // A heart or Want to try changed in a place panel: the list and map follow.
+  useMarkChanges((change) => {
+    if (change.from === "results") return;
+    if (change.starred !== undefined && starredIds.has(change.id) !== change.starred) {
+      const on = change.starred;
+      setStarredIds((prev) => {
+        const next = new Set(prev);
+        if (on) next.add(change.id);
+        else next.delete(change.id);
+        return next;
+      });
+      setFacets((f) => (f ? { ...f, favorites: Math.max(0, f.favorites + (on ? 1 : -1)) } : f));
+    }
+    if (change.want !== undefined) {
+      const want = change.want;
+      setResults((rows) => rows?.map((r) => (r.id === change.id ? { ...r, is_want: want } : r)) ?? rows);
+    }
+  });
+
   async function toggleStar(entityId: string) {
     if (!userId) return;
     const on = starredIds.has(entityId);
@@ -132,6 +152,7 @@ export function useResults(userId: string | null, args: ResultsArgs | null, want
       return next;
     });
     setFacets((f) => (f ? { ...f, favorites: Math.max(0, f.favorites + (on ? -1 : 1)) } : f));
+    announceMark({ id: entityId, starred: !on, from: "results" });
   }
 
   async function toggleHide(entityId: string) {

@@ -24,3 +24,20 @@ export function useSignedIn(): boolean | undefined {
 
   return signedIn;
 }
+
+// The signed-in person's id, from the same session: null for a visitor, undefined until known.
+export function useUserId(): string | null | undefined {
+  const supabase = useMemo(() => createClient(), []);
+  const [id, setId] = useState<string | null | undefined>(undefined);
+
+  useEffect(() => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setId(session?.user?.id ?? null);
+    });
+    return () => subscription.unsubscribe();
+  }, [supabase]);
+
+  return id;
+}

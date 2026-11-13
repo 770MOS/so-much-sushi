@@ -111,13 +111,16 @@ type Props = {
   onLocked: () => void;
   onHover?: (id: string | null) => void;
   highlighted?: boolean;
+  selected?: boolean; // its place panel is open
+  onOpen?: (id: string) => void; // open its place panel (else the link navigates)
 };
 
-export default function ResultRow({ r, card, starred, hidden, userId, onToggleStar, onToggleHide, onLocked, onHover, highlighted }: Props) {
+export default function ResultRow({ r, card, starred, hidden, userId, onToggleStar, onToggleHide, onLocked, onHover, highlighted, selected, onOpen }: Props) {
   const friends = friendsLabel(r.recommended_by, r.recommended_count);
   const kind = kindLabel(r);
   return (
     <li
+      data-place-id={r.id}
       onMouseEnter={() => onHover?.(r.id)}
       onMouseLeave={() => onHover?.(null)}
       className={`flex items-center gap-1 ${
@@ -126,7 +129,17 @@ export default function ResultRow({ r, card, starred, hidden, userId, onToggleSt
     >
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <div className="flex items-baseline justify-between gap-3">
-          <Link href={`/venue/${r.id}`} className="truncate text-base font-medium text-zinc-950 hover:underline">
+          <Link
+            href={`/venue/${r.id}`}
+            aria-current={selected ? "true" : undefined}
+            onClick={(e) => {
+              // A plain click opens the panel here; a new tab or window still gets the page.
+              if (!onOpen || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+              e.preventDefault();
+              onOpen(r.id);
+            }}
+            className="truncate text-base font-medium text-zinc-950 hover:underline"
+          >
             {r.name}
           </Link>
           <span className="shrink-0 text-sm text-muted">{Number(r.miles).toFixed(1)} mi</span>
