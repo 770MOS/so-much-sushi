@@ -11,6 +11,8 @@ export type SearchResult = {
   lng: number;
   is_starred: boolean;
   is_hidden: boolean;
+  // On the person's ready-made Want to try list (search_places only).
+  is_want?: boolean;
   recommended_by: Recommender[] | null;
   recommended_count: number;
   status: string;
@@ -23,3 +25,13 @@ export type SearchResult = {
 
 export type SortMode = "nearest" | "az";
 export type ViewMode = "list" | "map";
+
+// The counts on the results page's filter buttons (public.search_facets).
+export type Facets = {
+  types: Partial<Record<"all" | "restaurants" | "drinks" | "coffee" | "markets", number>>;
+  cuisines: { path: string; name: string; n: number }[];
+  favorites: number;
+  friends: number;
+  want: number;
+  hidden: number;
+};

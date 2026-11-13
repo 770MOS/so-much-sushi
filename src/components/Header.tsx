@@ -1,20 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import AccountMenu from "@/components/AccountMenu";
+import SearchForm from "@/components/results/SearchForm";
 import { sectionForPath, type Section } from "@/components/nav";
-import {
-  DiscoverNavIcon,
-  FavoritesNavIcon,
-  FriendsNavIcon,
-  ListsNavIcon,
-  LogoMark,
-  SearchNavIcon,
-} from "@/components/icons";
+import { FavoritesNavIcon, FriendsNavIcon, ListsNavIcon, LogoMark } from "@/components/icons";
 
 type Profile = {
   display_name: string | null;
@@ -23,16 +17,13 @@ type Profile = {
   avatar_url: string | null;
 };
 
-type NavLink = { href: string; label: string; section: Section; Icon: () => React.ReactElement; membersOnly: boolean };
+type NavLink = { href: string; label: string; section: Section; Icon: () => React.ReactElement };
 
-// Search and Discover become one results page with the search boxes in the
-// header in the next step; until then both stay one click away.
+// Members' places. Searching is the What and Where boxes beside the logo.
 const NAV: NavLink[] = [
-  { href: "/", label: "Search", section: "search", Icon: SearchNavIcon, membersOnly: false },
-  { href: "/discover", label: "Discover", section: "discover", Icon: DiscoverNavIcon, membersOnly: false },
-  { href: "/favorites", label: "Favorites", section: "favorites", Icon: FavoritesNavIcon, membersOnly: true },
-  { href: "/lists", label: "Lists", section: "lists", Icon: ListsNavIcon, membersOnly: true },
-  { href: "/friends", label: "Friends", section: "friends", Icon: FriendsNavIcon, membersOnly: true },
+  { href: "/favorites", label: "Favorites", section: "favorites", Icon: FavoritesNavIcon },
+  { href: "/lists", label: "Lists", section: "lists", Icon: ListsNavIcon },
+  { href: "/friends", label: "Friends", section: "friends", Icon: FriendsNavIcon },
 ];
 
 export default function Header() {
@@ -71,7 +62,7 @@ export default function Header() {
   if (pathname.startsWith("/admin")) return null;
 
   const current = sectionForPath(pathname);
-  const links = NAV.filter((l) => !l.membersOnly || user);
+  const links = user ? NAV : [];
 
   return (
     <header className="w-full border-b border-line bg-white">
@@ -80,6 +71,13 @@ export default function Header() {
           <LogoMark />
           <span className="whitespace-nowrap text-lg font-medium tracking-tight">So Much Sushi</span>
         </Link>
+
+        {/* On a phone the search boxes sit at the top of the results page instead. */}
+        <div className="hidden min-w-0 max-w-[720px] flex-1 md:flex">
+          <Suspense fallback={null}>
+            <SearchForm layout="bar" />
+          </Suspense>
+        </div>
 
         {/* On a phone, members get the tab bar at the bottom instead. */}
         <nav aria-label="Main" className="ml-auto hidden items-center gap-0.5 md:flex">

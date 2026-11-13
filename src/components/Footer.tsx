@@ -12,7 +12,6 @@ const COLUMNS: { title: string; soon?: boolean; items: Item[] }[] = [
     title: "Explore",
     items: [
       { label: "Search", href: "/" },
-      { label: "Browse by type", href: "/discover" },
       { label: "Lists", href: "/lists" },
       { label: "Request a place", href: "/request" },
     ],

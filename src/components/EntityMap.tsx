@@ -18,6 +18,8 @@ export type MapMarkerEntity = {
   matchesFilter: boolean;
   isStarred: boolean;
   recommendedCount: number;
+  // On the person's ready-made Want to try list.
+  isWant?: boolean;
   status?: string;
   // Which of the 5 marker-icon shapes this pin gets - see
   // src/lib/entityTypes.ts's topLevelTypeForCategoryPaths. Purely about
@@ -40,6 +42,10 @@ type Props = {
   onBoundsChange?: (bounds: MapBounds) => void;
   onToggleStar?: (id: string) => void;
   className?: string;
+  // The map fits itself to the places once; a new fitKey (a new search) fits it again.
+  fitKey?: string;
+  // A place to draw larger, e.g. the list row under the pointer.
+  highlightId?: string | null;
 };
 
 // Shared with the heart icon/pin coloring below, so the popup's heart button,
@@ -147,6 +153,37 @@ function pinImageSvg(entityType: Exclude<EntityType, "all"> | null, color: strin
   </svg>`;
 }
 
+// Places with a status of the person's own get a round marker with its icon in place of the
+// pin (decided 2026-11-11): a rose heart for their favorites, a green thumbs up for friends'
+// favorites, a blue flag for Want to try. One per place, in that order of priority.
+type Mark = "fav" | "friend" | "want";
+const MARK_SIZE = 32;
+const MARKS: Record<Mark, { fill: string; path: string; iconFill: string }> = {
+  fav: { fill: STARRED_COLOR, path: STAR_ICON_PATH, iconFill: "#ffffff" },
+  friend: {
+    fill: RECOMMENDED_COLOR,
+    path: "M7 11v8a1 1 0 0 1 -1 1h-2a1 1 0 0 1 -1 -1v-7a1 1 0 0 1 1 -1h3a4 4 0 0 0 4 -4v-1a2 2 0 0 1 4 0v5h3a2 2 0 0 1 2 2l-1 5a2 3 0 0 1 -2 2h-7a3 3 0 0 1 -3 -3",
+    iconFill: "none",
+  },
+  want: { fill: "#3b5bdb", path: "M5 5a5 5 0 0 1 7 0a5 5 0 0 0 7 0v9a5 5 0 0 1 -7 0a5 5 0 0 0 -7 0v-9zM5 21v-7", iconFill: "none" },
+};
+
+function markFor(entity: MapMarkerEntity): Mark | null {
+  if (entity.isStarred) return "fav";
+  if (entity.recommendedCount > 0) return "friend";
+  if (entity.isWant) return "want";
+  return null;
+}
+
+function markImageSvg(mark: Mark): string {
+  const { fill, path, iconFill } = MARKS[mark];
+  const s = MARK_SIZE;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${s * IMAGE_SCALE}" height="${s * IMAGE_SCALE}" viewBox="0 0 ${s} ${s}">
+    <circle cx="16" cy="16" r="14.75" fill="${fill}" stroke="white" stroke-width="2.5"/>
+    <g transform="translate(7.5,7.5) scale(0.7083)" fill="${iconFill}" stroke="white" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="${path}"/></g>
+  </svg>`;
+}
+
 function loadSvgImage(svg: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const image = new Image(IMAGE_WIDTH * IMAGE_SCALE, IMAGE_HEIGHT * IMAGE_SCALE);
@@ -158,19 +195,30 @@ function loadSvgImage(svg: string): Promise<HTMLImageElement> {
 
 async function addPinImages(map: maplibregl.Map, isCancelled: () => boolean) {
   const jobs: Promise<void>[] = [];
+  for (const mark of Object.keys(MARKS) as Mark[]) {
+    const id = `sms-mark-${mark}`;
+    if (map.hasImage(id)) continue;
+    const image = new Image(MARK_SIZE * IMAGE_SCALE, MARK_SIZE * IMAGE_SCALE);
+    jobs.push(
+      new Promise<void>((resolve, reject) => {
+        image.onload = () => {
+          if (!isCancelled() && !map.hasImage(id)) map.addImage(id, image, { pixelRatio: IMAGE_SCALE });
+          resolve();
+        };
+        image.onerror = reject;
+        image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(markImageSvg(mark))}`;
+      })
+    );
+  }
+  // Plain places only: places with a status get a round marker instead.
   for (const entityType of PIN_TYPES) {
-    for (const starred of [false, true]) {
-      for (const recommended of [false, true]) {
-        const id = pinImageId(entityType, starred, recommended);
-        if (map.hasImage(id)) continue;
-        const color = starred ? STARRED_COLOR : UNSTARRED_COLOR;
-        jobs.push(
-          loadSvgImage(pinImageSvg(entityType, color, recommended)).then((image) => {
-            if (!isCancelled() && !map.hasImage(id)) map.addImage(id, image, { pixelRatio: IMAGE_SCALE });
-          })
-        );
-      }
-    }
+    const id = pinImageId(entityType, false, false);
+    if (map.hasImage(id)) continue;
+    jobs.push(
+      loadSvgImage(pinImageSvg(entityType, UNSTARRED_COLOR, false)).then((image) => {
+        if (!isCancelled() && !map.hasImage(id)) map.addImage(id, image, { pixelRatio: IMAGE_SCALE });
+      })
+    );
   }
   await Promise.all(jobs);
 }
@@ -181,15 +229,19 @@ function toFeatureCollection(entities: MapMarkerEntity[]): GeoJSON.FeatureCollec
     features: entities.map((entity) => {
       const filterOpacity = entity.matchesFilter ? 1 : 0.25;
       const statusOpacity = entity.status && entity.status !== "active" ? 0.55 : 1;
+      const mark = markFor(entity);
       return {
         type: "Feature",
         geometry: { type: "Point", coordinates: [entity.lng, entity.lat] },
         properties: {
           id: entity.id,
-          icon: pinImageId(entity.entityType, entity.isStarred, entity.recommendedCount > 0),
+          icon: mark ? `sms-mark-${mark}` : pinImageId(entity.entityType, false, false),
+          // A pin points at the place with its tip; a round marker sits centred on it.
+          anchor: mark ? "center" : "bottom",
+          offset: mark ? [0, 0] : ICON_OFFSET,
           opacity: filterOpacity * statusOpacity,
-          // Starred, then recommended, pins draw on top where pins overlap.
-          sortKey: entity.isStarred ? 2 : entity.recommendedCount > 0 ? 1 : 0,
+          // Status markers draw above plain pins: favorites, then friends', then Want to try.
+          sortKey: mark === "fav" ? 3 : mark === "friend" ? 2 : mark === "want" ? 1 : 0,
         },
       };
     }),
@@ -281,7 +333,7 @@ function createPopupContent(entity: MapMarkerEntity): {
   return { element: container, starButton, nameLink };
 }
 
-export default function EntityMap({ entities, jumpTo, onBoundsChange, onToggleStar, className }: Props) {
+export default function EntityMap({ entities, jumpTo, onBoundsChange, onToggleStar, className, fitKey, highlightId }: Props) {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -290,7 +342,9 @@ export default function EntityMap({ entities, jumpTo, onBoundsChange, onToggleSt
   const entitiesRef = useRef(entities);
   const entityByIdRef = useRef<Map<string, MapMarkerEntity>>(new Map());
   const popupRef = useRef<{ id: string; popup: maplibregl.Popup; starButton: HTMLButtonElement } | null>(null);
-  const initialFitDoneRef = useRef(false);
+  // The fitKey the map last fitted itself to (undefined: not fitted yet).
+  const fittedKeyRef = useRef<string | undefined>(undefined);
+  const highlightRef = useRef<string | null>(highlightId ?? null);
   const routerRef = useRef(router);
   const onBoundsChangeRef = useRef(onBoundsChange);
   const onToggleStarRef = useRef(onToggleStar);
@@ -316,7 +370,7 @@ export default function EntityMap({ entities, jumpTo, onBoundsChange, onToggleSt
     let cancelled = false;
     layerReadyRef.current = false;
     popupRef.current = null;
-    initialFitDoneRef.current = false;
+    fittedKeyRef.current = undefined;
 
     const map = new maplibregl.Map({
       container: containerRef.current,
@@ -354,7 +408,7 @@ export default function EntityMap({ entities, jumpTo, onBoundsChange, onToggleSt
         routerRef.current.push(`/venue/${entity.id}`);
       });
 
-      const popup = new maplibregl.Popup({ offset: POPUP_OFFSET })
+      const popup = new maplibregl.Popup({ offset: markFor(entity) ? MARK_SIZE / 2 : POPUP_OFFSET })
         .setLngLat([entity.lng, entity.lat])
         .setDOMContent(element)
         .addTo(map);
@@ -379,8 +433,9 @@ export default function EntityMap({ entities, jumpTo, onBoundsChange, onToggleSt
         source: SOURCE_ID,
         layout: {
           "icon-image": ["get", "icon"],
-          "icon-anchor": "bottom",
-          "icon-offset": ICON_OFFSET,
+          "icon-anchor": ["get", "anchor"],
+          "icon-offset": ["get", "offset"],
+          "icon-size": ["case", ["==", ["get", "id"], highlightRef.current ?? ""], 1.3, 1],
           // Every pin is shown, even where pins overlap, as with the old markers.
           "icon-allow-overlap": true,
           "icon-ignore-placement": true,
@@ -407,8 +462,14 @@ export default function EntityMap({ entities, jumpTo, onBoundsChange, onToggleSt
 
     mapRef.current = map;
 
+    // The box can change size after the map starts (a sticky column, the phone's List/Map
+    // switch, the window): redraw to fit instead of leaving a blank strip.
+    const resizeObserver = new ResizeObserver(() => map.resize());
+    resizeObserver.observe(containerRef.current);
+
     return () => {
       cancelled = true;
+      resizeObserver.disconnect();
       layerReadyRef.current = false;
       popupRef.current = null;
       map.remove();
@@ -437,18 +498,29 @@ export default function EntityMap({ entities, jumpTo, onBoundsChange, onToggleSt
       else open.popup.remove();
     }
 
-    if (entities.length > 0 && !initialFitDoneRef.current) {
+    const key = fitKey ?? "once";
+    if (entities.length > 0 && fittedKeyRef.current !== key) {
       const bounds = new maplibregl.LngLatBounds();
       for (const entity of entities) bounds.extend([entity.lng, entity.lat]);
       // Extra room at the top: pins stand above the point they mark.
-      map.fitBounds(bounds, {
+      // Worked out with padding, then moved to without it: passing padding to fitBounds keeps
+      // it on the map afterwards, which shifts every later move and left part of a tall map
+      // (a phone's) unpainted.
+      const camera = map.cameraForBounds(bounds, {
         padding: { top: 40 + IMAGE_HEIGHT, bottom: 40, left: 40, right: 40 },
         maxZoom: 15,
-        duration: 0,
       });
-      initialFitDoneRef.current = true;
+      if (camera) map.jumpTo({ center: camera.center, zoom: camera.zoom });
+      fittedKeyRef.current = key;
     }
-  }, [entities]);
+  }, [entities, fitKey]);
+
+  useEffect(() => {
+    highlightRef.current = highlightId ?? null;
+    const map = mapRef.current;
+    if (!map || !layerReadyRef.current) return;
+    map.setLayoutProperty(LAYER_ID, "icon-size", ["case", ["==", ["get", "id"], highlightId ?? ""], 1.3, 1]);
+  }, [highlightId]);
 
   useEffect(() => {
     if (jumpTo && mapRef.current) {

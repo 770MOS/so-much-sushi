@@ -8,6 +8,10 @@ const nextConfig: NextConfig = {
     return [
       { source: "/starred", destination: "/favorites", permanent: false },
       { source: "/connections", destination: "/friends", permanent: false },
+      // Search, Discover and Recommended became the one results page (2026-11-12).
+      { source: "/search", destination: "/", permanent: false },
+      { source: "/discover", destination: "/", permanent: false },
+      { source: "/recommended", destination: "/?only=friends", permanent: false },
     ];
   },
 };

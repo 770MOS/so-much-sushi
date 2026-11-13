@@ -16,6 +16,11 @@ type Props = {
   // Where the person's map is, so nearby places are suggested first. Defaults to this
   // session's last search position.
   near?: Coords | null;
+  // For a box drawn inside another frame (the header's search bar): replaces the input's own
+  // border and padding, and leaves out the separate "Use my location" button.
+  inputClassName?: string;
+  hideLocateButton?: boolean;
+  placeholder?: string;
 };
 
 type Suggestion = PickedLocation & { kind: "place" | "zip"; detail: string | null };
@@ -25,7 +30,17 @@ const MIN_CHARS = 2;
 const DEBOUNCE_MS = 150;
 const MAX_SUGGESTIONS = 8;
 
-export default function LocationInput({ id, value, onChange, onUseMyLocation, locating, near }: Props) {
+export default function LocationInput({
+  id,
+  value,
+  onChange,
+  onUseMyLocation,
+  locating,
+  near,
+  inputClassName,
+  hideLocateButton,
+  placeholder = "City, town or ZIP code",
+}: Props) {
   const supabase = useMemo(() => createClient(), []);
   const listId = useId();
   const [focused, setFocused] = useState(false);
@@ -120,7 +135,7 @@ export default function LocationInput({ id, value, onChange, onUseMyLocation, lo
   const optionId = (i: number) => `${listId}-option-${i}`;
 
   return (
-    <div ref={containerRef} onBlur={handleContainerBlur} className="flex gap-2">
+    <div ref={containerRef} onBlur={handleContainerBlur} className="flex min-w-0 flex-1 gap-2">
       <div className="relative w-full">
         {/* type="search" with no address-like id or wording: Safari otherwise takes this
             for an address form and offers to fill in the person's contact card. */}
@@ -132,7 +147,7 @@ export default function LocationInput({ id, value, onChange, onUseMyLocation, lo
           aria-controls={listId}
           aria-autocomplete="list"
           aria-activedescendant={active >= 0 ? optionId(active) : undefined}
-          placeholder="City, town or ZIP code"
+          placeholder={placeholder}
           value={value}
           autoComplete="off"
           autoCorrect="off"
@@ -145,7 +160,10 @@ export default function LocationInput({ id, value, onChange, onUseMyLocation, lo
             onChange(e.target.value);
           }}
           onKeyDown={handleKeyDown}
-          className="w-full rounded-none border border-zinc-300 bg-white px-4 py-2.5 text-zinc-950 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
+          className={
+            inputClassName ??
+            "w-full rounded-none border border-zinc-300 bg-white px-4 py-2.5 text-zinc-950 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-400 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
+          }
         />
         {showSuggestions && (
           <ul
@@ -185,12 +203,12 @@ export default function LocationInput({ id, value, onChange, onUseMyLocation, lo
               className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-950 hover:bg-zinc-100 dark:text-zinc-50 dark:hover:bg-zinc-800"
             >
               <LocationPinIcon />
-              Current Location
+              Use my location
             </button>
             {history.length > 0 && (
               <>
-                <p className="px-3 pt-2 pb-1 text-xs font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
-                  Search History
+                <p className="px-3 pt-2 pb-1 text-xs font-medium text-zinc-500 dark:text-zinc-500">
+                  Recent places, kept on this device
                 </p>
                 {history.map((item) => (
                   <button
@@ -208,6 +226,7 @@ export default function LocationInput({ id, value, onChange, onUseMyLocation, lo
           </div>
         )}
       </div>
+      {!hideLocateButton && (
       <button
         type="button"
         onClick={onUseMyLocation}
@@ -217,6 +236,7 @@ export default function LocationInput({ id, value, onChange, onUseMyLocation, lo
       >
         <CrosshairIcon />
       </button>
+      )}
     </div>
   );
 }
