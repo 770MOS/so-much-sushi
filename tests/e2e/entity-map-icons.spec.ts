@@ -25,8 +25,8 @@ const ICON_PREFIX = {
   coffee: "M5 11h14v-3h-14",
 };
 
-const STARRED_COLOR = "rgb(251, 191, 36)"; // amber-400, #fbbf24
-const UNSTARRED_COLOR = "rgb(161, 161, 170)"; // zinc-400, #a1a1aa
+const STARRED_COLOR = "rgb(224, 78, 118)"; // --favorite, #e04e76
+const UNSTARRED_COLOR = "rgb(34, 34, 34)"; // plain pins, #222222
 
 const FIXTURE_RESTAURANT = `Playwright Icon Restaurant ${RUN_ID}`;
 const FIXTURE_BAR = `Playwright Icon Bar ${RUN_ID}`;
@@ -171,7 +171,7 @@ test.afterAll(async () => {
   }
 });
 
-test("map tiles load MapTiler's Streets style (streets-v4), not the old Basic style", async ({ page }) => {
+test("map tiles load MapTiler's light Streets style (streets-v4-light), not the old Basic style", async ({ page }) => {
   const tileStyleRequests: string[] = [];
   page.on("request", (req) => {
     if (req.url().includes("api.maptiler.com/maps/")) tileStyleRequests.push(req.url());
@@ -180,7 +180,7 @@ test("map tiles load MapTiler's Streets style (streets-v4), not the old Basic st
   await searchByName(page, FIXTURE_RESTAURANT);
   await expect.poll(() => tileStyleRequests.length).toBeGreaterThan(0);
 
-  expect(tileStyleRequests.some((u) => u.includes("/maps/streets-v4/"))).toBe(true);
+  expect(tileStyleRequests.some((u) => u.includes("/maps/streets-v4-light/"))).toBe(true);
   expect(tileStyleRequests.some((u) => u.includes("/maps/basic-v2/"))).toBe(false);
 });
 
@@ -214,7 +214,7 @@ test("color still means personal status, independent of the icon: default vs sta
   expect(before.color).toBe(UNSTARRED_COLOR);
 
   await page.locator(".maplibregl-marker").click();
-  await page.locator(".maplibregl-popup").getByRole("button", { name: "Star this place" }).click();
+  await page.locator(".maplibregl-popup").getByRole("button", { name: "Add to your favorites" }).click();
   await expect(
     page.locator(".maplibregl-popup").getByRole("button", { name: "Unstar this place" })
   ).toBeVisible({ timeout: 10_000 });

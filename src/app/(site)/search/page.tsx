@@ -77,7 +77,7 @@ export default function SearchPage() {
   }
 
   return (
-    <main className="flex min-h-screen flex-1 flex-col items-center bg-white px-6 pt-10 pb-16 dark:bg-black">
+    <main className="flex flex-1 flex-col items-center bg-white px-6 pt-10 pb-16 dark:bg-black">
       <div className="flex w-full max-w-xl flex-col gap-10">
         <form onSubmit={handleSearch} className="flex flex-col gap-8">
           <div className="flex flex-col gap-2">

@@ -15,7 +15,7 @@ export default async function VenuePage({ params }: { params: Promise<{ id: stri
   if (!entity) notFound();
 
   return (
-    <main className="flex min-h-screen flex-1 justify-center bg-white dark:bg-black">
+    <main className="flex flex-1 justify-center bg-white dark:bg-black">
       <div className="w-full max-w-xl">
         <VenueDetail entity={entity} />
       </div>

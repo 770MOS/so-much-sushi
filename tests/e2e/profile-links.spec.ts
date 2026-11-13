@@ -101,9 +101,9 @@ test.afterAll(async () => {
   }
 });
 
-test("Connections list links each connection's name to their /u/[handle]", async ({ page }) => {
+test("Friends list links each friend's name to their /u/[handle]", async ({ page }) => {
   await signIn(page, friend);
-  await page.goto("/connections");
+  await page.goto("/friends");
 
   const link = page.getByRole("link", { name: "Profile Links Owner" });
   await expect(link).toBeVisible();
@@ -116,7 +116,7 @@ test("Connections list links each connection's name to their /u/[handle]", async
 
 test("incoming and outgoing connection request names link to /u/[handle]", async ({ page, browser }) => {
   await signIn(page, owner);
-  await page.goto("/connections");
+  await page.goto("/friends");
 
   const incoming = page.getByRole("link", { name: "Profile Links Stranger" });
   await expect(incoming).toHaveAttribute("href", `/u/${stranger.handle}`);
@@ -125,7 +125,7 @@ test("incoming and outgoing connection request names link to /u/[handle]", async
 
   const strangerPage = await (await browser.newContext()).newPage();
   await signIn(strangerPage, stranger);
-  await strangerPage.goto("/connections");
+  await strangerPage.goto("/friends");
 
   const outgoing = strangerPage.getByRole("link", { name: "Profile Links Owner" });
   await expect(outgoing).toHaveAttribute("href", `/u/${owner.handle}`);
@@ -145,14 +145,14 @@ test("Shared with me owner_name on /lists links to /u/[handle]", async ({ page }
   await expect(page).toHaveURL(new RegExp(`/u/${owner.handle}$`));
 });
 
-test('search result "Starred by [name]" links to /u/[handle]', async ({ page }) => {
+test('search result "[name]’s favorite" links to /u/[handle]', async ({ page }) => {
   await signIn(page, friend);
   await page.goto("/search");
 
   await page.locator("#name").fill(entityName);
   await page.getByRole("button", { name: "Search", exact: true }).click();
 
-  await expect(page.getByText("Starred by")).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText(/’s favorite/)).toBeVisible({ timeout: 15_000 });
   const link = page.getByRole("link", { name: "Profile Links Owner" });
   await expect(link).toBeVisible();
   await expect(link).toHaveAttribute("href", `/u/${owner.handle}`);

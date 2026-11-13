@@ -51,30 +51,37 @@ export function BreweryTypeIcon() {
   );
 }
 
-export function HeartIcon() {
+// Friends' favorites: a thumbs up in dark green (Tabler's thumb-up). Darker
+// than the rose heart so the two differ for colour-blind people too.
+export const THUMB_PATH = "M7 11v8a1 1 0 0 1 -1 1h-2a1 1 0 0 1 -1 -1v-7a1 1 0 0 1 1 -1h3a4 4 0 0 0 4 -4v-1a2 2 0 0 1 4 0v5h3a2 2 0 0 1 2 2l-1 5a2 3 0 0 1 -2 2h-7a3 3 0 0 1 -3 -3";
+
+export function FriendsFavoriteIcon({ size = 14 }: { size?: number }) {
   return (
-    <svg viewBox="0 0 24 24" width={14} height={14} fill="currentColor" className="text-rose-400">
-      <path d="M12 21s-6.716-4.35-9.428-8.06C.85 10.42 1.2 7.03 3.79 5.3 6.02 3.8 8.94 4.4 10.5 6.3 12.06 4.4 14.98 3.8 17.21 5.3c2.59 1.73 2.94 5.12 1.22 7.64C18.72 16.65 12 21 12 21z" />
+    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" className="text-friends" aria-hidden="true">
+      <path d={THUMB_PATH} />
     </svg>
   );
 }
 
-export function StarIcon({ filled }: { filled: boolean }) {
+// Your favorites: a heart in rose (Tabler's heart). A star would read as a
+// rating, and the site has no scores.
+export const HEART_PATH = "M19.5 12.572l-7.5 7.428l-7.5 -7.428a5 5 0 1 1 7.5 -6.566a5 5 0 1 1 7.5 6.572";
+
+export function FavoriteIcon({ filled, size = 20 }: { filled: boolean; size?: number }) {
   return (
     <svg
       viewBox="0 0 24 24"
-      width={20}
-      height={20}
-      fill={filled ? "currentColor" : "none"}
-      stroke="currentColor"
-      strokeWidth={1.5}
-      className={filled ? "text-amber-400" : "text-zinc-400"}
+      width={size}
+      height={size}
+      fill={filled ? "var(--favorite)" : "none"}
+      stroke={filled ? "#b8335a" : "currentColor"}
+      strokeWidth={filled ? 1.4 : 1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={filled ? undefined : "text-zinc-500"}
+      aria-hidden="true"
     >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M12 3.5l2.6 5.27 5.82.85-4.21 4.1.99 5.8L12 16.9l-5.2 2.62.99-5.8-4.21-4.1 5.82-.85L12 3.5z"
-      />
+      <path d={HEART_PATH} />
     </svg>
   );
 }
@@ -161,56 +168,35 @@ export function HistoryIcon() {
   );
 }
 
-// Sidebar nav icons - plain outline style, matching the stroke-based icons above.
-export function StarredNavIcon() {
+// Navigation icons (header and phone tab bar) - outline style, from Tabler Icons.
+export function FavoritesNavIcon() {
   return (
-    <svg viewBox="0 0 24 24" width={20} height={20} fill="none" stroke="currentColor" strokeWidth={1.5}>
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M12 3.5l2.6 5.27 5.82.85-4.21 4.1.99 5.8L12 16.9l-5.2 2.62.99-5.8-4.21-4.1 5.82-.85L12 3.5z"
-      />
+    <svg viewBox="0 0 24 24" width={20} height={20} fill="none" stroke="var(--favorite-ink)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d={HEART_PATH} />
     </svg>
   );
 }
 
 export function ListsNavIcon() {
   return (
-    <svg viewBox="0 0 24 24" width={20} height={20} fill="none" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" d="M8 6h12M8 12h12M8 18h12" />
-      <circle cx="4" cy="6" r="1.25" fill="currentColor" stroke="none" />
-      <circle cx="4" cy="12" r="1.25" fill="currentColor" stroke="none" />
-      <circle cx="4" cy="18" r="1.25" fill="currentColor" stroke="none" />
-    </svg>
-  );
-}
-
-export function RecommendedNavIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width={20} height={20} fill="none" stroke="currentColor" strokeWidth={1.5}>
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M12 21s-6.716-4.35-9.428-8.06C.85 10.42 1.2 7.03 3.79 5.3 6.02 3.8 8.94 4.4 10.5 6.3 12.06 4.4 14.98 3.8 17.21 5.3c2.59 1.73 2.94 5.12 1.22 7.64C18.72 16.65 12 21 12 21z"
-      />
+    <svg viewBox="0 0 24 24" width={20} height={20} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M9 6h11M9 12h11M9 18h11M5 6v.01M5 12v.01M5 18v.01" />
     </svg>
   );
 }
 
 export function SearchNavIcon() {
   return (
-    <svg viewBox="0 0 24 24" width={20} height={20} fill="none" stroke="currentColor" strokeWidth={1.5}>
-      <circle cx="10.5" cy="10.5" r="6.5" />
-      <path strokeLinecap="round" d="M19.5 19.5l-4.7-4.7" />
+    <svg viewBox="0 0 24 24" width={20} height={20} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M10 10m-7 0a7 7 0 1 0 14 0a7 7 0 1 0 -14 0M21 21l-6 -6" />
     </svg>
   );
 }
 
 export function DiscoverNavIcon() {
   return (
-    <svg viewBox="0 0 24 24" width={20} height={20} fill="none" stroke="currentColor" strokeWidth={1.5}>
-      <circle cx="12" cy="12" r="9" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M15.5 8.5l-2 5-5 2 2-5 5-2z" />
+    <svg viewBox="0 0 24 24" width={20} height={20} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M8 16l2 -6l6 -2l-2 6l-6 2M3 12a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" />
     </svg>
   );
 }
@@ -258,13 +244,21 @@ export function BackArrowIcon() {
   );
 }
 
-export function ConnectionsNavIcon() {
+export function FriendsNavIcon() {
   return (
-    <svg viewBox="0 0 24 24" width={20} height={20} fill="none" stroke="currentColor" strokeWidth={1.5}>
-      <circle cx="8.5" cy="8" r="3" />
-      <path strokeLinecap="round" d="M2.5 19.5c0-3.31 2.69-6 6-6s6 2.69 6 6" />
-      <circle cx="17" cy="8.5" r="2.5" />
-      <path strokeLinecap="round" d="M15.5 13.25c2.64.4 4.5 2.63 4.5 5.25" />
+    <svg viewBox="0 0 24 24" width={20} height={20} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M9 7m-4 0a4 4 0 1 0 8 0a4 4 0 1 0 -8 0M3 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2M16 3.13a4 4 0 0 1 0 7.75M21 21v-2a4 4 0 0 0 -3 -3.85" />
+    </svg>
+  );
+}
+
+// The site's mark: three rings, the centre one amber (the only amber left in the look).
+export function LogoMark({ size = 28 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 30 30" aria-hidden="true">
+      <circle cx="15" cy="15" r="14" fill="#141414" />
+      <circle cx="15" cy="15" r="9" fill="#ffffff" />
+      <circle cx="15" cy="15" r="4.5" fill="#f2a93b" />
     </svg>
   );
 }

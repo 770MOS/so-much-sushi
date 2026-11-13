@@ -106,7 +106,7 @@ export default function ConnectionProfilePage() {
 
   if (profile === undefined || user === undefined) {
     return (
-      <main className="flex min-h-screen flex-1 items-center justify-center bg-white dark:bg-black">
+      <main className="flex flex-1 items-center justify-center bg-white dark:bg-black">
         <p className="text-sm text-zinc-500 dark:text-zinc-400">Loading…</p>
       </main>
     );
@@ -114,7 +114,7 @@ export default function ConnectionProfilePage() {
 
   if (profile === null) {
     return (
-      <main className="flex min-h-screen flex-1 items-center justify-center bg-white px-6 dark:bg-black">
+      <main className="flex flex-1 items-center justify-center bg-white px-6 dark:bg-black">
         <p className="text-sm text-zinc-500 dark:text-zinc-400">No profile found for @{handle}.</p>
       </main>
     );
@@ -129,7 +129,7 @@ export default function ConnectionProfilePage() {
   const initial = (name.charAt(0) || "?").toUpperCase();
 
   return (
-    <main className="flex min-h-screen flex-1 flex-col items-center bg-white px-6 py-16 dark:bg-black">
+    <main className="flex flex-1 flex-col items-center bg-white px-6 py-16 dark:bg-black">
       <div className="flex w-full max-w-xl flex-col gap-10">
         <div className="flex items-center gap-4">
           {profile.avatar_url ? (
@@ -151,7 +151,7 @@ export default function ConnectionProfilePage() {
         </div>
 
         <section className="flex flex-col gap-3">
-          <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Starred</h2>
+          <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">Favorites</h2>
           {starred === null ? (
             <p className="text-sm text-zinc-500 dark:text-zinc-400">Loading…</p>
           ) : starred.length === 0 ? (

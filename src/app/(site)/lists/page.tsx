@@ -128,7 +128,7 @@ export default function ListsPage() {
 
   if (user === undefined || myLists === null || sharedLists === null || savedLists === null) {
     return (
-      <main className="flex min-h-screen flex-1 flex-col items-center justify-center bg-white px-6 dark:bg-black">
+      <main className="flex flex-1 flex-col items-center justify-center bg-white px-6 dark:bg-black">
         {error ? (
           <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
         ) : (
@@ -139,7 +139,7 @@ export default function ListsPage() {
   }
 
   return (
-    <main className="flex min-h-screen flex-1 flex-col items-center bg-white px-6 py-16 dark:bg-black">
+    <main className="flex flex-1 flex-col items-center bg-white px-6 py-16 dark:bg-black">
       <div className="flex w-full max-w-3xl flex-col gap-10">
         <div className="flex items-start justify-between gap-4">
           <div className="flex flex-col gap-2">

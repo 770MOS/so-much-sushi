@@ -6,7 +6,7 @@ import type { User } from "@supabase/supabase-js";
 import type { ReactNode } from "react";
 import AddToListMenu from "@/components/AddToListMenu";
 import StatusBadge from "@/components/StatusBadge";
-import { HeartIcon, StarIcon, EyeOffIcon } from "@/components/icons";
+import { FriendsFavoriteIcon, FavoriteIcon, EyeOffIcon } from "@/components/icons";
 import type { MapMarkerEntity } from "@/components/EntityMap";
 import type { Recommender, SearchResult, SortMode, ViewMode } from "@/lib/searchTypes";
 
@@ -32,6 +32,10 @@ function RecommenderName({ recommender }: { recommender: Recommender }) {
   );
 }
 
+// Names the friends who favorited a place: "Priya’s favorite", "Priya and
+// Sam’s favorite", or for more, "A favorite of Priya, Sam and 3 others". The
+// search returns the first two names; the agreed rule shows up to three, which
+// comes with the new results page.
 function recommendationLabel(
   recommendedBy: Recommender[] | null,
   recommendedCount: number
@@ -44,22 +48,23 @@ function recommendationLabel(
   if (recommendedCount === 1) {
     return (
       <>
-        Starred by <RecommenderName recommender={first} />
+        <RecommenderName recommender={first} />’s favorite
       </>
     );
   }
+  const second = people[1] ?? UNKNOWN_RECOMMENDER;
   if (recommendedCount === 2) {
-    const second = people[1] ?? UNKNOWN_RECOMMENDER;
     return (
       <>
-        Starred by <RecommenderName recommender={first} /> and{" "}
-        <RecommenderName recommender={second} />
+        <RecommenderName recommender={first} /> and <RecommenderName recommender={second} />’s favorite
       </>
     );
   }
+  const others = recommendedCount - 2;
   return (
     <>
-      Starred by <RecommenderName recommender={first} /> and {recommendedCount - 1} others
+      A favorite of <RecommenderName recommender={first} />, <RecommenderName recommender={second} /> and {others}{" "}
+      {others === 1 ? "other" : "others"}
     </>
   );
 }
@@ -190,14 +195,14 @@ export default function SearchResultsView({
                   </Link>
                   <span className="text-sm text-zinc-500 dark:text-zinc-400">{r.address}</span>
                   {r.categories && r.categories.length > 0 && (
-                    <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
+                    <span className="text-xs font-medium text-link">
                       {r.categories.join(", ")}
                     </span>
                   )}
                   <StatusBadge status={r.status} />
                   {recLabel && (
-                    <span className="flex items-center gap-1 text-xs text-zinc-500 dark:text-zinc-400">
-                      <HeartIcon />
+                    <span className="flex items-center gap-1 text-xs font-medium text-friends-ink">
+                      <FriendsFavoriteIcon />
                       {recLabel}
                     </span>
                   )}
@@ -210,11 +215,11 @@ export default function SearchResultsView({
                   <button
                     type="button"
                     onClick={() => toggleStar(r.id)}
-                    aria-label={starredIds.has(r.id) ? "Unstar" : "Star"}
+                    aria-label={starredIds.has(r.id) ? `Remove ${r.name} from your favorites` : `Add ${r.name} to your favorites`}
                     aria-pressed={starredIds.has(r.id)}
                     className="rounded p-1 transition-colors hover:bg-zinc-200 dark:hover:bg-zinc-800"
                   >
-                    <StarIcon filled={starredIds.has(r.id)} />
+                    <FavoriteIcon filled={starredIds.has(r.id)} />
                   </button>
                   <button
                     type="button"

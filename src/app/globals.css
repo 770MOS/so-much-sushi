@@ -1,10 +1,31 @@
 @import "tailwindcss";
 
+/* The site is light only for now: white backgrounds and thin neutral lines.
+   Tailwind's `dark:` classes stay in the markup but only switch on under a
+   `.dark` class, which nothing sets, so a phone or computer in dark mode still
+   gets the light site. A dark version can come back later by setting it. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: #ffffff;
-  --foreground: #171717;
-  --primary: #429bf5;
-  --primary-hover: #3884d0;
+  --foreground: #141414;
+  /* Buttons and selected chips are near-black. */
+  --primary: #141414;
+  --primary-hover: #333333;
+  /* Links and kinds of places. */
+  --link: #1f4fbf;
+  --link-hover: #163c93;
+  /* Your favorites: heart. */
+  --favorite: #e04e76;
+  --favorite-ink: #b0244c;
+  /* Friends' favorites: thumbs up, darker than the rose so the two differ for
+     colour-blind people too. */
+  --friends: #19693f;
+  --friends-ink: #17603a;
+  /* Want to try: flag. */
+  --want: #3b5bdb;
+  --line: #ebebeb;
+  --muted: #5c5c5c;
 }
 
 @theme inline {
@@ -12,21 +33,28 @@
   --color-foreground: var(--foreground);
   --color-primary: var(--primary);
   --color-primary-hover: var(--primary-hover);
-  --font-sans: var(--font-geist-sans);
+  --color-link: var(--link);
+  --color-link-hover: var(--link-hover);
+  --color-favorite: var(--favorite);
+  --color-favorite-ink: var(--favorite-ink);
+  --color-friends: var(--friends);
+  --color-friends-ink: var(--friends-ink);
+  --color-want: var(--want);
+  --color-line: var(--line);
+  --color-muted: var(--muted);
+  --font-sans: var(--font-dm-sans);
   --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  /* DM Sans at regular and medium only: no heavy bold anywhere. */
+  --font-weight-semibold: 500;
+  --font-weight-bold: 500;
+  --font-weight-extrabold: 500;
+  --font-weight-black: 500;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-dm-sans), system-ui, sans-serif;
 }
 
 /* Safari adds a button offering to fill in the person's own contact card to any box it

@@ -93,20 +93,17 @@ test.afterAll(async () => {
   await supabase.from("entities").delete().in("id", ids);
 });
 
-test.describe("sidebar", () => {
-  test("all six destinations are present with the right hrefs", async ({ page }) => {
+test.describe("header nav", () => {
+  test("visitors see Search and Discover with the right hrefs", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.goto("/");
 
     const nav = page.locator('nav[aria-label="Main"]:visible');
 
+    // Favorites, Lists and Friends appear once signed in.
     const destinations: [string, string][] = [
-      ["Search", "/search"],
+      ["Search", "/"],
       ["Discover", "/discover"],
-      ["Starred", "/starred"],
-      ["Lists", "/lists"],
-      ["Recommended", "/recommended"],
-      ["Connections", "/connections"],
     ];
 
     for (const [label, href] of destinations) {

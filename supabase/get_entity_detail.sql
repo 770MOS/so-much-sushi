@@ -1,6 +1,6 @@
 -- get_entity_detail: powers the standalone /venue/[id] page and its
--- intercepted modal equivalent (see src/app/(with-sidebar)/venue/[id] and
--- src/app/(with-sidebar)/@modal/(.)venue/[id]). Returns one row for a
+-- intercepted modal equivalent (see src/app/(site)/venue/[id] and
+-- src/app/(site)/@modal/(.)venue/[id]). Returns one row for a
 -- given entity id with everything that page needs: full contact/hours
 -- fields (entities/entity_categories aren't otherwise readable directly -
 -- see the REVOKE ALL note in grants_reference.sql), lat/lng computed the

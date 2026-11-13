@@ -58,7 +58,7 @@ const secondaryBtnClass =
 const primaryBtnClass =
   "rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-primary-hover";
 
-export default function ConnectionsTab({ userId }: Props) {
+export default function FriendsTab({ userId }: Props) {
   const supabase = useMemo(() => createClient(), []);
 
   const [friendships, setFriendships] = useState<FriendshipRow[] | null>(null);
@@ -81,7 +81,7 @@ export default function ConnectionsTab({ userId }: Props) {
       .or(`requester_id.eq.${userId},addressee_id.eq.${userId}`);
 
     if (error) {
-      setLoadError("Something went wrong loading your connections.");
+      setLoadError("Something went wrong loading your friends.");
       return;
     }
     setFriendships((data as unknown as FriendshipRow[]) ?? []);
@@ -223,10 +223,10 @@ export default function ConnectionsTab({ userId }: Props) {
                         onClick={() => handleConnect(p.id)}
                         className={primaryBtnClass}
                       >
-                        Connect
+                        Add friend
                       </button>
                     ) : existing.status === "accepted" ? (
-                      <span className="text-sm text-zinc-500 dark:text-zinc-400">Connected</span>
+                      <span className="text-sm text-zinc-500 dark:text-zinc-400">Friends</span>
                     ) : existing.requester_id === userId ? (
                       <span className="text-sm text-zinc-500 dark:text-zinc-400">Requested</span>
                     ) : (
@@ -302,11 +302,11 @@ export default function ConnectionsTab({ userId }: Props) {
 
       <div className="flex flex-col gap-3">
         <h2 className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
-          Connections{connections.length > 0 ? ` (${connections.length})` : ""}
+          Your friends{connections.length > 0 ? ` (${connections.length})` : ""}
         </h2>
         {connections.length === 0 ? (
           <p className="py-8 text-center text-sm text-zinc-500 dark:text-zinc-400">
-            You haven&apos;t connected with anyone yet. Search for a handle above to get started.
+            You haven&apos;t added any friends yet. Search for a handle above to get started.
           </p>
         ) : (
           <ul className="flex flex-col divide-y divide-zinc-200 dark:divide-zinc-800">

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
+import Link from "next/link";
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import LocationInput from "@/components/LocationInput";
@@ -159,7 +160,7 @@ export default function HomePage() {
   }
 
   return (
-    <main className="flex min-h-screen flex-1 flex-col items-center bg-white px-6 pt-10 pb-16 dark:bg-black">
+    <main className="flex flex-1 flex-col items-center bg-white px-6 pt-10 pb-16 dark:bg-black">
       <div className="flex w-full max-w-xl flex-col gap-10">
         <form onSubmit={handleSearch} className="flex flex-col gap-8">
           <div className="flex flex-col gap-2">
@@ -216,6 +217,15 @@ export default function HomePage() {
             {search.loading ? "Searching…" : "Search"}
           </button>
         </form>
+
+        {/* Discover has no tab of its own on a phone until it joins this page. */}
+        <p className="-mt-4 text-sm text-muted md:hidden">
+          Or{" "}
+          <Link href="/discover" className="text-link underline">
+            browse by type and cuisine
+          </Link>
+          .
+        </p>
 
         {search.error && <p className="text-sm text-red-600 dark:text-red-400">{search.error}</p>}
 

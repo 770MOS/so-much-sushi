@@ -3,7 +3,7 @@
 import Link from "next/link";
 import PinField from "@/components/PinField";
 import { useActionState, useEffect, useRef } from "react";
-import type { RequestState } from "@/app/(with-sidebar)/request/actions";
+import type { RequestState } from "@/app/(site)/request/actions";
 
 
 export type PlaceKind = { path: string; name: string };

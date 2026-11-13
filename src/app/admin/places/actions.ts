@@ -83,7 +83,7 @@ export async function undoMerge(formData: FormData) {
   if (error) goTo(here, `Could not undo: ${error.message}`);
   const r = data as UndoResult;
   const parts = [`Merge undone: ${r.source_records_returned} source ${r.source_records_returned === 1 ? "record" : "records"} returned`];
-  if (r.stars_returned) parts.push(`${r.stars_returned} ${r.stars_returned === 1 ? "star" : "stars"}`);
+  if (r.stars_returned) parts.push(`${r.stars_returned} ${r.stars_returned === 1 ? "favorite" : "favorites"}`);
   if (r.list_items_returned) parts.push(`${r.list_items_returned} list ${r.list_items_returned === 1 ? "entry" : "entries"}`);
   let notice = parts.join(", ") + ".";
   if (r.fields_kept_edited_since.length) {
