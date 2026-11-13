@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { safeNext } from "@/lib/friends";
 
 export default function AuthCallback() {
   const router = useRouter();
@@ -14,7 +15,8 @@ export default function AuthCallback() {
 
     async function completeConfirmation() {
       await Promise.resolve();
-      const code = new URLSearchParams(window.location.search).get("code");
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get("code");
       const supabase = createClient();
       const { error: exchangeError } = code
         ? await supabase.auth.exchangeCodeForSession(code)
@@ -22,7 +24,7 @@ export default function AuthCallback() {
 
       if (cancelled) return;
       if (exchangeError) setError(true);
-      else router.replace("/");
+      else router.replace(safeNext(params.get("next")) ?? "/");
     }
 
     completeConfirmation();

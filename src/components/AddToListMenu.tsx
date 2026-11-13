@@ -84,7 +84,7 @@ export default function AddToListMenu({ userId, entityId }: Props) {
     setCreating(true);
     const { data, error } = await supabase
       .from("lists")
-      .insert({ owner_id: userId, name: newListName.trim(), visibility: "private" })
+      .insert({ owner_id: userId, name: newListName.trim() })
       .select("id, name")
       .single();
 

@@ -348,6 +348,27 @@ REVOKE EXECUTE ON FUNCTION person_name(text, text, text, text, boolean), places_
   create_want_list(), lists_keep_want_to_try() FROM PUBLIC, anon, authenticated;
 
 -- =============================================================================
+-- Friends and settings (20261113020000_friends_and_settings.sql).
+--   friendships: no direct inserts or updates any more (a member could add a
+--   row already accepted, or rewrite who sent it); requests go through
+--   send_friend_request / answer_friend_request / remove_friend. Removing a
+--   row yourself (the "Either side can remove" rule) still works.
+--   New profiles columns (public_name_full, new_list_visibility, email_*,
+--   invite_code) are NOT in the anon/authenticated column allowlist: the
+--   owner reads them through my_settings().
+-- =============================================================================
+REVOKE INSERT, UPDATE, TRUNCATE ON TABLE friendships FROM anon, authenticated;
+REVOKE EXECUTE ON FUNCTION send_friend_request(uuid), answer_friend_request(uuid, boolean), remove_friend(uuid),
+  my_invite_code(boolean), accept_invite(text), my_data_export() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION send_friend_request(uuid), answer_friend_request(uuid, boolean), remove_friend(uuid),
+  my_invite_code(boolean), accept_invite(text), my_data_export() TO authenticated, service_role;
+REVOKE EXECUTE ON FUNCTION invite_info(text), friends_overview(), find_people(text), person_page(text),
+  my_settings(), my_new_list_visibility() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION invite_info(text), friends_overview(), find_people(text), person_page(text),
+  my_settings(), my_new_list_visibility() TO anon, authenticated, service_role;
+REVOKE EXECUTE ON FUNCTION friendship_with(uuid, uuid), relation_to(uuid, uuid) FROM PUBLIC, anon, authenticated;
+
+-- =============================================================================
 -- Explicitly out of scope: NocoDB's own internal tables
 -- =============================================================================
 -- notification, workspace, workspace_user, xc_knex_migrationsv0,
