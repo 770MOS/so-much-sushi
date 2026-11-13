@@ -52,7 +52,7 @@ type Props = {
 // the pin itself, and the list view's FavoriteIcon (src/components/icons.tsx)
 // never disagree on what "favorite" looks like. (The data still calls a
 // favorite a "star": the table is stars.)
-const STARRED_COLOR = "#e04e76"; // --favorite, the rose heart
+export const STARRED_COLOR = "#e04e76"; // --favorite, the rose heart
 const UNSTARRED_COLOR = "#222222"; // plain places: the dark pin from the mockups
 
 // Same path as FavoriteIcon in src/components/icons.tsx - duplicated here
@@ -108,20 +108,20 @@ function categoryIconMarkup(entityType: Exclude<EntityType, "all"> | null | unde
 const SOURCE_ID = "sms-places";
 const LAYER_ID = "sms-places-pins";
 const PIN_TYPES: (Exclude<EntityType, "all"> | null)[] = ["restaurants", "drinks", "coffee", "markets", null];
-const RECOMMENDED_COLOR = "#19693f"; // --friends, the dark green of the friends' thumbs up
+export const RECOMMENDED_COLOR = "#19693f"; // --friends, the dark green of the friends' thumbs up
 
 // Image size in CSS pixels: the pin itself is 28x36 as before, plus 2px to the
 // right and above so the recommended badge, which sticks out past the pin's
 // top-right corner, isn't clipped. Drawn at 2x so pins stay sharp on retina.
 const IMAGE_WIDTH = 30;
-const IMAGE_HEIGHT = 38;
+export const IMAGE_HEIGHT = 38;
 const IMAGE_SCALE = 2;
 // The pin's tip is at x=14 of the 30px-wide image; the layer anchors the
 // image's bottom-centre (x=15) on the place, so nudge it 1px right.
-const ICON_OFFSET: [number, number] = [1, 0];
+export const ICON_OFFSET: [number, number] = [1, 0];
 // Popups open above the pin's head (it now points at the place with its tip),
 // or beside/below it when there isn't room above.
-const POPUP_OFFSET: Offset = {
+export const POPUP_OFFSET: Offset = {
   center: [0, -IMAGE_HEIGHT / 2],
   top: [0, 0],
   "top-left": [0, 0],
@@ -133,7 +133,7 @@ const POPUP_OFFSET: Offset = {
   right: [-14, -IMAGE_HEIGHT / 2],
 };
 
-function pinImageId(entityType: Exclude<EntityType, "all"> | null | undefined, starred: boolean, recommended: boolean) {
+export function pinImageId(entityType: Exclude<EntityType, "all"> | null | undefined, starred: boolean, recommended: boolean) {
   return `sms-pin-${entityType ?? "none"}-${starred ? 1 : 0}-${recommended ? 1 : 0}`;
 }
 
@@ -156,9 +156,9 @@ function pinImageSvg(entityType: Exclude<EntityType, "all"> | null, color: strin
 // Places with a status of the person's own get a round marker with its icon in place of the
 // pin (decided 2026-11-11): a rose heart for their favorites, a green thumbs up for friends'
 // favorites, a blue flag for Want to try. One per place, in that order of priority.
-type Mark = "fav" | "friend" | "want";
-const MARK_SIZE = 32;
-const MARKS: Record<Mark, { fill: string; path: string; iconFill: string }> = {
+export type Mark = "fav" | "friend" | "want";
+export const MARK_SIZE = 32;
+export const MARKS: Record<Mark, { fill: string; path: string; iconFill: string }> = {
   fav: { fill: STARRED_COLOR, path: STAR_ICON_PATH, iconFill: "#ffffff" },
   friend: {
     fill: RECOMMENDED_COLOR,
@@ -168,7 +168,7 @@ const MARKS: Record<Mark, { fill: string; path: string; iconFill: string }> = {
   want: { fill: "#3b5bdb", path: "M5 5a5 5 0 0 1 7 0a5 5 0 0 0 7 0v9a5 5 0 0 1 -7 0a5 5 0 0 0 -7 0v-9zM5 21v-7", iconFill: "none" },
 };
 
-function markFor(entity: MapMarkerEntity): Mark | null {
+export function markFor(entity: MapMarkerEntity): Mark | null {
   if (entity.isStarred) return "fav";
   if (entity.recommendedCount > 0) return "friend";
   if (entity.isWant) return "want";
@@ -193,7 +193,7 @@ function loadSvgImage(svg: string): Promise<HTMLImageElement> {
   });
 }
 
-async function addPinImages(map: maplibregl.Map, isCancelled: () => boolean) {
+export async function addPinImages(map: maplibregl.Map, isCancelled: () => boolean) {
   const jobs: Promise<void>[] = [];
   for (const mark of Object.keys(MARKS) as Mark[]) {
     const id = `sms-mark-${mark}`;
@@ -260,7 +260,7 @@ function escapeHtml(s: string | null | undefined) {
   return s.replace(/[&<>"']/g, (c) => map[c]);
 }
 
-function setStarButtonAppearance(button: HTMLButtonElement, isStarred: boolean) {
+export function setStarButtonAppearance(button: HTMLButtonElement, isStarred: boolean) {
   const svg = button.querySelector("svg");
   if (svg) {
     svg.setAttribute("fill", isStarred ? STARRED_COLOR : "none");
@@ -290,7 +290,7 @@ function createStarButton(isStarred: boolean): HTMLButtonElement {
 // starring click needs a real event listener, and the star icon needs to
 // be updated in place (without rebuilding the whole popup) whenever this
 // entity's starred state changes on a later render.
-function createPopupContent(entity: MapMarkerEntity): {
+export function createPopupContent(entity: MapMarkerEntity): {
   element: HTMLDivElement;
   starButton: HTMLButtonElement;
   nameLink: HTMLAnchorElement;

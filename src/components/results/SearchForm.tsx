@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import LocationInput from "@/components/LocationInput";
 import WhatBox from "@/components/results/WhatBox";
@@ -9,8 +9,11 @@ import { geocodeLocationText } from "@/lib/locationLookup";
 import { reverseGeocode } from "@/lib/reverseGeocode";
 import { addSearchHistory } from "@/lib/searchHistory";
 import { CURRENT_LOCATION_LABEL, getLastSearchCoords, type Coords } from "@/lib/lastSearchCoords";
-import { emptyQuery, parseResultsQuery, resultsHref, type ResultsQuery } from "@/lib/resultsQuery";
+import { emptyQuery, MAP_AREA_LABEL, parseResultsQuery, resultsHref, type ResultsQuery } from "@/lib/resultsQuery";
 import { useResultsState } from "@/lib/resultsStore";
+import { startArea } from "@/lib/searchArea";
+import { pushResults, replaceResults } from "@/lib/resultsNav";
+import { createClient } from "@/lib/supabase/client";
 
 type Layout = "bar" | "stacked";
 
@@ -45,11 +48,15 @@ export default function SearchForm({ layout }: { layout: Layout }) {
   const params = useSearchParams();
   const current = pathname === "/" ? parseResultsQuery(params) : emptyQuery();
   // Starts again from the address whenever the search there changes (Back, a new search).
-  return <SearchFormInner key={`${current.q}|${current.where}`} layout={layout} current={current} />;
+  return <SearchFormInner key={`${current.q}|${current.where}`} layout={layout} current={current} onResultsPage={pathname === "/"} />;
 }
 
-function SearchFormInner({ layout, current }: { layout: Layout; current: ResultsQuery }) {
+function SearchFormInner({ layout, current, onResultsPage }: { layout: Layout; current: ResultsQuery; onResultsPage: boolean }) {
   const router = useRouter();
+  // Already on the results page: change its address in place (src/lib/resultsNav.ts).
+  // Elsewhere: go to it.
+  const go = (href: string) => (onResultsPage ? pushResults(href) : router.push(href));
+  const supabase = useMemo(() => createClient(), []);
   const { origin, facets } = useResultsState();
   const [what, setWhat] = useState(current.q);
   const [where, setWhere] = useState(current.where);
@@ -59,27 +66,31 @@ function SearchFormInner({ layout, current }: { layout: Layout; current: Results
   const here: Coords | null = current.lat !== null && current.lng !== null ? { lat: current.lat, lng: current.lng } : null;
   const near = origin ?? here ?? getLastSearchCoords();
 
-  // The point to search around for what's in the Where box, or null if it can't be found.
-  async function resolveWhere(): Promise<Pick<ResultsQuery, "where" | "lat" | "lng"> | null> {
+  // The point and area to search for what's in the Where box, or null if it can't be found.
+  // Unchanged text keeps the current area; a new place opens on that place (a town on the whole
+  // town, an address on about the nearest 50 places).
+  async function resolveWhere(): Promise<Pick<ResultsQuery, "where" | "lat" | "lng" | "b"> | null> {
     const text = where.trim();
-    if (!text) return { where: "", lat: here?.lat ?? null, lng: here?.lng ?? null };
-    if (here && (text === current.where || text === CURRENT_LOCATION_LABEL)) {
-      return { where: current.where || text, lat: here.lat, lng: here.lng };
+    const unchanged = text === "" || text === current.where || text === CURRENT_LOCATION_LABEL || text === MAP_AREA_LABEL;
+    if (unchanged && here && current.b) {
+      return { where: current.where || text, lat: here.lat, lng: here.lng, b: current.b };
     }
-    const coords = await geocodeLocationText(text);
-    if (!coords) {
+    if (text === "" || text === MAP_AREA_LABEL) return { where: "", lat: null, lng: null, b: null };
+    const found = await geocodeLocationText(text);
+    if (!found) {
       setError("We couldn't find that place. Try a city, town or ZIP code.");
       return null;
     }
     addSearchHistory(text);
-    return { where: text, lat: coords.lat, lng: coords.lng };
+    const b = await startArea(supabase, found, { radiusMiles: found.radiusMiles, minPlaces: found.minPlaces });
+    return { where: text, lat: found.lat, lng: found.lng, b };
   }
 
   async function search(patch: Partial<ResultsQuery>) {
     setError(null);
     const point = await resolveWhere();
     if (!point) return;
-    router.push(resultsHref({ ...current, ...point, ...patch }));
+    go(resultsHref({ ...current, ...point, ...patch }));
   }
 
   function handleSubmit(e: FormEvent) {
@@ -92,12 +103,13 @@ function SearchFormInner({ layout, current }: { layout: Layout; current: Results
     const coords = await geo.requestLocation();
     if (!coords) return;
     setWhere(CURRENT_LOCATION_LABEL);
-    const next: ResultsQuery = { ...current, q: what, where: CURRENT_LOCATION_LABEL, lat: coords.lat, lng: coords.lng };
-    router.push(resultsHref(next));
+    const b = await startArea(supabase, coords);
+    const next: ResultsQuery = { ...current, q: what, where: CURRENT_LOCATION_LABEL, lat: coords.lat, lng: coords.lng, b };
+    go(resultsHref(next));
     // A place name for the box when the lookup answers; the search doesn't wait for it.
     reverseGeocode(coords).then((label) => {
-      if (label && window.location.search.includes(`lat=${coords.lat.toFixed(5)}`)) {
-        router.replace(resultsHref({ ...next, where: label }), { scroll: false });
+      if (label && window.location.pathname === "/" && window.location.search.includes(`lat=${coords.lat.toFixed(5)}`)) {
+        replaceResults(resultsHref({ ...next, where: label }));
       }
     });
   }

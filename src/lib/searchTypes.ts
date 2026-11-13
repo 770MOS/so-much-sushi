@@ -11,7 +11,7 @@ export type SearchResult = {
   lng: number;
   is_starred: boolean;
   is_hidden: boolean;
-  // On the person's ready-made Want to try list (search_places only).
+  // On the person's ready-made Want to try list (search_area only).
   is_want?: boolean;
   recommended_by: Recommender[] | null;
   recommended_count: number;
@@ -26,7 +26,7 @@ export type SearchResult = {
 export type SortMode = "nearest" | "az";
 export type ViewMode = "list" | "map";
 
-// The counts on the results page's filter buttons (public.search_facets).
+// The counts on the results page's filter buttons (public.area_facets).
 export type Facets = {
   types: Partial<Record<"all" | "restaurants" | "drinks" | "coffee" | "markets", number>>;
   cuisines: { path: string; name: string; n: number }[];
@@ -34,4 +34,20 @@ export type Facets = {
   friends: number;
   want: number;
   hidden: number;
+};
+
+// One square of the map's grid with its places counted (public.area_cells), for bubbles with
+// true counts when a search has more than 1,000 places. fav/friend/want count each place once,
+// by its first mark; cell_* is the extent of the square's places.
+export type AreaCell = {
+  lat: number;
+  lng: number;
+  n: number;
+  fav: number;
+  friend: number;
+  want: number;
+  cell_west: number;
+  cell_south: number;
+  cell_east: number;
+  cell_north: number;
 };

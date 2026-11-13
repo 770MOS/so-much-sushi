@@ -3,8 +3,9 @@
 
 Sources, all US Census Bureau (public domain, US government work):
   * Gazetteer, places: every city, town, village, borough and census-designated place, with
-    its internal point.                     {year}_Gaz_place_national.zip
-  * Gazetteer, ZIP code tabulation areas: every ZIP area with its internal point.
+    its internal point and land area.       {year}_Gaz_place_national.zip
+  * Gazetteer, ZIP code tabulation areas: every ZIP area with its internal point and land area
+    (the land area sizes the map when the place is picked).
                                             {year}_Gaz_zcta_national.zip
   * Populations, used only to order far-away suggestions (places without one still load):
     2020 census counts from the Census API, which needs a free key (CENSUS_API_KEY, from
@@ -75,14 +76,16 @@ NICKNAMES = {
     ("GA", "Atlanta"): ["ATL"],
 }
 # New York City's boroughs are counties, not Census places, but people search by them.
-# Points are the boroughs' centres; populations are 2020 census counts.
+# Points are the boroughs' centres; populations are 2020 census counts; land areas are the
+# counties' 2020 land areas in square miles (stored, like the Gazetteer's, in square metres).
 BOROUGHS = [
-    ("nyc-manhattan", "Manhattan", 40.7831, -73.9712, 1694251),
-    ("nyc-brooklyn", "Brooklyn", 40.6782, -73.9442, 2736074),
-    ("nyc-queens", "Queens", 40.7282, -73.7949, 2405464),
-    ("nyc-bronx", "Bronx", 40.8448, -73.8648, 1472654),
-    ("nyc-staten-island", "Staten Island", 40.5795, -74.1502, 495747),
+    ("nyc-manhattan", "Manhattan", 40.7831, -73.9712, 1694251, 22.66),
+    ("nyc-brooklyn", "Brooklyn", 40.6782, -73.9442, 2736074, 69.38),
+    ("nyc-queens", "Queens", 40.7282, -73.7949, 2405464, 108.53),
+    ("nyc-bronx", "Bronx", 40.8448, -73.8648, 1472654, 42.10),
+    ("nyc-staten-island", "Staten Island", 40.5795, -74.1502, 495747, 57.48),
 ]
+SQ_M_PER_SQ_MI = 2589988.11
 # Each pair is swapped both ways to make extra names: "St. Louis" is also "Saint Louis".
 SWAPS = [("Saint", "St"), ("Sainte", "Ste"), ("Fort", "Ft"), ("Mount", "Mt")]
 
@@ -114,6 +117,14 @@ def fetch(url, tries=4):
             if attempt == tries:
                 raise RuntimeError(f"could not download {shown(url)}: {type(exc).__name__}") from None
             time.sleep(5 * attempt)
+
+
+def land_area(row):
+    """The Gazetteer's land area (ALAND, square metres), or None when missing."""
+    try:
+        return int(float(row.get("ALAND") or ""))
+    except ValueError:
+        return None
 
 
 def decode(data):
@@ -282,13 +293,14 @@ def main():
             lsad_examples[r.get("LSAD", "")].append(f"{r['NAME']} -> {display}")
         places.append({
             "code": r["GEOID"], "name": display, "official": official, "state": state,
-            "lat": lat, "lng": lng, "population": pops.get(r["GEOID"]),
+            "lat": lat, "lng": lng, "population": pops.get(r["GEOID"]), "land": land_area(r),
             "aliases": NICKNAMES.get((state, display), []),
-            "rank": (pops.get(r["GEOID"]) or -1, r.get("LSAD") != "57", float(r.get("ALAND") or 0)),
+            "rank": (pops.get(r["GEOID"]) or -1, r.get("LSAD") != "57", land_area(r) or 0),
         })
-    for code, name, lat, lng, pop in BOROUGHS:
+    for code, name, lat, lng, pop, sq_mi in BOROUGHS:
+        land = round(sq_mi * SQ_M_PER_SQ_MI)
         places.append({"code": code, "name": name, "official": name, "state": "NY", "lat": lat,
-                       "lng": lng, "population": pop, "aliases": [], "rank": (pop, True, 0.0)})
+                       "lng": lng, "population": pop, "land": land, "aliases": [], "rank": (pop, True, land)})
 
     # Two places with the same name in the same state ("San Juan, TX" twice) would show as two
     # identical suggestions. Keep the bigger one: more people, then a town over a census-
@@ -313,7 +325,7 @@ def main():
             continue
         main_place = by_geoid.get(zip_main.get(code, ("", 0))[0])
         zips.append({
-            "code": code, "lat": lat, "lng": lng,
+            "code": code, "lat": lat, "lng": lng, "land": land_area(r),
             "state": main_place["state"] if main_place else None,
             "city": main_place["name"] if main_place else None,
             "detail": f"{main_place['name']}, {main_place['state']}" if main_place else None,
@@ -324,14 +336,15 @@ def main():
         with conn.cursor() as cur:
             cur.execute("SET search_path = public, extensions")
             cur.execute("DELETE FROM localities")
-            with cur.copy("COPY localities (kind, code, name, state, label, detail, city, population, location, source) "
-                          "FROM STDIN") as copy:
+            with cur.copy("COPY localities (kind, code, name, state, label, detail, city, population, location, "
+                          "land_sq_m, source) FROM STDIN") as copy:
                 for p in places:
                     copy.write_row(("place", p["code"], p["name"], p["state"], f"{p['name']}, {p['state']}", None,
-                                    p["name"], p["population"], f"SRID=4326;POINT({p['lng']} {p['lat']})", source))
+                                    p["name"], p["population"], f"SRID=4326;POINT({p['lng']} {p['lat']})",
+                                    p["land"], source))
                 for z in zips:
                     copy.write_row(("zip", z["code"], z["code"], z["state"], z["code"], z["detail"], z["city"], None,
-                                    f"SRID=4326;POINT({z['lng']} {z['lat']})", source))
+                                    f"SRID=4326;POINT({z['lng']} {z['lat']})", z["land"], source))
             cur.execute("SELECT code, id FROM localities WHERE kind = 'place'")
             ids = dict(cur.fetchall())
             name_count = 0
@@ -355,8 +368,9 @@ def main():
             cur.execute("ANALYZE locality_names")
             cur.execute("SELECT count(*) FILTER (WHERE kind = 'place'), count(*) FILTER (WHERE kind = 'zip'), "
                         "count(*) FILTER (WHERE kind = 'zip' AND detail IS NULL), "
-                        "count(*) FILTER (WHERE kind = 'place' AND population IS NULL) FROM localities")
-            n_places, n_zips, zip_no_detail, place_no_pop = cur.fetchone()
+                        "count(*) FILTER (WHERE kind = 'place' AND population IS NULL), "
+                        "count(*) FILTER (WHERE coalesce(land_sq_m, 0) = 0) FROM localities")
+            n_places, n_zips, zip_no_detail, place_no_pop, no_land = cur.fetchone()
         conn.commit()
 
         note("Loaded", "\n".join([
@@ -364,6 +378,7 @@ def main():
             f"places: {n_places:,} (same name and state as a bigger place, left out: {duplicates:,}); "
             f"names to match on: {name_count:,}",
             f"populations: {pop_source}; places without one: {place_no_pop:,}",
+            f"places and ZIP areas without a land area (map opens on the nearest places instead): {no_land:,}",
             f"ZIP areas: {n_zips:,} (main place from the relationship file: {len(zip_main):,}; "
             f"nearest place within 30 km: {near_count:,}; no place named: {zip_no_detail:,})",
             f"skipped: {dict(skipped) or 'none'}",
@@ -373,12 +388,14 @@ def main():
         note("Name clean-up by LSAD code", "\n".join(
             f"{code or '(blank)'}: " + " | ".join(ex) for code, ex in sorted(lsad_examples.items())))
 
-        # What the location box would suggest, typed from Washington, DC.
+        # What the location box would suggest, typed from Washington, DC, with how wide the map
+        # opens when each is picked ("~4.1 mi" = a square 8.2 miles across).
         lines = []
         with conn.cursor() as cur:
             for q in args.samples.split("|"):
-                cur.execute("SELECT label, detail FROM suggest_localities(%s, 38.9, -77.04, 5)", (q,))
-                got = [f"{lab}" + (f" ({det})" if det else "") for lab, det in cur.fetchall()]
+                cur.execute("SELECT label, detail, radius_miles FROM suggest_localities(%s, 38.9, -77.04, 5)", (q,))
+                got = [f"{lab}" + (f" ({det})" if det else "") + (f" ~{rad:g} mi" if rad else "")
+                       for lab, det, rad in cur.fetchall()]
                 lines.append(f"{q!r}: " + ("; ".join(got) or "(none)"))
         note("Sample suggestions (typed in DC)", "\n".join(lines))
     for url in (place_url, zcta_url, POP_URL, REL_URL):

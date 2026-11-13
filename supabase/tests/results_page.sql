@@ -1,4 +1,6 @@
--- Scenario checks for the results page functions (20261112000000_results_page.sql).
+-- Scenario checks for the results page functions: the results and filter counts (now
+-- search_area and area_facets, 20261112020000_map_area.sql, searching a box about 10 miles
+-- around the point) and the What box's suggestions (20261112000000_results_page.sql).
 -- Run against a scratch database only: it inserts fixtures.
 \set ON_ERROR_STOP 1
 \set QUIET 1
@@ -55,77 +57,77 @@ insert into stars(user_id, entity_id, created_at) values
 
 create function names(rows text[]) returns text language sql as $$ select array_to_string(array(select unnest(rows) order by 1), ',') $$;
 
--- ------------------------------------------------------------ search_places, not signed in
+-- ------------------------------------------------------------ search_area, not signed in
 select set_config('request.jwt.claim.sub', '', false) \gset
-insert into r select 'visitor: everything active within the radius, nearest first, closed and far left out',
+insert into r select 'visitor: everything active in the box, nearest first, closed and far left out',
   (select array_agg(name order by ordinality) = array['Alpha Pizza','Bella Italia','Corner Bar','Daily Grind Coffee','Hidden Gem']
           and bool_and(total_count = 5)
-   from search_places(38.88, -77.1, 10) with ordinality);
+   from search_area(38.88, -77.1, -77.25, 38.73, -76.95, 39.03) with ordinality);
 insert into r select 'visitor: nothing marked as theirs',
-  (select not bool_or(is_starred or is_hidden or is_want) and bool_and(recommended_count = 0) from search_places(38.88, -77.1, 10));
+  (select not bool_or(is_starred or is_hidden or is_want) and bool_and(recommended_count = 0) from search_area(38.88, -77.1, -77.25, 38.73, -76.95, 39.03));
 insert into r select 'visitor: the three filters show nothing',
-  (select count(*) = 0 from search_places(38.88, -77.1, 10, null, null, true, true, true));
+  (select count(*) = 0 from search_area(38.88, -77.1, -77.25, 38.73, -76.95, 39.03, null, null, true, true, true));
 
--- ------------------------------------------------------------ search_places, signed in as u1
+-- ------------------------------------------------------------ search_area, signed in as u1
 select set_config('request.jwt.claim.sub', '11111111-1111-1111-1111-111111111111', false) \gset
 insert into r select 'hidden place left out and not counted',
   (select count(*) = 4 and bool_and(total_count = 4) and count(*) filter (where name = 'Hidden Gem') = 0
-   from search_places(38.88, -77.1, 10));
+   from search_area(38.88, -77.1, -77.25, 38.73, -76.95, 39.03));
 insert into r select 'show_hidden brings it back, marked',
-  (select is_hidden from search_places(38.88, -77.1, 10, null, null, false, false, false, true) where name = 'Hidden Gem');
+  (select is_hidden from search_area(38.88, -77.1, -77.25, 38.73, -76.95, 39.03, null, null, false, false, false, true) where name = 'Hidden Gem');
 insert into r select 'own favorite marked',
-  (select is_starred from search_places(38.88, -77.1, 10) where name = 'Alpha Pizza');
+  (select is_starred from search_area(38.88, -77.1, -77.25, 38.73, -76.95, 39.03) where name = 'Alpha Pizza');
 insert into r select 'Want to try marked from the ready-made list only',
-  (select bool_and(is_want = (name = 'Daily Grind Coffee')) from search_places(38.88, -77.1, 10));
+  (select bool_and(is_want = (name = 'Daily Grind Coffee')) from search_area(38.88, -77.1, -77.25, 38.73, -76.95, 39.03));
 insert into r select 'three friends named, oldest first; the pending request not counted',
   (select recommended_count = 3 and jsonb_array_length(recommended_by) = 3
           and recommended_by->0->>'handle' = 'u2' and recommended_by->2->>'handle' = 'u4'
-   from search_places(38.88, -77.1, 10) where name = 'Bella Italia');
+   from search_area(38.88, -77.1, -77.25, 38.73, -76.95, 39.03) where name = 'Bella Italia');
 insert into r select 'Favorites only',
-  (select names(array_agg(name)) = 'Alpha Pizza' from search_places(38.88, -77.1, 10, null, null, true));
+  (select names(array_agg(name)) = 'Alpha Pizza' from search_area(38.88, -77.1, -77.25, 38.73, -76.95, 39.03, null, null, true));
 insert into r select 'Friends only',
   (select names(array_agg(name)) = 'Bella Italia,Corner Bar' and bool_and(total_count = 2)
-   from search_places(38.88, -77.1, 10, null, null, false, true));
+   from search_area(38.88, -77.1, -77.25, 38.73, -76.95, 39.03, null, null, false, true));
 insert into r select 'Want to try only',
-  (select names(array_agg(name)) = 'Daily Grind Coffee' from search_places(38.88, -77.1, 10, null, null, false, false, true));
+  (select names(array_agg(name)) = 'Daily Grind Coffee' from search_area(38.88, -77.1, -77.25, 38.73, -76.95, 39.03, null, null, false, false, true));
 insert into r select 'Favorites and Want to try together show either',
-  (select names(array_agg(name)) = 'Alpha Pizza,Daily Grind Coffee' from search_places(38.88, -77.1, 10, null, null, true, false, true));
+  (select names(array_agg(name)) = 'Alpha Pizza,Daily Grind Coffee' from search_area(38.88, -77.1, -77.25, 38.73, -76.95, 39.03, null, null, true, false, true));
 insert into r select 'all three together',
   (select names(array_agg(name)) = 'Alpha Pizza,Bella Italia,Corner Bar,Daily Grind Coffee'
-   from search_places(38.88, -77.1, 10, null, null, true, true, true));
+   from search_area(38.88, -77.1, -77.25, 38.73, -76.95, 39.03, null, null, true, true, true));
 insert into r select 'a cuisine includes its finer kinds (pizza under Italian)',
-  (select names(array_agg(name)) = 'Alpha Pizza,Bella Italia' from search_places(38.88, -77.1, 10, 'restaurants.italian'));
+  (select names(array_agg(name)) = 'Alpha Pizza,Bella Italia' from search_area(38.88, -77.1, -77.25, 38.73, -76.95, 39.03, 'restaurants.italian'));
 insert into r select 'filters combine with the cuisine',
-  (select names(array_agg(name)) = 'Bella Italia' from search_places(38.88, -77.1, 10, 'restaurants.italian', null, false, true));
+  (select names(array_agg(name)) = 'Bella Italia' from search_area(38.88, -77.1, -77.25, 38.73, -76.95, 39.03, 'restaurants.italian', null, false, true));
 insert into r select 'name search',
-  (select names(array_agg(name)) = 'Alpha Pizza' from search_places(38.88, -77.1, 10, null, 'pizza'));
+  (select names(array_agg(name)) = 'Alpha Pizza' from search_area(38.88, -77.1, -77.25, 38.73, -76.95, 39.03, null, 'pizza'));
 
--- ------------------------------------------------------------ search_facets
+-- ------------------------------------------------------------ area_facets
 insert into r select 'facets: places per type, hidden left out',
-  (select f->'types' = '{"all":4,"restaurants":2,"drinks":1,"coffee":1}'::jsonb from search_facets(38.88, -77.1, 10) f);
+  (select f->'types' = '{"all":4,"restaurants":2,"drinks":1,"coffee":1}'::jsonb from area_facets(-77.25, 38.73, -76.95, 39.03) f);
 insert into r select 'facets: without a type, the finer kinds of every type',
   (select f->'cuisines' = '[{"n":1,"name":"Bar","path":"drinks.bar"},{"n":1,"name":"Wine Bar","path":"drinks.bar.wine_bar"},{"n":2,"name":"Italian","path":"restaurants.italian"},{"n":1,"name":"Pizza","path":"restaurants.italian.pizza"}]'::jsonb
-   from search_facets(38.88, -77.1, 10) f);
+   from area_facets(-77.25, 38.73, -76.95, 39.03) f);
 insert into r select 'facets: favorites, friends, want and hidden counts',
   (select (f->>'favorites')::int = 1 and (f->>'friends')::int = 2 and (f->>'want')::int = 1 and (f->>'hidden')::int = 1
-   from search_facets(38.88, -77.1, 10) f);
+   from area_facets(-77.25, 38.73, -76.95, 39.03) f);
 insert into r select 'facets: cuisines in the chosen type, a kind counted under its parents',
   (select f->'cuisines' = '[{"n":2,"name":"Italian","path":"restaurants.italian"},{"n":1,"name":"Pizza","path":"restaurants.italian.pizza"}]'::jsonb
-   from search_facets(38.88, -77.1, 10, 'restaurants') f);
+   from area_facets(-77.25, 38.73, -76.95, 39.03, 'restaurants') f);
 insert into r select 'facets: status counts follow the type',
   (select (f->>'favorites')::int = 1 and (f->>'friends')::int = 1 and (f->>'want')::int = 0 and (f->>'hidden')::int = 1
-   from search_facets(38.88, -77.1, 10, 'restaurants') f);
+   from area_facets(-77.25, 38.73, -76.95, 39.03, 'restaurants') f);
 insert into r select 'facets: type counts ignore the chosen type and cuisine',
   (select (f->'types'->>'all')::int = 4 and (f->>'friends')::int = 0
-   from search_facets(38.88, -77.1, 10, 'restaurants', 'restaurants.italian.pizza') f);
+   from area_facets(-77.25, 38.73, -76.95, 39.03, 'restaurants', 'restaurants.italian.pizza') f);
 insert into r select 'facets: type counts follow the Friends filter; its own count does not',
   (select f->'types' = '{"all":2,"restaurants":1,"drinks":1}'::jsonb and (f->>'friends')::int = 2
-   from search_facets(38.88, -77.1, 10, null, null, null, false, true) f);
+   from area_facets(-77.25, 38.73, -76.95, 39.03, null, null, null, false, true) f);
 insert into r select 'facets: hidden is 0 while hidden places are shown',
   (select (f->>'hidden')::int = 0 and (f->'types'->>'all')::int = 5
-   from search_facets(38.88, -77.1, 10, null, null, null, false, false, false, true) f);
+   from area_facets(-77.25, 38.73, -76.95, 39.03, null, null, null, false, false, false, true) f);
 insert into r select 'facets: name search narrows every count',
-  (select (f->'types'->>'all')::int = 1 and (f->>'favorites')::int = 1 from search_facets(38.88, -77.1, 10, null, null, 'pizza') f);
+  (select (f->'types'->>'all')::int = 1 and (f->>'favorites')::int = 1 from area_facets(-77.25, 38.73, -76.95, 39.03, null, null, 'pizza') f);
 
 -- ------------------------------------------------------------ suggest_what
 insert into r select 'kinds: "ita" suggests Italian, with its type',
@@ -156,12 +158,14 @@ insert into r select 'one character suggests nothing',
   (select count(*) = 0 from suggest_what('i', 38.88, -77.1));
 
 -- ------------------------------------------------------------ grants
-insert into r select 'API roles can call the three functions, PUBLIC cannot',
-  has_function_privilege('anon', 'search_places(double precision,double precision,double precision,ltree,text,boolean,boolean,boolean,boolean)', 'execute')
-  and has_function_privilege('authenticated', 'search_facets(double precision,double precision,double precision,text,ltree,text,boolean,boolean,boolean,boolean)', 'execute')
+insert into r select 'API roles can call the results functions, PUBLIC cannot',
+  has_function_privilege('anon', 'search_area(double precision,double precision,double precision,double precision,double precision,double precision,ltree,text,boolean,boolean,boolean,boolean)', 'execute')
+  and has_function_privilege('authenticated', 'area_facets(double precision,double precision,double precision,double precision,text,ltree,text,boolean,boolean,boolean,boolean)', 'execute')
   and has_function_privilege('anon', 'suggest_what(text,double precision,double precision)', 'execute')
   and not exists (select 1 from pg_proc p, aclexplode(p.proacl) a
-                  where p.proname in ('search_places', 'search_facets', 'suggest_what')
+                  where p.proname in ('search_area', 'area_facets', 'suggest_what')
                     and a.grantee = 0 and a.privilege_type = 'EXECUTE');
+insert into r select 'step 2''s circle search is gone',
+  not exists (select 1 from pg_proc where proname in ('search_places', 'search_facets'));
 
 select case when ok then 'PASS ' else 'FAIL ' end || t from r;
