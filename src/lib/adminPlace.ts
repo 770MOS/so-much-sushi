@@ -46,7 +46,9 @@ export function metresBetween(a: { lat: number; lng: number }, b: { lat: number;
 // "Overture Maps · CDLA" or "Edited by hand, Oct 24, 2026".
 export function provenanceLabel(p: Provenance | undefined) {
   if (!p) return null;
-  return p.method === "manual" ? `Edited by hand, ${when(p.set_at)}` : `${p.source} · ${p.license}`;
+  if (p.method === "manual") return `Edited by hand, ${when(p.set_at)}`;
+  if (p.method === "user_report") return `From a member’s report, ${when(p.set_at)}`;
+  return `${p.source} · ${p.license}`;
 }
 
 export function statusLabel(s: string) {

@@ -7,13 +7,15 @@ import {
   acceptSourceChanges,
   acceptTagsSelected,
   acceptTickedRejectRest,
+  declinePinReports,
   declinePlaceRequests,
   keepSeparateSelected,
   mergeSelected,
   rejectSourceChanges,
   rejectTagsSelected,
 } from "./actions";
-import type { MergeRow, PlaceRequestRow, SourceChangeRow, TagCount, TagRow } from "./types";
+import type { MergeRow, PinReportRow, PlaceRequestRow, SourceChangeRow, TagCount, TagRow } from "./types";
+import { metersText, PIN_HOW_SHORT, placedBy } from "@/lib/pins";
 
 const TAG_PAGE = 200;
 
@@ -53,16 +55,27 @@ export default async function ReviewQueue({
   const params = await searchParams;
   const requested = one(params.type);
   const type =
-    requested === "tags" ? "tags" : requested === "changes" ? "changes" : requested === "requests" ? "requests" : "merges";
+    requested === "tags"
+      ? "tags"
+      : requested === "changes"
+        ? "changes"
+        : requested === "requests"
+          ? "requests"
+          : requested === "pins"
+            ? "pins"
+            : "merges";
   const tag = one(params.tag) ?? null;
   const notice = one(params.notice);
 
-  const [mergesRes, countsRes, changesRes, requestsRes] = await Promise.all([
+  const [mergesRes, countsRes, changesRes, requestsRes, pinsRes] = await Promise.all([
     db.rpc("admin_pending_merges"),
     db.rpc("admin_pending_tag_counts"),
     db.rpc("admin_pending_source_changes"),
     db.rpc("admin_pending_place_requests"),
+    db.rpc("admin_pending_pin_reports"),
   ]);
+  if (pinsRes.error) throw new Error(pinsRes.error.message);
+  const pins = (pinsRes.data ?? []) as PinReportRow[];
   if (mergesRes.error) throw new Error(mergesRes.error.message);
   if (countsRes.error) throw new Error(countsRes.error.message);
   if (changesRes.error) throw new Error(changesRes.error.message);
@@ -87,7 +100,9 @@ export default async function ReviewQueue({
         ? "/admin/review?type=changes"
         : type === "requests"
           ? "/admin/review?type=requests"
-          : "/admin/review";
+          : type === "pins"
+            ? "/admin/review?type=pins"
+            : "/admin/review";
   const tab = (active: boolean) =>
     `flex min-h-11 items-center gap-2 rounded-lg border px-3 text-[13px] ${
       active ? "border-neutral-900 bg-neutral-900 text-white" : "border-neutral-300 bg-white hover:bg-neutral-50"
@@ -109,6 +124,9 @@ export default async function ReviewQueue({
         <Link href="/admin/review?type=requests" className={tab(type === "requests")}>
           Place requests <span className="font-mono text-xs">{requests.length}</span>
         </Link>
+        <Link href="/admin/review?type=pins" className={tab(type === "pins")}>
+          Pin reports <span className="font-mono text-xs">{pins.length}</span>
+        </Link>
       </div>
 
       {notice && (
@@ -117,7 +135,80 @@ export default async function ReviewQueue({
         </p>
       )}
 
-      {type === "requests" ? (
+      {type === "pins" ? (
+        pins.length === 0 ? (
+          <p className="px-4 py-10 text-neutral-600">No pin reports are waiting.</p>
+        ) : (
+          <form>
+            <input type="hidden" name="return" value={here} />
+            <div className="flex flex-wrap items-center gap-2 border-b border-neutral-200 bg-neutral-50 px-4 py-2">
+              <button formAction={declinePinReports} className={secondary}>
+                Decline ticked
+              </button>
+              <input name="note" placeholder="Reason (optional)" className="min-h-11 w-56 rounded-lg border border-neutral-300 bg-white px-2.5 text-[13px]" />
+              <span className="text-xs text-neutral-600">
+                Members’ suggestions for a better spot. Open one to see both spots on a map, then accept (as sent or adjusted) or decline.
+              </span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[900px] border-collapse text-[13px]">
+                <thead>
+                  <tr className="bg-neutral-50">
+                    <th className={th}><SelectAll /></th>
+                    <th className={th}>Place</th>
+                    <th className={th}>Moves the pin</th>
+                    <th className={th}>How they know</th>
+                    <th className={th}>Sent by</th>
+                    <th className={th}>Others agreeing</th>
+                    <th className={th}>Sent</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pins.map((q) => (
+                    <tr key={q.id} className="has-[:checked]:bg-orange-50">
+                      <td className={td}>
+                        <label className="flex min-h-11 min-w-11 cursor-pointer items-center justify-center">
+                          <input type="checkbox" name="report" value={q.id} aria-label={`Select the report for ${q.place.name}`} className="h-4 w-4 accent-neutral-900" />
+                        </label>
+                      </td>
+                      <td className={td}>
+                        <Link href={`/admin/review/pins/${q.id}`} className="inline-flex min-h-11 items-center font-medium underline decoration-neutral-300 hover:text-orange-700">
+                          {q.place.name}
+                        </Link>
+                        <div className="text-xs text-neutral-500">{[q.place.address, place(q.place.city, q.place.state)].filter(Boolean).join(", ")}</div>
+                        {q.note && <div className="max-w-xs text-xs text-neutral-600">“{q.note}”</div>}
+                      </td>
+                      <td className={td}>
+                        {metersText(q.distance_m)}
+                        <div className="text-xs text-neutral-500">{placedBy(q.method, q.accuracy_m)}</div>
+                      </td>
+                      <td className={td}>{PIN_HOW_SHORT[q.how]}</td>
+                      <td className={td}>
+                        {q.reported_by ?? <span className="text-neutral-400">Deleted account</span>}
+                        <div className="text-xs text-neutral-500">
+                          Sent {q.reports_by_this_person}, {q.accepted_from_this_person} accepted
+                        </div>
+                      </td>
+                      <td className={td}>
+                        {q.others.filter((o) => o.meters_from_this <= 15).length > 0 ? (
+                          <span className="font-medium text-orange-800">{q.others.filter((o) => o.meters_from_this <= 15).length} within 15 m</span>
+                        ) : q.others.length > 0 ? (
+                          <span className="text-neutral-600">{q.others.length} elsewhere</span>
+                        ) : (
+                          <span className="text-neutral-500">None</span>
+                        )}
+                      </td>
+                      <td className={`${td} whitespace-nowrap text-neutral-600`}>
+                        {new Date(q.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </form>
+        )
+      ) : type === "requests" ? (
         requests.length === 0 ? (
           <p className="px-4 py-10 text-neutral-600">No place requests are waiting.</p>
         ) : (

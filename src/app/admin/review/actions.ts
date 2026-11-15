@@ -171,3 +171,35 @@ export async function declinePlaceRequests(formData: FormData) {
   if (error) back(formData, `Could not save: ${error.message}`);
   backTo("/admin/review?type=requests", `Declined ${data}.`);
 }
+
+// Accept a pin report, as sent or with the pin adjusted on the report screen.
+export async function acceptPinReport(input: { id: number; lat: number | null; lng: number | null; note: string }): Promise<{ error?: string }> {
+  const { db, email } = await requireAdmin();
+  if (!Number.isInteger(input.id) || input.id <= 0) return { error: "Missing the report." };
+  const { error } = await db.rpc("admin_accept_pin_report", {
+    p_id: input.id,
+    p_lat: input.lat,
+    p_lng: input.lng,
+    p_decided_by: email,
+    p_note: input.note || null,
+  });
+  if (error) return { error: `Could not save: ${error.message}` };
+  revalidatePath("/admin", "layout");
+  return {};
+}
+
+// Decline the ticked pin reports (or the one on the report screen).
+export async function declinePinReports(formData: FormData) {
+  const { db, email } = await requireAdmin();
+  const selected = ids(formData, "report");
+  if (selected.length === 0) back(formData, "Nothing was ticked.");
+  const reason = String(formData.get("reason") ?? "").trim();
+  const note = String(formData.get("note") ?? "").trim();
+  const { data, error } = await db.rpc("admin_decline_pin_reports", {
+    p_ids: selected,
+    p_decided_by: email,
+    p_note: [reason, note].filter(Boolean).join(": ") || null,
+  });
+  if (error) back(formData, `Could not save: ${error.message}`);
+  backTo("/admin/review?type=pins", `Declined ${data}.`);
+}

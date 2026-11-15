@@ -6,7 +6,8 @@ import { FriendsFavoriteIcon, FavoriteIcon } from "@/components/icons";
 
 // What a visitor sees on tapping Favorites, Friends, Want to try or a heart (option B,
 // decided 2026-11-10): the buttons look normal with a small lock, and say what joining gives.
-export default function JoinNote({ open, onClose }: { open: boolean; onClose: () => void }) {
+// Other features that need an account (suggesting a better spot for a pin) pass their own words.
+export default function JoinNote({ open, onClose, title, body }: { open: boolean; onClose: () => void; title?: string; body?: string }) {
   const firstRef = useRef<HTMLAnchorElement>(null);
 
   useEffect(() => {
@@ -30,15 +31,17 @@ export default function JoinNote({ open, onClose }: { open: boolean; onClose: ()
         onClick={(e) => e.stopPropagation()}
         className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-[0_12px_40px_rgba(0,0,0,0.2)]"
       >
-        <div className="flex items-center gap-2" aria-hidden="true">
-          <FavoriteIcon filled size={22} />
-          <FriendsFavoriteIcon size={20} />
-        </div>
-        <h2 id="join-note-title" className="mt-3 text-xl font-medium text-zinc-950">
-          Favorites and Friends come with a free account
+        {!title && (
+          <div className="mb-3 flex items-center gap-2" aria-hidden="true">
+            <FavoriteIcon filled size={22} />
+            <FriendsFavoriteIcon size={20} />
+          </div>
+        )}
+        <h2 id="join-note-title" className="text-xl font-medium text-zinc-950">
+          {title ?? "Favorites and Friends come with a free account"}
         </h2>
         <p className="mt-2 text-[15px] leading-relaxed text-muted">
-          Save the places you love, keep a Want to try list, and see your friends’ favorites on the map.
+          {body ?? "Save the places you love, keep a Want to try list, and see your friends’ favorites on the map."}
         </p>
         <div className="mt-5 flex flex-col gap-2">
           <Link

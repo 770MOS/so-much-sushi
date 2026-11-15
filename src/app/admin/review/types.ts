@@ -32,3 +32,18 @@ export type PlaceRequestRow = {
   created_at: string; requested_by: string | null; requested_by_handle: string | null;
   requests_by_this_person: number; possible_matches: number;
 };
+
+// One pin report, as admin_pending_pin_reports / admin_get_pin_report return it.
+export type PinReportRow = {
+  id: number; status: "pending" | "accepted" | "declined" | "superseded";
+  how: "was_there" | "business" | "other"; method: "map" | "gps"; accuracy_m: number | null; note: string | null;
+  lat: number; lng: number; previous: { lat: number; lng: number } | null; applied: { lat: number; lng: number } | null;
+  distance_m: number; created_at: string; decided_by: string | null; decided_at: string | null; decision_note: string | null;
+  place: {
+    id: string; name: string; address: string | null; city: string | null; state: string | null; status: string;
+    lat: number; lng: number; pin_method: string | null; pin_source: string | null; pin_contributor: string | null;
+  };
+  reported_by: string | null; reported_by_handle: string | null;
+  reports_by_this_person: number; accepted_from_this_person: number;
+  others: { id: number; lat: number; lng: number; meters_from_this: number }[];
+};

@@ -4,6 +4,7 @@ import { requireAdmin } from "@/lib/admin";
 import { loadCategories, mainCategories } from "@/lib/adminCategories";
 import { formatPhone, websiteHost } from "@/lib/adminFormat";
 import TagChecklist from "@/components/admin/TagChecklist";
+import AdminPinPanel from "@/components/admin/AdminPinPanel";
 import { UUID, provenanceLabel, when, type AdminPlace, type PlaceMerge } from "@/lib/adminPlace";
 import { buildTimeline, type HistoryRow, type TimelineEntry } from "@/lib/adminHistory";
 import { markChecked, savePlace, undoMerge } from "../actions";
@@ -163,7 +164,10 @@ export default async function PlaceEditor({
               <dt className="text-neutral-500">Saved by</dt>
               <dd>{p.saved.stars} {p.saved.stars === 1 ? "favorite" : "favorites"} · on {p.saved.lists} {p.saved.lists === 1 ? "list" : "lists"}</dd>
               <dt className="text-neutral-500">Location</dt>
-              <dd className="font-mono text-xs">{p.lat.toFixed(5)}, {p.lng.toFixed(5)}</dd>
+              <dd>
+                <span className="font-mono text-xs">{p.lat.toFixed(5)}, {p.lng.toFixed(5)}</span>{" "}
+                <a href="#pin" className="underline hover:text-orange-700">Move pin</a>
+              </dd>
               <dt className="text-neutral-500">Last changed</dt>
               <dd>{when(p.updated_at)}</dd>
               <dt className="text-neutral-500">Origin</dt>
@@ -187,6 +191,8 @@ export default async function PlaceEditor({
               <dd><Link href={`/venue/${p.id}`} className="underline hover:text-orange-700">Open</Link></dd>
             </dl>
           </section>
+
+          <AdminPinPanel placeId={p.id} lat={p.lat} lng={p.lng} from={from("location")} disabled={merged} />
 
           <section className={panel}>
             <div className={panelHead}>Source records · {p.source_records.length}</div>

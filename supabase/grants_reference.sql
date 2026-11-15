@@ -369,6 +369,20 @@ GRANT EXECUTE ON FUNCTION invite_info(text), friends_overview(), find_people(tex
 REVOKE EXECUTE ON FUNCTION friendship_with(uuid, uuid), relation_to(uuid, uuid) FROM PUBLIC, anon, authenticated;
 
 -- =============================================================================
+-- Pin fixes (20261115000000_pin_fixes.sql).
+--   pin_reports is reachable only through functions: members use the two
+--   SECURITY DEFINER functions below (each checks auth.uid() itself); the
+--   admin_* pin functions and the internal helpers (us_point,
+--   check_pin_details, point_json, set_hand_pin) are service_role only.
+-- =============================================================================
+REVOKE ALL ON TABLE pin_reports FROM anon, authenticated;
+GRANT ALL ON TABLE pin_reports TO service_role;
+REVOKE EXECUTE ON FUNCTION submit_pin_report(uuid, double precision, double precision, text, text, real, text, boolean),
+  my_pin_report(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION submit_pin_report(uuid, double precision, double precision, text, text, real, text, boolean),
+  my_pin_report(uuid) TO authenticated, service_role;
+
+-- =============================================================================
 -- Explicitly out of scope: NocoDB's own internal tables
 -- =============================================================================
 -- notification, workspace, workspace_user, xc_knex_migrationsv0,

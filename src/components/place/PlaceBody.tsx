@@ -14,14 +14,16 @@ import JoinNote from "@/components/results/JoinNote";
 import { friendsLabel } from "@/components/results/ResultRow";
 import ListButton from "@/components/place/ListButton";
 import DirectionsMenu from "@/components/place/DirectionsMenu";
+import PinFixDialog from "@/components/place/PinFixDialog";
+import { useRouter } from "next/navigation";
 
 // The details of one place (mocked 2026-11-10), shared by the side panel, the phone sheet and
 // the full place page so the three can't drift apart:
 //   name; kind ("Italian · Restaurants") with the distance from the search, when there is one;
 //   Favorite and Add to list (a lock and the join note for visitors); which friends have it as
 //   a favorite and which of the person's lists it's on; address with Directions, phone,
-//   website, hours; where the details come from; Suggest an edit and Report closed (soon);
-//   claiming (soon).
+//   website, hours; where the details come from; "Pin in the wrong spot" (admins move it,
+//   members suggest a spot: 2026-11-15); other edits and Report closed (soon); claiming (soon).
 type Layout = "panel" | "sheet" | "page";
 
 const LOCK_PATH = "M5 13a2 2 0 0 1 2 -2h10a2 2 0 0 1 2 2v6a2 2 0 0 1 -2 2h-10a2 2 0 0 1 -2 -2v-6zM11 16a1 1 0 1 0 2 0a1 1 0 0 0 -2 0M8 11v-4a4 4 0 1 1 8 0v4";
@@ -66,6 +68,11 @@ export default function PlaceBody({ place, layout, headingId }: { place: PlaceDe
   const [want, setWant] = useState(place.is_want);
   const [lists, setLists] = useState(place.lists);
   const [joinOpen, setJoinOpen] = useState(false);
+  const [pinOpen, setPinOpen] = useState(false);
+  const [pinJoin, setPinJoin] = useState(false);
+  // Where the pin is now, after an admin moves it from here.
+  const [spot, setSpot] = useState({ lat: place.lat, lng: place.lng });
+  const router = useRouter();
   const [busy, setBusy] = useState(false);
 
   // A heart or Want to try changed elsewhere on the page (a result row): follow it.
@@ -252,13 +259,40 @@ export default function PlaceBody({ place, layout, headingId }: { place: PlaceDe
       <div className="flex flex-col gap-2 text-[13px] text-muted">
         <p>{sourcesLine(place.sources)}</p>
         <p>
-          Something wrong? Suggest an edit · Report closed{" "}
+          Something wrong?{" "}
+          <button
+            type="button"
+            onClick={() => (userId ? setPinOpen(true) : setPinJoin(true))}
+            disabled={userId === undefined}
+            className="font-medium text-zinc-950 underline decoration-[#bbbbbb] underline-offset-2 hover:decoration-zinc-950"
+          >
+            Pin in the wrong spot
+          </button>
+          {" · "}Other edits · Report closed{" "}
           <span className="ml-1 rounded-full bg-zinc-100 px-1.5 py-0.5 text-[11px] font-medium text-[#5c5c5c]">Soon</span>
         </p>
         <p>Own this place? Claiming is coming soon.</p>
       </div>
 
       <JoinNote open={joinOpen} onClose={() => setJoinOpen(false)} />
+      <JoinNote
+        open={pinJoin}
+        onClose={() => setPinJoin(false)}
+        title="Help fix the map with a free account"
+        body="Members can suggest a better spot when a pin is in the wrong place. We check every suggestion before the pin moves."
+      />
+      {pinOpen && (
+        <PinFixDialog
+          place={{ id: place.id, name: place.name, lat: spot.lat, lng: spot.lng }}
+          onClose={() => setPinOpen(false)}
+          onMoved={(lat, lng) => {
+            setSpot({ lat, lng });
+            announceMark({ id: place.id, moved: { lat, lng }, from: "panel" });
+            // A place's own page draws its map from the server.
+            if (layout === "page") router.refresh();
+          }}
+        />
+      )}
     </div>
   );
 }
