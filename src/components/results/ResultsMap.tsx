@@ -4,12 +4,14 @@ import { useEffect, useRef, type ReactNode } from "react";
 import maplibregl from "maplibre-gl";
 import type { GeoJSONSource, LngLatBoundsLike, MapGeoJSONFeature, MapLayerMouseEvent } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { getMapStyleUrl } from "@/lib/mapConfig";
+import { getMapStyleUrl, MAX_BROWSE_ZOOM } from "@/lib/mapConfig";
 import {
   addPinImages,
   ICON_OFFSET,
   markFor,
   pinImageId,
+  pinOffset,
+  spreadOffsets,
   RECOMMENDED_COLOR,
   STARRED_COLOR,
   type MapMarkerEntity,
@@ -153,6 +155,7 @@ function toFeatures(places: MapMarkerEntity[], cells: AreaCell[] | null): GeoJSO
       })),
     };
   }
+  const spread = spreadOffsets(places);
   return {
     type: "FeatureCollection",
     features: places.map((place) => {
@@ -169,7 +172,7 @@ function toFeatures(places: MapMarkerEntity[], cells: AreaCell[] | null): GeoJSO
           want: mark === "want" ? 1 : 0,
           icon: mark ? `sms-mark-${mark}` : pinImageId(place.entityType, false, false),
           anchor: mark ? "center" : "bottom",
-          offset: mark ? [0, 0] : ICON_OFFSET,
+          offset: pinOffset(mark ? [0, 0] : ICON_OFFSET, spread.get(place.id)),
           opacity: (place.matchesFilter ? 1 : 0.25) * statusOpacity,
           sortKey: mark === "fav" ? 3 : mark === "friend" ? 2 : mark === "want" ? 1 : 0,
         },
@@ -245,6 +248,7 @@ export default function ResultsMap({ places, cells, area, highlightId, selectedI
       style: getMapStyleUrl(),
       bounds: areaBounds(areaRef.current),
       fitBoundsOptions: { padding: 8 },
+      maxZoom: MAX_BROWSE_ZOOM,
     });
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
 

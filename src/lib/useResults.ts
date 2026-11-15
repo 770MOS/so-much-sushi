@@ -136,6 +136,10 @@ export function useResults(userId: string | null, args: ResultsArgs | null, want
       const want = change.want;
       setResults((rows) => rows?.map((r) => (r.id === change.id ? { ...r, is_want: want } : r)) ?? rows);
     }
+    if (change.moved) {
+      const { lat, lng } = change.moved;
+      setResults((rows) => rows?.map((r) => (r.id === change.id ? { ...r, lat, lng } : r)) ?? rows);
+    }
   });
 
   async function toggleStar(entityId: string) {

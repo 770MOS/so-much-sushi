@@ -1,5 +1,7 @@
 // Turns place_history() rows into plain-language timeline entries for the admin place page.
 
+import { metersText, PIN_HOW_SHORT, placedBy, type PinHow } from "@/lib/pins";
+
 export type HistoryRow = {
   at: string; kind: string; field: string | null; old_value: unknown; new_value: unknown; status: string | null;
   source: string | null; by_whom: string | null; detail: Record<string, unknown> | null;
@@ -40,10 +42,32 @@ function ledgerEntry(r: HistoryRow, i: number): TimelineEntry {
   const change = `${fieldName(r.field)}: ${show(r.old_value)} → ${show(r.new_value)}`;
   const from = r.source ? ` from ${r.source}` : "";
 
+  // A pin placed by a person: how they knew, and how it was placed.
+  const pinLines =
+    r.field === "location" && typeof d.how === "string"
+      ? [
+          [
+            `How they knew: ${PIN_HOW_SHORT[d.how as PinHow] ?? d.how}`,
+            placedBy(typeof d.method === "string" ? d.method : null, typeof d.accuracy_m === "number" ? d.accuracy_m : null),
+            typeof d.distance_m === "number" ? `moved ${metersText(d.distance_m)}` : null,
+          ]
+            .filter(Boolean)
+            .join(" · "),
+        ]
+      : [];
+
   switch (r.kind) {
     case "manual_edit":
       if (r.field === "last_checked") return { ...base, title: "Checked, still correct", lines: [...note, ...onMerged], tone: "decision" };
+      if (r.field === "location") return { ...base, title: "Map pin moved by hand", lines: [...pinLines, ...note, ...onMerged], tone: "decision" };
       return { ...base, title: `Edited by hand: ${change}`, lines: [...note, ...onMerged], tone: "decision" };
+    case "user_report":
+      return {
+        ...base,
+        title: d.adjusted ? "Map pin moved from a member’s report (adjusted)" : "Map pin moved from a member’s report",
+        lines: [...pinLines, ...(typeof d.pin_report === "number" ? [`Report ${d.pin_report}`] : []), ...note, ...onMerged],
+        tone: "decision",
+      };
     case "merge": {
       const other = typeof d.duplicate_name === "string" ? d.duplicate_name : typeof d.name_b === "string" ? d.name_b : "another place";
       const taken = Array.isArray(d.taken_from_duplicate) && d.taken_from_duplicate.length

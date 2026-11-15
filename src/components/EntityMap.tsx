@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import maplibregl from "maplibre-gl";
 import type { GeoJSONSource, MapLayerMouseEvent, Offset } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { getMapStyleUrl, DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM } from "@/lib/mapConfig";
+import { getMapStyleUrl, DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM, MAX_BROWSE_ZOOM } from "@/lib/mapConfig";
 import { closedLabel } from "@/lib/entityStatus";
 import type { EntityType } from "@/lib/entityTypes";
 
@@ -223,7 +223,37 @@ export async function addPinImages(map: maplibregl.Map, isCancelled: () => boole
   await Promise.all(jobs);
 }
 
+// Places that share one spot (several businesses at one address, or a source that put them on
+// the same point) would draw as a single pin. Each gets a small screen offset around the spot
+// instead, so every one can be seen and clicked. The offsets are screen pixels, so the ring
+// stays small at any zoom, and the places' points themselves are unchanged.
+export function spreadOffsets(places: { id: string; lat: number; lng: number }[]): Map<string, [number, number]> {
+  const groups = new Map<string, string[]>();
+  for (const p of places) {
+    const key = `${p.lat.toFixed(5)},${p.lng.toFixed(5)}`;
+    const ids = groups.get(key);
+    if (ids) ids.push(p.id);
+    else groups.set(key, [p.id]);
+  }
+  const out = new Map<string, [number, number]>();
+  for (const ids of groups.values()) {
+    if (ids.length < 2) continue;
+    const radius = Math.min(16 + Math.max(0, ids.length - 6) * 2, 40);
+    ids.forEach((id, i) => {
+      const angle = (2 * Math.PI * i) / ids.length - Math.PI / 2;
+      out.set(id, [Math.round(radius * Math.cos(angle)), Math.round(radius * Math.sin(angle))]);
+    });
+  }
+  return out;
+}
+
+// A pin's offset: its own (the pin's tip, or none for a round marker) plus any spread.
+export function pinOffset(base: [number, number], spread: [number, number] | undefined): [number, number] {
+  return spread ? [base[0] + spread[0], base[1] + spread[1]] : base;
+}
+
 function toFeatureCollection(entities: MapMarkerEntity[]): GeoJSON.FeatureCollection<GeoJSON.Point> {
+  const spread = spreadOffsets(entities);
   return {
     type: "FeatureCollection",
     features: entities.map((entity) => {
@@ -238,7 +268,7 @@ function toFeatureCollection(entities: MapMarkerEntity[]): GeoJSON.FeatureCollec
           icon: mark ? `sms-mark-${mark}` : pinImageId(entity.entityType, false, false),
           // A pin points at the place with its tip; a round marker sits centred on it.
           anchor: mark ? "center" : "bottom",
-          offset: mark ? [0, 0] : ICON_OFFSET,
+          offset: pinOffset(mark ? [0, 0] : ICON_OFFSET, spread.get(entity.id)),
           opacity: filterOpacity * statusOpacity,
           // Status markers draw above plain pins: favorites, then friends', then Want to try.
           sortKey: mark === "fav" ? 3 : mark === "friend" ? 2 : mark === "want" ? 1 : 0,
@@ -377,6 +407,7 @@ export default function EntityMap({ entities, jumpTo, onBoundsChange, onToggleSt
       style: getMapStyleUrl(),
       center: DEFAULT_MAP_CENTER,
       zoom: DEFAULT_MAP_ZOOM,
+      maxZoom: MAX_BROWSE_ZOOM,
     });
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-left");
 

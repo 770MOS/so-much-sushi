@@ -19,3 +19,9 @@ export function getMapStyleUrl(): string {
 
 export const DEFAULT_MAP_CENTER: [number, number] = [-77.1, 38.88]; // [lng, lat]
 export const DEFAULT_MAP_ZOOM = 12;
+
+// How far in the browsing maps go (results, lists, a place's page): about street level, where a
+// block's storefronts are still easy to tell apart. Closer than this, the few meters by which any
+// source's point can be off look like mistakes. Placing a pin by hand may go closer.
+export const MAX_BROWSE_ZOOM = 18;
+export const MAX_PIN_ZOOM = 20;
