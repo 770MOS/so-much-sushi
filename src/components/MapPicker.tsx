@@ -10,7 +10,7 @@
 import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { getMapStyleUrl, DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM, MAX_PIN_ZOOM } from "@/lib/mapConfig";
+import { applyMapStyle, DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM, MAX_PIN_ZOOM, PIN_COLOR } from "@/lib/mapConfig";
 import { forwardGeocodeCityState } from "@/lib/forwardGeocode";
 import { getLastSearchCoords } from "@/lib/lastSearchCoords";
 import { GOOD_GPS_METERS, type PinMethod } from "@/lib/pins";
@@ -93,11 +93,13 @@ export default function MapPicker({
     const last = !pin && startAtLastSearch ? getLastSearchCoords() : null;
     const map = new maplibregl.Map({
       container: containerRef.current,
-      style: getMapStyleUrl(),
       center: pin ? [pin.lng, pin.lat] : last ? [last.lng, last.lat] : DEFAULT_MAP_CENTER,
       zoom: pin ? 18 : last ? 14 : DEFAULT_MAP_ZOOM,
       maxZoom: MAX_PIN_ZOOM,
     });
+    // Always the plain map here, never satellite: pins are placed from first-hand knowledge, and
+    // map services' terms forbid making data from their imagery.
+    applyMapStyle(map, "map");
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-left");
     map.getCanvas().style.cursor = "crosshair";
     map.on("click", (e) => {
@@ -128,7 +130,7 @@ export default function MapPicker({
       return;
     }
     if (!markerRef.current) {
-      const marker = new maplibregl.Marker({ draggable: true, color: "#171717" }).setLngLat([pin.lng, pin.lat]).addTo(map);
+      const marker = new maplibregl.Marker({ draggable: true, color: PIN_COLOR }).setLngLat([pin.lng, pin.lat]).addTo(map);
       marker.on("dragend", () => {
         const p = marker.getLngLat();
         onPinRef.current({ lat: round(p.lat), lng: round(p.lng) });
