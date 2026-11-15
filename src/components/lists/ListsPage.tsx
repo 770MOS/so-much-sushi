@@ -12,6 +12,7 @@ import { avatarColors } from "@/components/Avatar";
 import { FLAG_PATH, formatMiles, placeWord, townsLine, VISIBILITY, type ListCardData } from "@/lib/lists";
 import { useUserId } from "@/lib/useSignedIn";
 import { useHerePoint } from "@/lib/useHerePoint";
+import { PIN_COLOR } from "@/lib/mapConfig";
 
 // The Lists page (mocked 2026-11-12): the person's own lists as cards, the ready-made Want to
 // try first, each with its place count, towns, who can see it and how close its nearest place
@@ -51,7 +52,7 @@ function CardMap({ points, want }: { points: [number, number][]; want: boolean }
         <span
           key={i}
           className="absolute h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-[0_1px_3px_rgba(0,0,0,0.3)]"
-          style={{ left: `${d.x}%`, top: `${d.y}%`, background: want ? "#3b5bdb" : "#222222" }}
+          style={{ left: `${d.x}%`, top: `${d.y}%`, background: want ? "#3b5bdb" : PIN_COLOR }}
         />
       ))}
     </span>

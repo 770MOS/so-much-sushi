@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import maplibregl from "maplibre-gl";
 import type { GeoJSONSource, LngLatBoundsLike, MapGeoJSONFeature, MapLayerMouseEvent } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { getMapStyleUrl, MAX_BROWSE_ZOOM } from "@/lib/mapConfig";
+import { applyMapStyle, loadMapKind, MAX_BROWSE_ZOOM, PIN_COLOR, saveMapKind, type MapKind } from "@/lib/mapConfig";
 import {
   addPinImages,
   ICON_OFFSET,
@@ -50,7 +50,7 @@ const SOURCE_ID = "sms-area";
 const PINS_LAYER = "sms-area-pins";
 const BUBBLES_LAYER = "sms-area-bubbles";
 const WANT_COLOR = "#3b5bdb"; // --want, the blue flag
-const BUBBLE_FILL = "#222222";
+const BUBBLE_FILL = PIN_COLOR;
 // Bubble images are drawn on demand, one per look (count and mix); past this many, the ones not
 // on screen are dropped and drawn again if needed.
 const MAX_BUBBLE_IMAGES = 300;
@@ -232,6 +232,20 @@ export default function ResultsMap({ places, cells, area, highlightId, selectedI
     onSearchBoxRef.current = onSearchBox;
   }, [onSelect, onMoved, onSearchBox]);
 
+  // Map or Satellite: the last one picked in this browser.
+  const [kind, setKind] = useState<MapKind>(loadMapKind);
+  const kindRef = useRef(kind);
+  const appliedKindRef = useRef<MapKind | null>(null);
+  useEffect(() => {
+    kindRef.current = kind;
+    saveMapKind(kind);
+    const map = mapRef.current;
+    if (!map || appliedKindRef.current === kind) return;
+    appliedKindRef.current = kind;
+    readyRef.current = false;
+    applyMapStyle(map, kind);
+  }, [kind]);
+
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
     let cancelled = false;
@@ -245,11 +259,12 @@ export default function ResultsMap({ places, cells, area, highlightId, selectedI
 
     const map = new maplibregl.Map({
       container: containerRef.current,
-      style: getMapStyleUrl(),
       bounds: areaBounds(areaRef.current),
       fitBoundsOptions: { padding: 8 },
       maxZoom: MAX_BROWSE_ZOOM,
     });
+    applyMapStyle(map, kindRef.current);
+    appliedKindRef.current = kindRef.current;
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
 
     map.on("styleimagemissing", (e) => {
@@ -295,10 +310,15 @@ export default function ResultsMap({ places, cells, area, highlightId, selectedI
       }
     });
 
-    map.on("load", async () => {
+    // Our pins and bubbles go on top of the map's look, again each time the look changes (Map or
+    // Satellite), since a new look starts empty.
+    let look = 0;
+    async function install() {
+      const mine = ++look;
       // The bubbles' numbers are drawn in the page's typeface, so wait for it.
       await Promise.all([addPinImages(map, () => cancelled), document.fonts?.ready]);
-      if (cancelled) return;
+      // A newer look arrived meanwhile: its own install adds them.
+      if (cancelled || mine !== look || map.getSource(SOURCE_ID)) return;
       map.addSource(SOURCE_ID, {
         type: "geojson",
         data: dataRef.current,
@@ -353,6 +373,11 @@ export default function ResultsMap({ places, cells, area, highlightId, selectedI
         },
       });
       readyRef.current = true;
+    }
+    map.on("style.load", () => {
+      readyRef.current = false;
+      bubbleImages.clear();
+      void install();
     });
 
     map.on("click", PINS_LAYER, (event: MapLayerMouseEvent) => {
@@ -472,6 +497,20 @@ export default function ResultsMap({ places, cells, area, highlightId, selectedI
     <div className={`relative ${className ?? ""}`}>
       {/* Sized by its box, not positioned: MapLibre's own style makes the map element relative. */}
       <div ref={containerRef} className="h-full w-full" />
+      <div role="group" aria-label="Map look" className="absolute left-2.5 top-2.5 z-[2] flex rounded-[10px] bg-white p-[3px] shadow-[0_1px_4px_rgba(0,0,0,0.25)]">
+        {(["map", "satellite"] as const).map((k) => (
+          <button
+            key={k}
+            type="button"
+            aria-pressed={kind === k}
+            onClick={() => setKind(k)}
+            className={`h-8 rounded-[7px] px-3 text-[13px] font-medium ${kind === k ? "bg-primary text-white" : "text-zinc-950 hover:bg-zinc-100"}`}
+          >
+            {/* "Streets", not "Map": the view switch (List · Split · Map) already says Map. */}
+            {k === "map" ? "Streets" : "Satellite"}
+          </button>
+        ))}
+      </div>
       {children}
     </div>
   );

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import maplibregl from "maplibre-gl";
 import type { GeoJSONSource, MapLayerMouseEvent, Offset } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { getMapStyleUrl, DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM, MAX_BROWSE_ZOOM } from "@/lib/mapConfig";
+import { applyMapStyle, DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM, MAX_BROWSE_ZOOM, PIN_COLOR } from "@/lib/mapConfig";
 import { closedLabel } from "@/lib/entityStatus";
 import type { EntityType } from "@/lib/entityTypes";
 
@@ -53,7 +53,7 @@ type Props = {
 // never disagree on what "favorite" looks like. (The data still calls a
 // favorite a "star": the table is stars.)
 export const STARRED_COLOR = "#e04e76"; // --favorite, the rose heart
-const UNSTARRED_COLOR = "#222222"; // plain places: the dark pin from the mockups
+const UNSTARRED_COLOR = "#222222"; // the popup's heart button before it is pressed
 
 // Same path as FavoriteIcon in src/components/icons.tsx - duplicated here
 // because this element is built with raw DOM APIs (a React component can't
@@ -144,8 +144,8 @@ function pinImageSvg(entityType: Exclude<EntityType, "all"> | null, color: strin
     ? `<circle cx="23.5" cy="6.5" r="5.75" fill="${RECOMMENDED_COLOR}" stroke="white" stroke-width="1.5"/>`
     : "";
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${IMAGE_WIDTH * IMAGE_SCALE}" height="${IMAGE_HEIGHT * IMAGE_SCALE}" viewBox="0 0 ${IMAGE_WIDTH} ${IMAGE_HEIGHT}">
-    <svg x="0" y="2" width="28" height="36" viewBox="0 0 24 32">
-      <path d="M12 0C5.373 0 0 5.373 0 12c0 9 12 20 12 20s12-11 12-20c0-6.627-5.373-12-12-12z" fill="${color}"/>
+    <svg x="0" y="2" width="28" height="36" viewBox="-1 -1 26 34">
+      <path d="M12 0C5.373 0 0 5.373 0 12c0 9 12 20 12 20s12-11 12-20c0-6.627-5.373-12-12-12z" fill="${color}" stroke="white" stroke-width="1.5"/>
       <circle cx="12" cy="12" r="4.5" fill="white" fill-opacity="0.9"/>
       ${categoryIconMarkup(entityType, color)}
     </svg>
@@ -215,7 +215,7 @@ export async function addPinImages(map: maplibregl.Map, isCancelled: () => boole
     const id = pinImageId(entityType, false, false);
     if (map.hasImage(id)) continue;
     jobs.push(
-      loadSvgImage(pinImageSvg(entityType, UNSTARRED_COLOR, false)).then((image) => {
+      loadSvgImage(pinImageSvg(entityType, PIN_COLOR, false)).then((image) => {
         if (!isCancelled() && !map.hasImage(id)) map.addImage(id, image, { pixelRatio: IMAGE_SCALE });
       })
     );
@@ -404,11 +404,11 @@ export default function EntityMap({ entities, jumpTo, onBoundsChange, onToggleSt
 
     const map = new maplibregl.Map({
       container: containerRef.current,
-      style: getMapStyleUrl(),
       center: DEFAULT_MAP_CENTER,
       zoom: DEFAULT_MAP_ZOOM,
       maxZoom: MAX_BROWSE_ZOOM,
     });
+    applyMapStyle(map);
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-left");
 
     function emitBounds() {
