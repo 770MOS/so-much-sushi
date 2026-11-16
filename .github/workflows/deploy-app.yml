@@ -1,0 +1,75 @@
+name: Deploy app to production
+
+# Puts the latest main on the live site (Vercel), never ahead of the database it needs.
+# Vercel's own automatic deploys are off (vercel.json), so a merge whose migrations are still
+# waiting for your Approve click can't go live early:
+# - a merge with no database changes deploys straight away;
+# - a merge with database changes waits: when "Deploy database to production" succeeds, it
+#   starts this workflow, which then deploys;
+# - while any database deploy is waiting or running, nothing deploys here (its success will).
+# Deploying means calling the Vercel deploy hook for main (repository secret VERCEL_DEPLOY_HOOK),
+# which builds main's latest commit. It can also be run by hand from Actions.
+on:
+  push:
+    branches: [main]
+  workflow_run:
+    workflows: ["Deploy database to production"]
+    types: [completed]
+  workflow_dispatch:
+
+concurrency:
+  group: production-app
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # After a database deploy: only when it succeeded.
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Is the database ready for this version?
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          deploy=yes
+          if [ "$GITHUB_EVENT_NAME" = push ]; then
+            # Compare with main before this push (or the commit before, if that isn't known).
+            git cat-file -e "${BEFORE}^{commit}" 2>/dev/null || BEFORE="${GITHUB_SHA}^"
+            if ! git diff --quiet "$BEFORE" "$GITHUB_SHA" -- supabase/migrations; then
+              echo "This merge changes the database. The app goes live once **Deploy database to production** succeeds." >> "$GITHUB_STEP_SUMMARY"
+              deploy=no
+            fi
+          fi
+          if [ "$deploy" = yes ]; then
+            busy=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow deploy-production.yml --limit 20 \
+              --json status --jq '[.[] | select(.status != "completed")] | length')
+            if [ "$busy" != 0 ]; then
+              echo "A database deploy is waiting for approval or running. The app goes live once it succeeds (or reject it, then run this by hand)." >> "$GITHUB_STEP_SUMMARY"
+              deploy=no
+            fi
+          fi
+          echo "deploy=$deploy" >> "$GITHUB_OUTPUT"
+
+      - name: Start the Vercel deploy
+        if: steps.check.outputs.deploy == 'yes'
+        env:
+          HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "::notice title=Vercel not connected yet::Nothing deployed. Add the VERCEL_DEPLOY_HOOK repository secret (Vercel: Settings > Git > Deploy Hooks, branch main)."
+            exit 0
+          fi
+          curl -fsS -X POST "$HOOK" -o response.json
+          state=$(jq -r '.job.state // "requested"' response.json)
+          echo "Vercel deploy of main started ($state). It is live in about two minutes; progress is on Vercel's Deployments page." >> "$GITHUB_STEP_SUMMARY"
