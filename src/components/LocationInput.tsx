@@ -33,6 +33,13 @@ type Suggestion = Omit<PickedLocation, "radiusMiles"> & {
   radius_miles: number | null;
 };
 
+// The dropdowns under the box, styled like the What box's suggestions. Never a scrolling box
+// (8 suggestions at most fit): Safari drew a scrolling dropdown's frame over the results map but
+// left its text hidden behind the map and filter row, so the list looked empty (2026-11-16).
+// Above the filter row and the map's controls, like the What box's list.
+const LIST_CLASS =
+  "absolute left-0 right-0 top-full z-40 mt-2 min-w-[240px] overflow-hidden rounded-xl border border-line bg-white py-1 shadow-[0_8px_24px_rgba(0,0,0,0.12)]";
+
 // Suggestions start after two characters, a short pause after the last keystroke.
 const MIN_CHARS = 2;
 const DEBOUNCE_MS = 150;
@@ -184,7 +191,7 @@ export default function LocationInput({
             // Keep focus in the box while clicking: Safari doesn't focus a clicked button, so
             // the box's blur would otherwise close the list before the click lands.
             onMouseDown={(e) => e.preventDefault()}
-            className="absolute left-0 right-0 top-full z-10 mt-1 max-h-80 overflow-y-auto rounded-lg border border-zinc-300 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-900"
+            className={LIST_CLASS}
           >
             {visibleSuggestions.map((s, i) => (
               <li key={`${s.kind}-${s.label}-${i}`} id={optionId(i)} role="option" aria-selected={i === active}>
@@ -193,33 +200,30 @@ export default function LocationInput({
                   tabIndex={-1}
                   onMouseEnter={() => setActive(i)}
                   onClick={() => pick(s)}
-                  className={`flex w-full items-baseline gap-2 px-3 py-2 text-left text-sm text-zinc-950 dark:text-zinc-50 ${
-                    i === active ? "bg-zinc-100 dark:bg-zinc-800" : ""
+                  className={`flex min-h-10 w-full items-baseline gap-2 px-3 py-2 text-left text-[15px] text-zinc-950 ${
+                    i === active ? "bg-[#f3f6fd]" : ""
                   }`}
                 >
                   <span>{s.label}</span>
-                  {s.detail && <span className="text-xs text-zinc-500 dark:text-zinc-400">{s.detail}</span>}
+                  {s.detail && <span className="text-[13px] text-muted">{s.detail}</span>}
                 </button>
               </li>
             ))}
           </ul>
         )}
         {showStartList && (
-          <div
-            onMouseDown={(e) => e.preventDefault()}
-            className="absolute left-0 right-0 top-full z-10 mt-1 rounded-lg border border-zinc-300 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-900"
-          >
+          <div onMouseDown={(e) => e.preventDefault()} className={LIST_CLASS}>
             <button
               type="button"
               onClick={selectCurrentLocation}
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-950 hover:bg-zinc-100 dark:text-zinc-50 dark:hover:bg-zinc-800"
+              className="flex min-h-10 w-full items-center gap-2 px-3 py-2 text-left text-[15px] text-link hover:bg-[#f3f6fd]"
             >
               <LocationPinIcon />
               Use my location
             </button>
             {history.length > 0 && (
               <>
-                <p className="px-3 pt-2 pb-1 text-xs font-medium text-zinc-500 dark:text-zinc-500">
+                <p className="px-3 pb-1 pt-2 text-[13px] font-medium text-muted">
                   Recent places, kept on this device
                 </p>
                 {history.map((item) => (
@@ -227,7 +231,7 @@ export default function LocationInput({
                     key={item}
                     type="button"
                     onClick={() => selectHistoryItem(item)}
-                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-zinc-950 hover:bg-zinc-100 dark:text-zinc-50 dark:hover:bg-zinc-800"
+                    className="flex min-h-10 w-full items-center gap-2 px-3 py-2 text-left text-[15px] text-zinc-950 hover:bg-[#f3f6fd]"
                   >
                     <HistoryIcon />
                     {item}
