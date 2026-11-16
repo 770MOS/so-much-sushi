@@ -12,6 +12,9 @@ type Props = {
   value: string;
   onChange: (value: string) => void;
   onUseMyLocation: () => void;
+  // Called after a suggestion or a recent place is picked, with the text it put in the box
+  // (the search form searches straight away).
+  onPick?: (label: string) => void;
   locating: boolean;
   // Where the person's map is, so nearby places are suggested first. Defaults to this
   // session's last search position.
@@ -40,6 +43,7 @@ export default function LocationInput({
   value,
   onChange,
   onUseMyLocation,
+  onPick,
   locating,
   near,
   inputClassName,
@@ -103,6 +107,7 @@ export default function LocationInput({
   function selectHistoryItem(item: string) {
     setFocused(false);
     onChange(item);
+    onPick?.(item);
   }
 
   function pick(suggestion: Suggestion) {
@@ -117,6 +122,7 @@ export default function LocationInput({
     setPickedLabel(suggestion.label);
     setActive(-1);
     onChange(suggestion.label);
+    onPick?.(suggestion.label);
   }
 
   function handleKeyDown(e: KeyboardEvent<HTMLInputElement>) {

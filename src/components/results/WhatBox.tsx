@@ -18,7 +18,8 @@ type Props = {
   // Picking a kind sets the type or cuisine filter; picking a place opens it.
   onPickKind: (path: string) => void;
   onPickPlace: (placeId: string) => void;
-  // Enter, or "Search names with …": the text becomes a name search.
+  // Enter, or "Search for …": the text is searched as names and kinds of places ("pizza" finds
+  // pizza places and places with pizza in their name; see 20261116000000_search_fixes.sql).
   onSubmitText: () => void;
   near: Coords | null;
   facets: Facets | null;
@@ -195,7 +196,7 @@ export default function WhatBox({
                 <SearchIcon />
               </span>
               <span>
-                Search names with “<span className="font-medium">{query}</span>”
+                Search for “<span className="font-medium">{query}</span>”
               </span>
             </button>
           </div>

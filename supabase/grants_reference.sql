@@ -383,6 +383,14 @@ GRANT EXECUTE ON FUNCTION submit_pin_report(uuid, double precision, double preci
   my_pin_report(uuid) TO authenticated, service_role;
 
 -- =============================================================================
+-- Search fixes (20261116000000_search_fixes.sql).
+--   kinds_for_text (which kinds a typed text names) is internal: only the
+--   search functions use it. start_area keeps its grants (anon, authenticated,
+--   service_role) after being rewritten in PL/pgSQL.
+-- =============================================================================
+REVOKE EXECUTE ON FUNCTION kinds_for_text(text) FROM PUBLIC, anon, authenticated;
+
+-- =============================================================================
 -- Explicitly out of scope: NocoDB's own internal tables
 -- =============================================================================
 -- notification, workspace, workspace_user, xc_knex_migrationsv0,

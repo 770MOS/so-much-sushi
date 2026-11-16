@@ -485,7 +485,7 @@ export default function ResultsPage() {
                 : `${rows.length.toLocaleString("en-US")} ${placeWord(rows.length)}`}
             </span>
             <span className="text-muted">
-              {query.q ? ` named “${query.q}”` : ""}
+              {query.q ? ` for “${query.q}”` : ""}
               {whereWords}
             </span>
           </>

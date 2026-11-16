@@ -67,9 +67,13 @@ export default function Header() {
   return (
     <header className="w-full border-b border-line bg-white">
       <div className="flex min-h-16 items-center gap-x-6 gap-y-2 px-4 py-2 md:px-6">
-        <Link href="/" className="flex shrink-0 items-center gap-2.5 text-zinc-950">
+        {/* Between tablet and laptop widths the name and the links' words step aside (icons stay)
+            so the search boxes keep room for what's typed in them. */}
+        <Link href="/" aria-label="So Much Sushi" className="flex shrink-0 items-center gap-2.5 text-zinc-950">
           <LogoMark />
-          <span className="whitespace-nowrap text-lg font-medium tracking-tight">So Much Sushi</span>
+          <span className="whitespace-nowrap text-lg font-medium tracking-tight md:hidden xl:inline" aria-hidden="true">
+            So Much Sushi
+          </span>
         </Link>
 
         {/* On a phone the search boxes sit at the top of the results page instead. */}
@@ -88,12 +92,16 @@ export default function Header() {
                 key={href}
                 href={href}
                 aria-current={active ? "page" : undefined}
+                aria-label={label}
+                title={label}
                 className={`inline-flex h-11 items-center gap-2 px-3 text-[15px] font-medium text-zinc-950 transition-colors hover:text-zinc-600 ${
                   active ? "shadow-[inset_0_-2px_0_#141414]" : ""
                 }`}
               >
                 <Icon />
-                {label}
+                <span className="hidden xl:inline" aria-hidden="true">
+                  {label}
+                </span>
               </Link>
             );
           })}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import LocationInput from "@/components/LocationInput";
 import WhatBox from "@/components/results/WhatBox";
@@ -38,6 +38,16 @@ function LocateIcon() {
   return (
     <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M21 3l-6.5 18a.55 .55 0 0 1 -1 0l-3.5 -7l-7 -3.5a.55 .55 0 0 1 0 -1l18 -6.5" />
+    </svg>
+  );
+}
+
+// Shown in the Search button while a search is being worked out.
+function Spinner() {
+  return (
+    <svg viewBox="0 0 24 24" width={18} height={18} fill="none" className="animate-spin motion-reduce:animate-none" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeOpacity="0.3" strokeWidth="2.5" />
+      <path d="M21 12a9 9 0 0 0 -9 -9" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
     </svg>
   );
 }
@@ -93,6 +103,10 @@ function SearchFormInner({
   const [what, setWhat] = useState(current.q);
   const [where, setWhere] = useState(current.where);
   const [error, setError] = useState<string | null>(null);
+  // While a search is being worked out (finding the place typed, sizing the area): the Search
+  // button shows a spinner, and a second Enter or pick doesn't start another one.
+  const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
   const geo = useGeolocation();
   // Where the phone's search screen lists the What box's suggestions.
   const [listEl, setListEl] = useState<HTMLElement | null>(null);
@@ -115,17 +129,17 @@ function SearchFormInner({
   const here: Coords | null = current.lat !== null && current.lng !== null ? { lat: current.lat, lng: current.lng } : null;
   const near = origin ?? here ?? getLastSearchCoords();
 
-  // The point and area to search for what's in the Where box, or null if it can't be found.
-  // Unchanged text keeps the current area; a new place opens on that place (a town on the whole
-  // town, an address on about the nearest 50 places).
-  async function resolveWhere(): Promise<Pick<ResultsQuery, "where" | "lat" | "lng" | "b"> | null> {
-    const text = where.trim();
+  // The point and area to search for what's in the Where box (or the text just picked there),
+  // or null if it can't be found. Unchanged text keeps the current area; a new place opens on
+  // that place (a town on the whole town, an address on about the nearest 50 places).
+  async function resolveWhere(picked?: string): Promise<Pick<ResultsQuery, "where" | "lat" | "lng" | "b"> | null> {
+    const text = (picked ?? where).trim();
     const unchanged = text === "" || text === current.where || text === CURRENT_LOCATION_LABEL || text === MAP_AREA_LABEL;
     if (unchanged && here && current.b) {
       return { where: current.where || text, lat: here.lat, lng: here.lng, b: current.b };
     }
     if (text === "" || text === MAP_AREA_LABEL) return { where: "", lat: null, lng: null, b: null };
-    const found = await geocodeLocationText(text);
+    const found = await geocodeLocationText(text, near);
     if (!found) {
       setError("We couldn't find that place. Try a city, town or ZIP code.");
       return null;
@@ -135,11 +149,20 @@ function SearchFormInner({
     return { where: text, lat: found.lat, lng: found.lng, b };
   }
 
-  async function search(patch: Partial<ResultsQuery>) {
+  // Searches with the boxes as they are (or with the Where text just picked).
+  async function search(patch: Partial<ResultsQuery>, pickedWhere?: string) {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
     setError(null);
-    const point = await resolveWhere();
-    if (!point) return;
-    go(resultsHref({ ...current, ...point, ...patch }));
+    try {
+      const point = await resolveWhere(pickedWhere);
+      if (!point) return;
+      go(resultsHref({ ...current, ...point, ...patch }));
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
   }
 
   function handleSubmit(e: FormEvent) {
@@ -236,6 +259,7 @@ function SearchFormInner({
                   setWhere(v);
                 }}
                 onUseMyLocation={locateMe}
+                onPick={(label) => void search({ q: what }, label)}
                 locating={geo.locating}
                 near={near}
                 inputClassName={field}
@@ -285,8 +309,15 @@ function SearchFormInner({
           )}
         </div>
         <div className="border-t border-line px-4 pb-6 pt-3">
-          <button type="button" onClick={() => void search({ q: what })} className="h-[52px] w-full rounded-xl bg-primary text-base font-medium text-white">
-            Search
+          <button
+            type="button"
+            onClick={() => void search({ q: what })}
+            disabled={busy}
+            aria-busy={busy}
+            className="flex h-[52px] w-full items-center justify-center gap-2 rounded-xl bg-primary text-base font-medium text-white disabled:opacity-80"
+          >
+            {busy && <Spinner />}
+            {busy ? "Searching…" : "Search"}
           </button>
         </div>
       </div>
@@ -337,6 +368,7 @@ function SearchFormInner({
             setWhere(v);
           }}
           onUseMyLocation={locateMe}
+          onPick={(label) => void search({ q: what }, label)}
           locating={geo.locating}
           near={near}
           inputClassName={input}
@@ -352,9 +384,18 @@ function SearchFormInner({
           <LocateIcon />
         </button>
       </div>
-      {/* Enter in either box searches; this button is for anyone who looks for one. */}
-      <button type="submit" className="sr-only">
-        Search
+      {/* Enter in either box searches too, and picking a suggestion searches straight away. */}
+      <button
+        type="submit"
+        disabled={busy}
+        aria-busy={busy}
+        aria-label={busy ? "Searching…" : "Search"}
+        className="flex h-[46px] shrink-0 items-center justify-center gap-2 rounded-[10px] bg-primary px-3.5 text-[15px] font-medium text-white hover:opacity-90 disabled:opacity-80 xl:px-4"
+      >
+        {busy ? <Spinner /> : <SearchIcon />}
+        <span className="hidden xl:inline" aria-hidden="true">
+          Search
+        </span>
       </button>
       {(error || geo.geoError) && (
         <p role="alert" className={`text-sm text-red-700 ${layout === "bar" ? "absolute left-0 top-full mt-1 rounded bg-white px-2 py-1 shadow" : ""}`}>
