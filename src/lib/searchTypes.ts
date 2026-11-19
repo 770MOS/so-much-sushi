@@ -34,6 +34,14 @@ export type Facets = {
   friends: number;
   want: number;
   hidden: number;
+  // Every filter at once (20261121000000_advanced_filters.sql); missing from older databases.
+  total?: number;
+  // With counts (the All filters panel open): each leaves out its own filter.
+  streets?: { street: string; label: string; n: number }[];
+  chain?: { chain: number; independent: number };
+  website?: number;
+  phone?: number;
+  closed?: number;
 };
 
 // One square of the map's grid with its places counted (public.area_cells), for bubbles with

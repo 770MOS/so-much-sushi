@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { HEART_PATH, THUMB_PATH } from "@/components/icons";
 import { TYPE_OPTIONS, typeForPath } from "@/lib/entityTypes";
-import type { Only, ResultsQuery, View } from "@/lib/resultsQuery";
+import { cuisinesOf, moreCount, type Only, type ResultsQuery, type View } from "@/lib/resultsQuery";
 import type { Facets } from "@/lib/searchTypes";
 
 const FLAG_PATH = "M5 5a5 5 0 0 1 7 0a5 5 0 0 0 7 0v9a5 5 0 0 1 -7 0a5 5 0 0 0 -7 0v-9zM5 21v-7";
@@ -43,14 +43,25 @@ type Props = {
   onLocked: () => void;
   // Phone: opens the filters sheet.
   onOpenFilters?: () => void;
+  // Computer: opens or closes All filters.
+  onTogglePanel?: () => void;
+  panelOpen?: boolean;
 };
+
+// The Cuisine chip's words: one cuisine by name, two by both names, more as "Thai +2".
+export function cuisineWords(paths: string[], kindName: (path: string) => string): string {
+  if (paths.length <= 2) return paths.map(kindName).join(", ");
+  return `${kindName(paths[0])} +${paths.length - 1}`;
+}
 
 function CuisineMenu({ query, facets, kindName, onChange }: Pick<Props, "query" | "facets" | "kindName" | "onChange">) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const type = typeForPath(query.kind);
-  const cuisine = query.kind && query.kind.includes(".") ? query.kind : null;
+  const picked = cuisinesOf(query);
   const options = (facets?.cuisines ?? []).filter((c) => typeForPath(c.path) === type);
+  // Picking here sets one cuisine (several are picked in All filters).
+  const pick = (kind: string | null) => onChange({ kind, more: { ...query.more, cuisines: [] } });
 
   useEffect(() => {
     if (!open) return;
@@ -68,7 +79,7 @@ function CuisineMenu({ query, facets, kindName, onChange }: Pick<Props, "query" 
     };
   }, [open]);
 
-  if (!type || (!cuisine && options.length === 0)) return null;
+  if (!type || (picked.length === 0 && options.length === 0)) return null;
 
   return (
     <div ref={ref} className="relative shrink-0">
@@ -78,12 +89,12 @@ function CuisineMenu({ query, facets, kindName, onChange }: Pick<Props, "query" 
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
         className={
-          cuisine
+          picked.length
             ? `${chipBase} border-[1.5px] border-link bg-[#eef2fb] pl-3.5 pr-3 text-link`
             : `${chipOff} pr-3`
         }
       >
-        {cuisine ? kindName(cuisine) : "Cuisine"}
+        {picked.length ? cuisineWords(picked, kindName) : "Cuisine"}
         <Icon d="M6 9l6 6l6 -6" color="currentColor" size={16} />
       </button>
       {open && (
@@ -92,14 +103,14 @@ function CuisineMenu({ query, facets, kindName, onChange }: Pick<Props, "query" 
           aria-label="Cuisine"
           className="absolute left-0 top-full z-30 mt-2 max-h-80 w-64 overflow-y-auto rounded-xl border border-line bg-white py-1 shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
         >
-          <li role="option" aria-selected={!cuisine}>
+          <li role="option" aria-selected={picked.length === 0}>
             <button
               type="button"
               onClick={() => {
                 setOpen(false);
-                onChange({ kind: type });
+                pick(type);
               }}
-              className={`flex min-h-11 w-full items-center px-3 text-left text-[15px] hover:bg-zinc-50 ${!cuisine ? "font-medium" : ""}`}
+              className={`flex min-h-11 w-full items-center px-3 text-left text-[15px] hover:bg-zinc-50 ${picked.length === 0 ? "font-medium" : ""}`}
             >
               Any cuisine
             </button>
@@ -107,15 +118,15 @@ function CuisineMenu({ query, facets, kindName, onChange }: Pick<Props, "query" 
           {options.map((c) => {
             const depth = c.path.split(".").length;
             return (
-              <li key={c.path} role="option" aria-selected={cuisine === c.path}>
+              <li key={c.path} role="option" aria-selected={picked.includes(c.path)}>
                 <button
                   type="button"
                   onClick={() => {
                     setOpen(false);
-                    onChange({ kind: c.path });
+                    pick(c.path);
                   }}
                   className={`flex min-h-11 w-full items-center justify-between gap-3 px-3 text-left text-[15px] hover:bg-zinc-50 ${
-                    cuisine === c.path ? "font-medium text-link" : "text-zinc-950"
+                    picked.includes(c.path) ? "font-medium text-link" : "text-zinc-950"
                   }`}
                   style={{ paddingLeft: depth > 2 ? 28 : 12 }}
                 >
@@ -133,11 +144,12 @@ function CuisineMenu({ query, facets, kindName, onChange }: Pick<Props, "query" 
 
 // The row of filters above the results: type, cuisine, your places, then sort, distance and
 // view. Counts come from public.area_facets for the same area and name.
-export default function FilterBar({ query, facets, signedIn, kindName, onChange, onLocked, onOpenFilters }: Props) {
+export default function FilterBar({ query, facets, signedIn, kindName, onChange, onLocked, onOpenFilters, onTogglePanel, panelOpen }: Props) {
   const type = typeForPath(query.kind);
-  const cuisine = query.kind && query.kind.includes(".") ? query.kind : null;
+  const picked = cuisinesOf(query);
+  const more = moreCount(query);
   // A cuisine counts once: it is a type too.
-  const active = (query.kind ? 1 : 0) + (signedIn ? query.only.length : 0);
+  const active = (query.kind || picked.length ? 1 : 0) + (signedIn ? query.only.length : 0) + more;
 
   function toggleOnly(key: Only) {
     if (!signedIn) {
@@ -170,7 +182,7 @@ export default function FilterBar({ query, facets, signedIn, kindName, onChange,
                 key={t.key}
                 type="button"
                 aria-pressed={on}
-                onClick={() => onChange({ kind: t.key === "all" ? null : t.key })}
+                onClick={() => onChange({ kind: t.key === "all" ? null : t.key, more: { ...query.more, cuisines: [] } })}
                 className={on ? chipOn : chipOff}
               >
                 {t.label}
@@ -188,12 +200,12 @@ export default function FilterBar({ query, facets, signedIn, kindName, onChange,
             type="button"
             onClick={onOpenFilters}
             className={
-              cuisine
+              picked.length
                 ? `${chipBase} border-[1.5px] border-link bg-[#eef2fb] pr-3 text-link md:hidden`
                 : `${chipOff} pr-3 md:hidden`
             }
           >
-            {cuisine ? kindName(cuisine) : "Cuisine"}
+            {picked.length ? cuisineWords(picked, kindName) : "Cuisine"}
             <Icon d="M6 9l6 6l6 -6" color="currentColor" size={16} />
           </button>
         )}
@@ -219,6 +231,26 @@ export default function FilterBar({ query, facets, signedIn, kindName, onChange,
             );
           })}
         </div>
+        {onTogglePanel && (
+          <>
+            <span aria-hidden="true" className="mx-1 hidden h-6 w-px shrink-0 bg-[#dddddd] md:block" />
+            <button
+              type="button"
+              aria-expanded={panelOpen}
+              aria-controls="all-filters"
+              onClick={onTogglePanel}
+              className={`${chipBase} hidden pr-3 md:inline-flex ${
+                panelOpen ? "border-[1.5px] border-primary bg-[#f3f3f3] text-zinc-950" : more ? "border-[1.5px] border-primary bg-white text-zinc-950" : `${chipOff}`
+              }`}
+            >
+              <Icon d="M4 6h8M16 6h4M4 12h2M10 12h10M4 18h11M19 18h1M14 4v4M8 10v4M17 16v4" color="currentColor" size={17} />
+              Filters
+              {more > 0 && (
+                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-xs font-medium text-white">{more}</span>
+              )}
+            </button>
+          </>
+        )}
       </div>
 
       <div className="hidden md:ml-auto md:flex">

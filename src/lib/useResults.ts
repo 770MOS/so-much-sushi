@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { setLastSearchCoords } from "@/lib/lastSearchCoords";
 import { typeForPath } from "@/lib/entityTypes";
 import type { AreaCell, Facets, SearchResult } from "@/lib/searchTypes";
-import type { Box, Only } from "@/lib/resultsQuery";
+import { moreArg, type Box, type MoreFilters, type Only } from "@/lib/resultsQuery";
 import { announceMark, useMarkChanges } from "@/lib/placeMarks";
 
 export type ResultsArgs = {
@@ -16,6 +16,7 @@ export type ResultsArgs = {
   q: string;
   only: Only[];
   hidden: boolean;
+  more: MoreFilters;
 };
 
 // The map's grid for bubbles with true counts: the area cut into this many columns (and rows
@@ -81,6 +82,7 @@ export function useResults(userId: string | null, args: ResultsArgs | null, want
       only_friends: a.only.includes("friends"),
       only_want: a.only.includes("want"),
       show_hidden: a.hidden,
+      more: moreArg(a.more),
     };
   }
 

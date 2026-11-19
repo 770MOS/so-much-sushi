@@ -9,6 +9,8 @@ import { createClient } from "@/lib/supabase/client";
 import SearchForm from "@/components/results/SearchForm";
 import FilterBar, { SortMenu } from "@/components/results/FilterBar";
 import FiltersSheet from "@/components/results/FiltersSheet";
+import AllFiltersPanel, { type ListOption } from "@/components/results/AllFiltersPanel";
+import MoreChips from "@/components/results/MoreChips";
 import ResultRow from "@/components/results/ResultRow";
 import JoinNote from "@/components/results/JoinNote";
 import type { MapMarkerEntity } from "@/components/EntityMap";
@@ -21,11 +23,11 @@ import {
   boxParam,
   boxTooLarge,
   MAP_AREA_LABEL,
+  moreArg,
   parseResultsQuery,
   resultsHref,
   sameBox,
   type Box,
-  type Only,
   type ResultsQuery,
 } from "@/lib/resultsQuery";
 import type { Facets } from "@/lib/searchTypes";
@@ -99,6 +101,10 @@ export default function ResultsPage() {
   // Phone: the full-screen search and the filters sheet.
   const [searching, setSearching] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  // Computer: All filters, in place of the list.
+  const [panelOpen, setPanelOpen] = useState(false);
+  // The person's own lists, for "On one of your lists" (not Want to try, which has its own).
+  const [lists, setLists] = useState<ListOption[]>([]);
   const [hoverId, setHoverId] = useState<string | null>(null);
   const [locating, setLocating] = useState(false);
   const [placeError, setPlaceError] = useState<string | null>(null);
@@ -198,9 +204,48 @@ export default function ResultsPage() {
 
   const args =
     area && point && user !== undefined
-      ? { lat: point.lat, lng: point.lng, b: area, kind: query.kind, q: query.q, only: query.only, hidden: query.hidden }
+      ? { lat: point.lat, lng: point.lng, b: area, kind: query.kind, q: query.q, only: query.only, hidden: query.hidden, more: query.more }
       : null;
   const userId = user?.id ?? null;
+
+  const wantLists = userId !== null && (panelOpen || filtersOpen || query.more.list !== null);
+  useEffect(() => {
+    if (!wantLists || !userId) return;
+    let cancelled = false;
+    supabase
+      .from("lists")
+      .select("id, name, is_default_list")
+      .eq("owner_id", userId)
+      .order("name")
+      .then(({ data }) => {
+        if (cancelled) return;
+        const rows = (data ?? []) as { id: string; name: string; is_default_list: boolean }[];
+        setLists(rows.filter((l) => !l.is_default_list).map((l) => ({ id: l.id, name: l.name })));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [wantLists, userId, supabase]);
+
+  // "Can't remember the name?" in the What box opens the filters here.
+  useEffect(() => {
+    function open() {
+      if (isDesktop) setPanelOpen(true);
+      else setFiltersOpen(true);
+    }
+    window.addEventListener("sms:open-filters", open);
+    return () => window.removeEventListener("sms:open-filters", open);
+  }, [isDesktop]);
+
+  // Escape closes All filters.
+  useEffect(() => {
+    if (!panelOpen) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape" && !document.querySelector("[role=dialog]")) setPanelOpen(false);
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [panelOpen]);
   const mapShowing = isDesktop === null ? false : isDesktop ? query.view !== "list" : query.view === "map";
   const search = useResults(userId, args, mapShowing);
 
@@ -256,27 +301,51 @@ export default function ResultsPage() {
 
   const kindName = useCallback((path: string) => names.get(path) ?? path.split(".").pop()!.replace(/_/g, " "), [names]);
 
-  // The filters sheet's counts for choices not made yet: the same area and name.
+  // Counts for a search in the same map area, with the All filters panel's own counts (streets,
+  // chain or independent, website, phone, closed places): the panel and the filters sheet.
   const countFor = useCallback(
-    async (kind: string | null, only: Only[]): Promise<Facets | null> => {
+    async (q: ResultsQuery): Promise<Facets | null> => {
       if (!area) return null;
       const { data, error } = await supabase.rpc("area_facets", {
         west: area.west,
         south: area.south,
         east: area.east,
         north: area.north,
-        type_key: typeForPath(kind),
-        cuisine_path: kind && kind.includes(".") ? kind : null,
-        name_query: query.q.trim() || null,
-        only_favorites: only.includes("favorites"),
-        only_friends: only.includes("friends"),
-        only_want: only.includes("want"),
-        show_hidden: query.hidden,
+        type_key: typeForPath(q.kind),
+        cuisine_path: q.kind && q.kind.includes(".") ? q.kind : null,
+        name_query: q.q.trim() || null,
+        only_favorites: q.only.includes("favorites"),
+        only_friends: q.only.includes("friends"),
+        only_want: q.only.includes("want"),
+        show_hidden: q.hidden,
+        more: moreArg(q.more, true),
       });
       return error ? null : (data as Facets);
     },
-    [area, supabase, query.q, query.hidden]
+    [area, supabase]
   );
+
+  // Computer, All filters open: the panel and the map beside it fill the window below the bar,
+  // so "Show N places" at the panel's foot is always in view.
+  const panelRowRef = useRef<HTMLDivElement>(null);
+  const [panelTop, setPanelTop] = useState(220);
+  useEffect(() => {
+    if (!panelOpen) return;
+    function measure() {
+      const el = panelRowRef.current;
+      if (el) setPanelTop(Math.round(el.getBoundingClientRect().top + window.scrollY));
+    }
+    const frame = requestAnimationFrame(measure);
+    window.addEventListener("resize", measure);
+    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(measure) : null;
+    const top = document.querySelector("[data-place-panel-top]");
+    if (observer && top) observer.observe(top);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("resize", measure);
+      observer?.disconnect();
+    };
+  }, [panelOpen]);
 
   // Phone map: it fills the screen below the filters, and the tab bar steps aside for it
   // (globals.css), so the map has the whole height.
@@ -574,13 +643,17 @@ export default function ResultsPage() {
           onChange={update}
           onLocked={() => setJoinOpen(true)}
           onOpenFilters={isDesktop === false ? () => setFiltersOpen(true) : undefined}
+          onTogglePanel={isDesktop ? () => setPanelOpen((o) => !o) : undefined}
+          panelOpen={panelOpen}
         />
+        <MoreChips query={query} lists={lists} onChange={update} />
       </div>
       {filtersOpen && (
         <FiltersSheet
           query={query}
           facets={search.facets}
           signedIn={Boolean(userId)}
+          lists={lists}
           countFor={countFor}
           onApply={update}
           onLocked={() => setJoinOpen(true)}
@@ -612,8 +685,50 @@ export default function ResultsPage() {
         </div>
       )}
 
+      {/* Computer: All filters in place of the list, with the map (or, in List view, the list)
+          beside it. */}
+      {isDesktop && panelOpen && (
+        <div ref={panelRowRef} className="flex" style={{ height: `max(480px, calc(100dvh - ${panelTop}px))` }}>
+          <section aria-label="Filters" className="h-full w-[480px] shrink-0 border-r border-line">
+            <AllFiltersPanel
+              query={query}
+              facets={search.facets}
+              signedIn={Boolean(userId)}
+              lists={lists}
+              total={search.loading ? null : capped ? total : rows.length}
+              countFor={countFor}
+              onChange={update}
+              onLocked={() => setJoinOpen(true)}
+              onClose={() => setPanelOpen(false)}
+            />
+          </section>
+          {query.view === "list" ? (
+            <section aria-label="Results" className="h-full min-w-0 flex-1 overflow-y-auto">
+              {header}
+              {list(false)}
+            </section>
+          ) : (
+            <section aria-label="Map" className="h-full min-w-0 flex-1">
+              {map(
+                "h-full w-full",
+                <p className="absolute left-1/2 top-3 z-10 -translate-x-1/2 whitespace-nowrap rounded-full bg-white/95 px-4 py-2 text-sm font-medium text-zinc-950 shadow-[0_2px_10px_rgba(0,0,0,0.12)]">
+                  {search.loading
+                    ? search.slow
+                      ? "Still searching…"
+                      : "Searching…"
+                    : search.error
+                      ? "The search didn’t finish"
+                      : `${(capped ? total : rows.length).toLocaleString("en-US")} ${placeWord(capped ? total : rows.length)} match`}
+                </p>,
+                "top-16"
+              )}
+            </section>
+          )}
+        </div>
+      )}
+
       {/* Computer: List, Split or Map. */}
-      {isDesktop && (
+      {isDesktop && !panelOpen && (
         <div>
           {query.view === "list" && (
             <div className="mx-auto w-full max-w-6xl">
