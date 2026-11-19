@@ -64,6 +64,26 @@ function BackIcon() {
 // search ("screen", opened from the summary at the top of the results page). Searching opens
 // the results page with the search in its address. ("stacked" is the two boxes one above the
 // other, without the screen around them.)
+// Empties a search box and puts the cursor back in it: a grey ✕ in a circle at the box's right
+// end, shown while the box has text. The press doesn't take focus from the box, so the box's
+// suggestions or start list come straight back.
+function ClearButton({ label, onClear }: { label: string; onClear: () => void }) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={onClear}
+      className="-mx-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-zinc-400 hover:text-zinc-600"
+    >
+      <svg viewBox="0 0 20 20" width={18} height={18} aria-hidden="true">
+        <circle cx="10" cy="10" r="8" fill="currentColor" />
+        <path d="M7.2 7.2l5.6 5.6M12.8 7.2l-5.6 5.6" stroke="#fff" strokeWidth={1.7} strokeLinecap="round" />
+      </svg>
+    </button>
+  );
+}
+
 export default function SearchForm({ layout, onClose }: { layout: Layout; onClose?: () => void }) {
   const pathname = usePathname();
   const params = useSearchParams();
@@ -187,7 +207,7 @@ function SearchFormInner({
   }
 
   const box = "flex h-[46px] min-w-0 items-center gap-2 rounded-[10px] border border-[#dddddd] bg-white px-3 focus-within:border-zinc-500";
-  const input = "w-full min-w-0 bg-transparent text-[15px] text-zinc-950 placeholder:text-zinc-500 focus:outline-none";
+  const input = "own-clear w-full min-w-0 bg-transparent text-[15px] text-zinc-950 placeholder:text-zinc-500 focus:outline-none";
   const whatId = `what-${layout}`;
   const whereId = `where-${layout}`;
 
@@ -352,6 +372,15 @@ function SearchFormInner({
           facets={facets}
           inputClassName={input}
         />
+        {what && (
+          <ClearButton
+            label="Clear name, cuisine or kind"
+            onClear={() => {
+              setWhat("");
+              document.getElementById(whatId)?.focus();
+            }}
+          />
+        )}
       </div>
       <div className={`${box} ${layout === "bar" ? "flex-1" : ""}`}>
         <span className="text-zinc-500">
@@ -374,6 +403,16 @@ function SearchFormInner({
           inputClassName={input}
           hideLocateButton
         />
+        {where && (
+          <ClearButton
+            label="Clear location"
+            onClear={() => {
+              geo.setGeoError(null);
+              setWhere("");
+              document.getElementById(whereId)?.focus();
+            }}
+          />
+        )}
         <button
           type="button"
           onClick={locateMe}

@@ -6,6 +6,7 @@ import { getSearchHistory } from "@/lib/searchHistory";
 import { createClient } from "@/lib/supabase/client";
 import { CURRENT_LOCATION_LABEL, getLastSearchCoords, type Coords } from "@/lib/lastSearchCoords";
 import { rememberPickedLocation, type PickedLocation } from "@/lib/locationLookup";
+import { useRepaint } from "@/lib/useRepaint";
 
 type Props = {
   id?: string;
@@ -42,6 +43,10 @@ type Suggestion = Omit<PickedLocation, "radiusMiles"> & {
 // looked missing until you switched apps (2026-11-19). The rows are now plain list items (no
 // buttons, no flexbox) in a box that clips nothing and asks for no layer of its own. See
 // ROW_CLASS, and the What box's list, which had the same trouble.
+// That wasn't it: Safari draws a list that has just appeared, but not rows that change inside a
+// list already open (2 letters showed suggestions, a 3rd blanked them; a row redrew only when the
+// mouse went over it). So the list is built afresh whenever its rows change (its key is the rows),
+// and a frame later its background changes invisibly so Safari repaints it (useRepaint, 2026-11-19).
 const LIST_CLASS =
   "absolute left-0 right-0 top-full z-40 mt-2 min-w-[240px] rounded-xl border border-line bg-white py-1 shadow-[0_8px_24px_rgba(0,0,0,0.12)]";
 // A row: clicked like a button (cursor-pointer also makes iPhone Safari send the click).
@@ -106,6 +111,10 @@ export default function LocationInput({
   const showStartList = focused && query === "";
   const showSuggestions = visibleSuggestions.length > 0;
   const history = showStartList ? getSearchHistory() : [];
+  // What the list shows: it's rebuilt, and repainted for Safari, whenever this changes.
+  const listKey = showSuggestions ? visibleSuggestions.map((s) => `${s.kind}:${s.label}`).join("|") : null;
+  const listRef = useRef<HTMLUListElement>(null);
+  useRepaint(listRef, listKey);
 
   function handleContainerBlur(e: FocusEvent<HTMLDivElement>) {
     if (!containerRef.current?.contains(e.relatedTarget as Node | null)) {
@@ -194,6 +203,8 @@ export default function LocationInput({
         />
         {showSuggestions && (
           <ul
+            key={listKey ?? ""}
+            ref={listRef}
             id={listId}
             role="listbox"
             // Keep focus in the box while clicking: Safari doesn't focus a clicked row, so the
