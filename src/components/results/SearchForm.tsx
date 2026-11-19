@@ -246,6 +246,14 @@ function SearchFormInner({
                 inputClassName={field}
                 autoFocus
                 listTarget={listEl}
+                onMoreFilters={
+                  onResultsPage
+                    ? () => {
+                        onClose?.();
+                        window.dispatchEvent(new Event("sms:open-filters"));
+                      }
+                    : undefined
+                }
               />
               {what && (
                 <button
@@ -371,6 +379,7 @@ function SearchFormInner({
           near={near}
           facets={facets}
           inputClassName={input}
+          onMoreFilters={onResultsPage ? () => window.dispatchEvent(new Event("sms:open-filters")) : undefined}
         />
         {what && (
           <ClearButton

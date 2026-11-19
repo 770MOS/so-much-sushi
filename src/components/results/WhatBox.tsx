@@ -8,9 +8,9 @@ import type { Facets } from "@/lib/searchTypes";
 import { useRepaint } from "@/lib/useRepaint";
 
 type KindSuggestion = { kind: "kind"; label: string; path: string; type_key: string };
-type PlaceSuggestion = { kind: "place"; label: string; place_id: string; address: string | null; miles: number | null };
+type PlaceSuggestion = { kind: "place" | "close"; label: string; place_id: string; address: string | null; miles: number | null };
 type Suggestion = KindSuggestion | PlaceSuggestion;
-type Option = Suggestion | { kind: "names"; label: string };
+type Option = Suggestion | { kind: "names"; label: string } | { kind: "filters"; label: string };
 
 type Props = {
   id: string;
@@ -30,6 +30,8 @@ type Props = {
   // The phone's search screen: the suggestions go in this element, as a full-width list
   // under the boxes, instead of a dropdown.
   listTarget?: HTMLElement | null;
+  // On the results page: "Can't remember the name?" opens its filters, when no name matches.
+  onMoreFilters?: () => void;
 };
 
 const MIN_CHARS = 2;
@@ -65,6 +67,7 @@ export default function WhatBox({
   inputClassName,
   autoFocus,
   listTarget,
+  onMoreFilters,
 }: Props) {
   const supabase = useMemo(() => createClient(), []);
   const listId = useId();
@@ -96,10 +99,18 @@ export default function WhatBox({
 
   const kinds = wants ? suggestions.filter((s): s is KindSuggestion => s.kind === "kind") : [];
   const places = wants ? suggestions.filter((s): s is PlaceSuggestion => s.kind === "place") : [];
-  const options: Option[] = wants ? [...kinds, ...places, { kind: "names", label: query }] : [];
+  // No name nearby has the text: names close to it (public.suggest_what, 2026-11-19), and a way
+  // to search by what's remembered instead.
+  const close = wants ? suggestions.filter((s): s is PlaceSuggestion => s.kind === "close") : [];
+  const offerFilters = Boolean(onMoreFilters) && wants && places.length === 0 && query.length >= 3;
+  const options: Option[] = wants
+    ? [...kinds, ...places, ...close, { kind: "names", label: query }, ...(offerFilters ? [{ kind: "filters" as const, label: "" }] : [])]
+    : [];
   const open = options.length > 0;
   // What the list shows: it's rebuilt, and repainted for Safari, whenever this changes.
-  const listKey = open ? [query, ...kinds.map((k) => k.path), ...places.map((p) => p.place_id)].join("|") : null;
+  const listKey = open
+    ? [query, ...kinds.map((k) => k.path), ...places.map((p) => p.place_id), ...close.map((p) => `c${p.place_id}`), offerFilters ? "f" : ""].join("|")
+    : null;
   const listRef = useRef<HTMLDivElement>(null);
   useRepaint(listRef, listKey);
 
@@ -108,7 +119,8 @@ export default function WhatBox({
     setActive(-1);
     setFocused(false);
     if (option.kind === "kind") onPickKind(option.path);
-    else if (option.kind === "place") onPickPlace(option.place_id);
+    else if (option.kind === "place" || option.kind === "close") onPickPlace(option.place_id);
+    else if (option.kind === "filters") onMoreFilters?.();
     else onSubmitText();
   }
 
@@ -190,28 +202,30 @@ export default function WhatBox({
         );
       })}
       {places.length > 0 && <p className={headingClass}>Places</p>}
-      {places.map((p, j) => {
+      {[...places, ...close].map((p, j) => {
         const i = kinds.length + j;
         return (
-          <div
-            key={p.place_id}
-            id={optionId(i)}
-            role="option"
-            aria-selected={i === active}
-            onMouseEnter={() => setActive(i)}
-            onClick={() => choose(p)}
-            className={rowClass(i, "grid-cols-[minmax(0,1fr)_auto]")}
-          >
-            <span className="min-w-0">
-              <span className="block truncate">{p.label}</span>
-              {p.address && <span className="block truncate text-[13px] text-muted">{p.address}</span>}
-            </span>
-            <span className="text-[13px] text-muted">{p.miles !== null ? `${Number(p.miles).toFixed(1)} mi` : ""}</span>
+          <div key={p.place_id}>
+            {j === places.length && close.length > 0 && <p className={headingClass}>No name nearby has “{query}”. Close spellings:</p>}
+            <div
+              id={optionId(i)}
+              role="option"
+              aria-selected={i === active}
+              onMouseEnter={() => setActive(i)}
+              onClick={() => choose(p)}
+              className={rowClass(i, "grid-cols-[minmax(0,1fr)_auto]")}
+            >
+              <span className="min-w-0">
+                <span className="block truncate">{p.label}</span>
+                {p.address && <span className="block truncate text-[13px] text-muted">{p.address}</span>}
+              </span>
+              <span className="text-[13px] text-muted">{p.miles !== null ? `${Number(p.miles).toFixed(1)} mi` : ""}</span>
+            </div>
           </div>
         );
       })}
       {(() => {
-        const i = options.length - 1;
+        const i = kinds.length + places.length + close.length;
         return (
           <div
             id={optionId(i)}
@@ -226,6 +240,29 @@ export default function WhatBox({
             </span>
             <span>
               Search for “<span className="font-medium">{query}</span>”
+            </span>
+          </div>
+        );
+      })()}
+      {offerFilters && (() => {
+        const i = options.length - 1;
+        return (
+          <div
+            id={optionId(i)}
+            role="option"
+            aria-selected={i === active}
+            onMouseEnter={() => setActive(i)}
+            onClick={() => choose(options[i])}
+            className={`border-t border-line ${rowClass(i, "grid-cols-[auto_1fr]")}`}
+          >
+            <span className="text-link">
+              <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M4 6h8M16 6h4M4 12h2M10 12h10M4 18h11M19 18h1M14 4v4M8 10v4M17 16v4" />
+              </svg>
+            </span>
+            <span>
+              <span className="font-medium text-link">Can’t remember the name?</span>{" "}
+              <span className="text-muted">Search by kind, street and other details</span>
             </span>
           </div>
         );

@@ -125,7 +125,7 @@ export default function ResultRow({ r, card, starred, hidden, userId, onToggleSt
       onMouseLeave={() => onHover?.(null)}
       className={`flex items-center gap-1 ${
         card ? "rounded-xl border border-line px-4 py-3" : "border-b border-[#f0f0f0] py-2.5 pl-5 pr-2 md:pl-6"
-      } ${highlighted ? "bg-[#f3f6fd]" : ""} ${hidden ? "opacity-60" : ""}`}
+      } ${highlighted ? "bg-[#f3f6fd]" : ""} ${hidden || r.status === "permanently_closed" ? "opacity-60" : ""}`}
     >
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <div className="flex items-baseline justify-between gap-3">
