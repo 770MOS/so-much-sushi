@@ -409,3 +409,34 @@ REVOKE EXECUTE ON FUNCTION kinds_for_text(text) FROM PUBLIC, anon, authenticated
 -- =============================================================================
 REVOKE EXECUTE ON FUNCTION refresh_locality_focus() FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION refresh_locality_focus() TO service_role;
+
+-- =============================================================================
+-- Advanced search (20261121000000_advanced_filters.sql).
+--   search_area, area_cells and area_facets gained a last argument, more jsonb
+--   (the All filters panel); same grants as before under the new signatures.
+--   area_matches and area_options (internal, take the viewer) and the helpers
+--   chain_key, street_key and area_shape are not callable through the API.
+--   chain_names is read only by the search functions; refresh_chain_names is
+--   for the source loaders (service role).
+-- =============================================================================
+REVOKE ALL ON FUNCTION search_area(double precision, double precision, double precision, double precision,
+  double precision, double precision, ltree, text, boolean, boolean, boolean, boolean, jsonb),
+  area_cells(double precision, double precision, double precision, double precision,
+  double precision, double precision, ltree, text, boolean, boolean, boolean, boolean, jsonb),
+  area_facets(double precision, double precision, double precision, double precision,
+  text, ltree, text, boolean, boolean, boolean, boolean, jsonb) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION search_area(double precision, double precision, double precision, double precision,
+  double precision, double precision, ltree, text, boolean, boolean, boolean, boolean, jsonb),
+  area_cells(double precision, double precision, double precision, double precision,
+  double precision, double precision, ltree, text, boolean, boolean, boolean, boolean, jsonb),
+  area_facets(double precision, double precision, double precision, double precision,
+  text, ltree, text, boolean, boolean, boolean, boolean, jsonb) TO anon, authenticated, service_role;
+REVOKE ALL ON FUNCTION area_matches(double precision, double precision, double precision, double precision,
+  ltree, text, boolean, boolean, boolean, boolean, uuid, jsonb), area_options(jsonb, text)
+  FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION chain_key(text), street_key(text), area_shape(jsonb) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION chain_key(text), street_key(text), area_shape(jsonb) TO service_role;
+REVOKE ALL ON TABLE chain_names FROM anon, authenticated;
+GRANT ALL ON TABLE chain_names TO service_role;
+REVOKE EXECUTE ON FUNCTION refresh_chain_names() FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION refresh_chain_names() TO service_role;
