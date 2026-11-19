@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { createClient } from "@/lib/supabase/client";
 import type { Coords } from "@/lib/lastSearchCoords";
 import type { Facets } from "@/lib/searchTypes";
+import { useRepaint } from "@/lib/useRepaint";
 
 type KindSuggestion = { kind: "kind"; label: string; path: string; type_key: string };
 type PlaceSuggestion = { kind: "place"; label: string; place_id: string; address: string | null; miles: number | null };
@@ -97,6 +98,10 @@ export default function WhatBox({
   const places = wants ? suggestions.filter((s): s is PlaceSuggestion => s.kind === "place") : [];
   const options: Option[] = wants ? [...kinds, ...places, { kind: "names", label: query }] : [];
   const open = options.length > 0;
+  // What the list shows: it's rebuilt, and repainted for Safari, whenever this changes.
+  const listKey = open ? [query, ...kinds.map((k) => k.path), ...places.map((p) => p.place_id)].join("|") : null;
+  const listRef = useRef<HTMLDivElement>(null);
+  useRepaint(listRef, listKey);
 
   function choose(option: Option) {
     setSettled(value);
@@ -140,10 +145,10 @@ export default function WhatBox({
 
   const optionId = (i: number) => `${listId}-option-${i}`;
   const inline = Boolean(listTarget);
-  // Rows are plain elements clicked like buttons, not button elements laid out with flexbox:
-  // Safari 26 drew those rows' words only once the window was redrawn, so the suggestions looked
-  // missing while typing (2026-11-19; see LocationInput's LIST_CLASS). cursor-pointer also makes
-  // iPhone Safari send the click.
+  // Rows are plain elements clicked like buttons; cursor-pointer also makes iPhone Safari send the
+  // click. Safari 26 draws a list that has just appeared but not rows that change inside one
+  // already open, so the list is built afresh whenever its rows change (its key is the rows and
+  // the text) and repainted a frame later (useRepaint; see LocationInput's LIST_CLASS, 2026-11-19).
   const rowClass = (i: number, columns: string) =>
     `grid ${columns} cursor-pointer items-center gap-3 text-left text-[15px] text-zinc-950 ${inline ? "min-h-14 px-4 py-2" : "min-h-12 px-3 py-1.5"} ${
       i === active ? "bg-[#f3f6fd]" : ""
@@ -153,6 +158,8 @@ export default function WhatBox({
   const list = (
 
     <div
+      key={listKey ?? ""}
+      ref={listRef}
       id={listId}
       role="listbox"
       aria-label="Suggestions"

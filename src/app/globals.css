@@ -73,6 +73,14 @@ input::-webkit-contacts-auto-fill-button {
   margin: 0;
 }
 
+/* The header's search boxes draw their own clear button (SearchForm's ClearButton), so both boxes
+   show the same one in every browser; Safari's and Chrome's own differ (2026-11-19). */
+input.own-clear::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+  display: none;
+}
+
 /* The phone's map fills the screen: the tab bar and the footer step aside while it shows
    (the results page sets data-full-map on <html>). */
 @media (max-width: 47.99rem) {
