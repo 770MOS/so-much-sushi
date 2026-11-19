@@ -364,6 +364,11 @@ def main():
                 WHERE z.id = zz.id AND z.kind = 'zip' AND z.detail IS NULL
                   AND ST_DWithin(near.location, zz.location, 30000)""")
             near_count = cur.rowcount
+            # Large towns open on their busiest spot (20261119000000_big_cities.sql): worked out
+            # from the places already loaded, so it runs after each reload of the list.
+            cur.execute("SET statement_timeout = '10min'")
+            cur.execute("SELECT public.refresh_locality_focus()")
+            focus_count = cur.fetchone()[0]
             cur.execute("ANALYZE localities")
             cur.execute("ANALYZE locality_names")
             cur.execute("SELECT count(*) FILTER (WHERE kind = 'place'), count(*) FILTER (WHERE kind = 'zip'), "
@@ -378,6 +383,7 @@ def main():
             f"places: {n_places:,} (same name and state as a bigger place, left out: {duplicates:,}); "
             f"names to match on: {name_count:,}",
             f"populations: {pop_source}; places without one: {place_no_pop:,}",
+            f"large towns opening on their busiest spot: {focus_count:,}",
             f"places and ZIP areas without a land area (map opens on the nearest places instead): {no_land:,}",
             f"ZIP areas: {n_zips:,} (main place from the relationship file: {len(zip_main):,}; "
             f"nearest place within 30 km: {near_count:,}; no place named: {zip_no_detail:,})",

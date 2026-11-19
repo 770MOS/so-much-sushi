@@ -23,9 +23,25 @@ export type ResultsArgs = {
 // overlap at the current zoom.
 const CELL_COLUMNS = 24;
 
-function errorMessage(message: string | undefined): string {
-  if (message && message.includes("too large")) return "That area is too large to search. Zoom the map in and search again.";
-  return "Something went wrong while searching. Please try again.";
+// After this long, a search still out is called slow: "Still searching…".
+const SLOW_MS = 3000;
+
+// What the page says when a search fails. "slow": the database gave up at its time limit
+// (8 seconds), which a first search over a large, busy area can still reach.
+export type SearchError = { message: string; slow: boolean };
+
+function errorFor(err: { message?: string; code?: string } | null | undefined): SearchError {
+  const message = err?.message ?? "";
+  if (message.includes("too large")) {
+    return { message: "That area is too large to search. Zoom the map in and search again.", slow: false };
+  }
+  if (err?.code === "57014" || message.includes("statement timeout")) {
+    return {
+      message: "This search took too long. Zoom the map in, or pick a kind, and try again.",
+      slow: true,
+    };
+  }
+  return { message: "Something went wrong while searching. Please try again.", slow: false };
 }
 
 // Runs the results page's search and its filter counts together whenever the search changes,
@@ -39,7 +55,11 @@ export function useResults(userId: string | null, args: ResultsArgs | null, want
   const [facets, setFacets] = useState<Facets | null>(null);
   // The search the results on screen answer, and its error if it failed. While the current
   // search is still out, the previous results stay on screen.
-  const [answered, setAnswered] = useState<{ key: string; error: string | null } | null>(null);
+  const [answered, setAnswered] = useState<{ key: string; error: SearchError | null } | null>(null);
+  // Try again: the same search once more (bumping this runs it again).
+  const [attempt, setAttempt] = useState(0);
+  // The search that has been out for more than SLOW_MS: the page says it's still working.
+  const [slowKey, setSlowKey] = useState<string | null>(null);
   const [cells, setCells] = useState<{ key: string; cells: AreaCell[] } | null>(null);
   const [starredIds, setStarredIds] = useState<Set<string>>(new Set());
   const [hiddenIds, setHiddenIds] = useState<Set<string>>(new Set());
@@ -48,6 +68,7 @@ export function useResults(userId: string | null, args: ResultsArgs | null, want
 
   const key = args ? JSON.stringify(args) : null;
   const loading = key !== null && answered?.key !== key;
+  const slow = loading && slowKey === key;
   const error = answered && answered.key === key ? answered.error : null;
   const total = results && results.length > 0 ? (results[0].total_count ?? results.length) : 0;
   const capped = !loading && results !== null && results.length >= 1000 && total > results.length;
@@ -71,6 +92,9 @@ export function useResults(userId: string | null, args: ResultsArgs | null, want
     const cuisine = category_path && category_path.includes(".") ? category_path : null;
     const box = { west: args.b.west, south: args.b.south, east: args.b.east, north: args.b.north };
     const thisKey = key as string;
+    const slowTimer = setTimeout(() => {
+      if (requestId === requestRef.current) setSlowKey(thisKey);
+    }, SLOW_MS);
     Promise.all([
       supabase.rpc("search_area", { ref_lat: args.lat, ref_lng: args.lng, ...box, category_path, ...rest }),
       supabase.rpc("area_facets", { ...box, type_key: type, cuisine_path: cuisine, ...rest }),
@@ -79,7 +103,9 @@ export function useResults(userId: string | null, args: ResultsArgs | null, want
         if (requestId !== requestRef.current) return;
         if (placesRes.error) {
           setResults(null);
-          setAnswered({ key: thisKey, error: errorMessage(placesRes.error.message) });
+          // The counts answer the new search (or none), not the last one.
+          setFacets(facetsRes.error ? null : (facetsRes.data as Facets));
+          setAnswered({ key: thisKey, error: errorFor(placesRes.error) });
           return;
         }
         const rows = (placesRes.data ?? []) as SearchResult[];
@@ -93,12 +119,16 @@ export function useResults(userId: string | null, args: ResultsArgs | null, want
       })
       .catch(() => {
         if (requestId === requestRef.current) {
-          setAnswered({ key: thisKey, error: "Something went wrong. Please check your connection and try again." });
+          setAnswered({
+            key: thisKey,
+            error: { message: "Something went wrong. Please check your connection and try again.", slow: false },
+          });
         }
       });
+    return () => clearTimeout(slowTimer);
     // args is captured through key: a new object with the same values is the same search.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, supabase]);
+  }, [key, supabase, attempt]);
 
   // The grid counts, only once the list turns out to be capped and the map wants them.
   const needCells = capped && wantCells && key !== null && cells?.key !== key;
@@ -175,11 +205,19 @@ export function useResults(userId: string | null, args: ResultsArgs | null, want
     setFacets((f) => (f ? { ...f, hidden: Math.max(0, f.hidden + (on ? -1 : 1)) } : f));
   }
 
+  // Runs the same search again (after an error): back to "Searching…" until it answers.
+  function retry() {
+    setAnswered(null);
+    setAttempt((n) => n + 1);
+  }
+
   return {
     results,
     facets,
     loading,
+    slow,
     error,
+    retry,
     total,
     capped,
     // The grid counts for the search on screen, or null (not capped, not asked for, or not back yet).
