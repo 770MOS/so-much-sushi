@@ -232,6 +232,13 @@ class Db:
         return self.one("SELECT public.reconcile_run(%s, %s)", (run_id, decided_by))[0]
 
 
+def refresh_chains(db):
+    """Work out the chain names again (10 or more open places with a name; see
+    20261121000000_advanced_filters.sql), so search's Chain or independent filter keeps up."""
+    n = db.one("SELECT public.refresh_chain_names()")[0]
+    notice("Chains", f"{n:,} names with 10 or more open places")
+
+
 def load_by_state(records_for, source_code, release, run_license, states):
     """Load one run per state, in order, each reconciled before the next starts.
 
@@ -285,6 +292,8 @@ def load_by_state(records_for, source_code, release, run_license, states):
     flush()
     notice("Done", f"{source_code} {release}: {totals['states']} areas loaded, {totals['records']:,} records, "
                    f"{totals['skipped']} already done")
+    if totals["states"]:
+        refresh_chains(db)
     if os.environ.get("GITHUB_STEP_SUMMARY") and done_lines:
         with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
             f.write(f"### {source_code} {release}\n\n" + "\n".join(f"- {x}" for x in done_lines) + "\n\n")
@@ -302,6 +311,7 @@ def load(records, source_code, release, scope, run_license):
         print("reconcile:", json.dumps(result, indent=2))
         notice("Reconcile", "%0A".join(f"{k.replace('_', ' ')}: {v}" for k, v in (result or {}).items()
                                         if k not in ("build", "finished_at")))
+        refresh_chains(db)
         return
     rest = Rest()
     src = rest.call("GET", f"/sources?code=eq.{source_code}&select=id,is_active,license_class")
@@ -323,3 +333,5 @@ def load(records, source_code, release, scope, run_license):
     print("reconcile:", json.dumps(result, indent=2))
     notice("Reconcile", "%0A".join(f"{k.replace('_', ' ')}: {v}" for k, v in (result or {}).items()
                                     if k not in ("build", "finished_at")))
+    n = rest.call("POST", "/rpc/refresh_chain_names", {})
+    notice("Chains", f"{n:,} names with 10 or more open places")

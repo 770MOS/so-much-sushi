@@ -161,8 +161,8 @@ insert into r select 'one character suggests nothing',
 
 -- ------------------------------------------------------------ grants
 insert into r select 'API roles can call the results functions, PUBLIC cannot',
-  has_function_privilege('anon', 'search_area(double precision,double precision,double precision,double precision,double precision,double precision,ltree,text,boolean,boolean,boolean,boolean)', 'execute')
-  and has_function_privilege('authenticated', 'area_facets(double precision,double precision,double precision,double precision,text,ltree,text,boolean,boolean,boolean,boolean)', 'execute')
+  has_function_privilege('anon', 'search_area(double precision,double precision,double precision,double precision,double precision,double precision,ltree,text,boolean,boolean,boolean,boolean,jsonb)', 'execute')
+  and has_function_privilege('authenticated', 'area_facets(double precision,double precision,double precision,double precision,text,ltree,text,boolean,boolean,boolean,boolean,jsonb)', 'execute')
   and has_function_privilege('anon', 'suggest_what(text,double precision,double precision)', 'execute')
   and not exists (select 1 from pg_proc p, aclexplode(p.proacl) a
                   where p.proname in ('search_area', 'area_facets', 'suggest_what')

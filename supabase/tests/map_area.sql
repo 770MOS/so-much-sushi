@@ -129,15 +129,15 @@ insert into r select 'start: a point off the map gives nothing',
 
 -- ------------------------------------------------------------ grants
 insert into r select 'API roles can call search_area, area_facets, area_cells and start_area; PUBLIC cannot',
-  has_function_privilege('anon', 'search_area(double precision,double precision,double precision,double precision,double precision,double precision,ltree,text,boolean,boolean,boolean,boolean)', 'execute')
-  and has_function_privilege('anon', 'area_cells(double precision,double precision,double precision,double precision,double precision,double precision,ltree,text,boolean,boolean,boolean,boolean)', 'execute')
+  has_function_privilege('anon', 'search_area(double precision,double precision,double precision,double precision,double precision,double precision,ltree,text,boolean,boolean,boolean,boolean,jsonb)', 'execute')
+  and has_function_privilege('anon', 'area_cells(double precision,double precision,double precision,double precision,double precision,double precision,ltree,text,boolean,boolean,boolean,boolean,jsonb)', 'execute')
   and has_function_privilege('authenticated', 'start_area(double precision,double precision,double precision,integer)', 'execute')
   and not exists (select 1 from pg_proc p, aclexplode(p.proacl) a
                   where p.proname in ('search_area', 'area_facets', 'area_cells', 'start_area')
                     and a.grantee = 0 and a.privilege_type = 'EXECUTE');
 insert into r select 'the shared pieces (which take the viewer as an argument) are not callable through the API',
-  not has_function_privilege('anon', 'area_matches(double precision,double precision,double precision,double precision,ltree,text,boolean,boolean,boolean,boolean,uuid)', 'execute')
-  and not has_function_privilege('authenticated', 'area_matches(double precision,double precision,double precision,double precision,ltree,text,boolean,boolean,boolean,boolean,uuid)', 'execute')
+  not has_function_privilege('anon', 'area_matches(double precision,double precision,double precision,double precision,ltree,text,boolean,boolean,boolean,boolean,uuid,jsonb)', 'execute')
+  and not has_function_privilege('authenticated', 'area_matches(double precision,double precision,double precision,double precision,ltree,text,boolean,boolean,boolean,boolean,uuid,jsonb)', 'execute')
   and not has_function_privilege('authenticated', 'area_box(double precision,double precision,double precision,double precision)', 'execute');
 
 select case when ok then 'PASS ' else 'FAIL ' end || t from r;
