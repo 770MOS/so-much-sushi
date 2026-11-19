@@ -9,7 +9,7 @@ import { geocodeLocationText } from "@/lib/locationLookup";
 import { reverseGeocode } from "@/lib/reverseGeocode";
 import { addSearchHistory } from "@/lib/searchHistory";
 import { CURRENT_LOCATION_LABEL, getLastSearchCoords, type Coords } from "@/lib/lastSearchCoords";
-import { emptyQuery, MAP_AREA_LABEL, parseResultsQuery, resultsHref, type ResultsQuery } from "@/lib/resultsQuery";
+import { DRAWN_AREA_LABEL, emptyQuery, MAP_AREA_LABEL, parseResultsQuery, resultsHref, type ResultsQuery } from "@/lib/resultsQuery";
 import { useResultsState } from "@/lib/resultsStore";
 import { startArea } from "@/lib/searchArea";
 import { pushResults, replaceResults } from "@/lib/resultsNav";
@@ -154,7 +154,8 @@ function SearchFormInner({
   // that place (a town on the whole town, an address on about the nearest 50 places).
   async function resolveWhere(picked?: string): Promise<Pick<ResultsQuery, "where" | "lat" | "lng" | "b"> | null> {
     const text = (picked ?? where).trim();
-    const unchanged = text === "" || text === current.where || text === CURRENT_LOCATION_LABEL || text === MAP_AREA_LABEL;
+    const unchanged =
+      text === "" || text === current.where || text === CURRENT_LOCATION_LABEL || text === MAP_AREA_LABEL || text === DRAWN_AREA_LABEL;
     if (unchanged && here && current.b) {
       return { where: current.where || text, lat: here.lat, lng: here.lng, b: current.b };
     }
@@ -178,7 +179,9 @@ function SearchFormInner({
     try {
       const point = await resolveWhere(pickedWhere);
       if (!point) return;
-      go(resultsHref({ ...current, ...point, ...patch }));
+      // A new place leaves a drawn area behind.
+      const more = point.b === current.b ? current.more : { ...current.more, area: null };
+      go(resultsHref({ ...current, ...point, more, ...patch }));
     } finally {
       busyRef.current = false;
       setBusy(false);

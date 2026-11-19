@@ -4,7 +4,7 @@
 //     &b=-77.1301,38.8601,-77.0599,38.9139&view=split&sort=az&only=favorites,friends&hidden=1
 // and the All filters panel's choices (advanced search, 2026-11-19; MoreFilters below):
 //     &cu=restaurants.asian.thai,restaurants.asian.vietnamese&st=Wilson+Blvd&chain=independent
-//     &web=1&tel=1&closed=1&list=<id>&close=1
+//     &web=1&tel=1&closed=1&list=<id>&close=1&area=-77.09900,38.88800;-77.09600,38.88970;...
 // Every part is optional. Nothing about the search is stored anywhere else.
 //
 // b is the search area: the box on the map (west, south, east, north) whose places are shown
@@ -20,7 +20,10 @@ export type Chain = "chain" | "independent";
 // The All filters panel (public.area_options reads them as `more`). cuisines: several kinds at
 // once, any of them (one kind alone stays in `kind`); street: matched on its start; chain:
 // 10 or more open places with the name nationwide; closed: places that have closed too; list:
-// one of the person's own lists; close: the typed name also finds close spellings.
+// one of the person's own lists; close: the typed name also finds close spellings; area: a shape
+// drawn on the map ([lng, lat] points, 3 to 100; b is then the box around it). Like the map
+// area, a drawn area lives only in the address (decided 2026-11-19).
+export type LngLat = [number, number];
 export type MoreFilters = {
   cuisines: string[];
   street: string;
@@ -30,6 +33,7 @@ export type MoreFilters = {
   closed: boolean;
   list: string | null;
   close: boolean;
+  area: LngLat[] | null;
 };
 
 export const NO_MORE: MoreFilters = {
@@ -41,7 +45,48 @@ export const NO_MORE: MoreFilters = {
   closed: false,
   list: null,
   close: false,
+  area: null,
 };
+
+// What the Where box says while the search is a drawn area.
+export const DRAWN_AREA_LABEL = "Drawn area";
+export const MAX_SHAPE_POINTS = 100;
+
+function parseShape(v: string | null): LngLat[] | null {
+  if (!v) return null;
+  const pts = v.split(";").map((pair) => pair.split(",").map((x) => Number(x)));
+  if (pts.length < 3 || pts.length > MAX_SHAPE_POINTS) return null;
+  if (!pts.every((p) => p.length === 2 && Number.isFinite(p[0]) && Number.isFinite(p[1]) && Math.abs(p[0]) <= 180 && Math.abs(p[1]) <= 90)) {
+    return null;
+  }
+  return pts as LngLat[];
+}
+
+export function shapeParam(pts: LngLat[]): string {
+  return pts.map(([lng, lat]) => `${lng.toFixed(5)},${lat.toFixed(5)}`).join(";");
+}
+
+// The box to search for a drawn shape: around it, with a little room so its outline shows.
+export function shapeBox(pts: LngLat[]): Box {
+  const lngs = pts.map((p) => p[0]);
+  const lats = pts.map((p) => p[1]);
+  const west = Math.min(...lngs);
+  const east = Math.max(...lngs);
+  const south = Math.min(...lats);
+  const north = Math.max(...lats);
+  const padX = (east - west) * 0.08 + 0.0005;
+  const padY = (north - south) * 0.08 + 0.0005;
+  return {
+    west: Math.max(west - padX, -180),
+    south: Math.max(south - padY, -90),
+    east: Math.min(east + padX, 180),
+    north: Math.min(north + padY, 90),
+  };
+}
+
+export function shapeCenter(pts: LngLat[]): { lat: number; lng: number } {
+  return { lng: pts.reduce((a, p) => a + p[0], 0) / pts.length, lat: pts.reduce((a, p) => a + p[1], 0) / pts.length };
+}
 
 export type ResultsQuery = {
   q: string; // part of a name
@@ -95,6 +140,7 @@ function parseMore(p: Params): MoreFilters {
     closed: p.get("closed") === "1",
     list: list && UUID_RE.test(list) ? list : null,
     close: p.get("close") === "1",
+    area: parseShape(p.get("area")),
   };
 }
 
@@ -189,6 +235,7 @@ export function resultsHref(query: ResultsQuery): string {
   if (m.closed) p.set("closed", "1");
   if (m.list) p.set("list", m.list);
   if (m.close) p.set("close", "1");
+  if (m.area) p.set("area", shapeParam(m.area));
   const s = p.toString();
   return s ? `/?${s}` : "/";
 }
@@ -236,6 +283,7 @@ export function moreArg(more: MoreFilters, counts = false): Record<string, unkno
   if (more.closed) arg.closed = true;
   if (more.list) arg.list = more.list;
   if (more.close) arg.close = true;
+  if (more.area) arg.area = more.area;
   if (counts) arg.counts = true;
   return arg;
 }
@@ -251,6 +299,7 @@ export function moreCount(query: Pick<ResultsQuery, "q" | "more">): number {
     (m.phone ? 1 : 0) +
     (m.closed ? 1 : 0) +
     (m.list ? 1 : 0) +
-    (m.close && query.q.trim() ? 1 : 0)
+    (m.close && query.q.trim() ? 1 : 0) +
+    (m.area ? 1 : 0)
   );
 }

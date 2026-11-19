@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import maplibregl from "maplibre-gl";
-import type { GeoJSONSource, LngLatBoundsLike, MapGeoJSONFeature, MapLayerMouseEvent } from "maplibre-gl";
+import type { GeoJSONSource, LngLatBoundsLike, MapGeoJSONFeature, MapLayerMouseEvent, MapMouseEvent, MapTouchEvent, PaddingOptions } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { applyMapStyle, loadMapKind, MAX_BROWSE_ZOOM, PIN_COLOR, saveMapKind, type MapKind } from "@/lib/mapConfig";
 import {
@@ -17,7 +17,7 @@ import {
   type MapMarkerEntity,
 } from "@/components/EntityMap";
 import type { AreaCell } from "@/lib/searchTypes";
-import type { Box } from "@/lib/resultsQuery";
+import { MAX_SHAPE_POINTS, type Box, type LngLat } from "@/lib/resultsQuery";
 
 // The results page's map (build step 3). The map area is the search area:
 //   * it opens on the search's box;
@@ -27,8 +27,15 @@ import type { Box } from "@/lib/resultsQuery";
 //   * when a search has more places than the list holds (1,000), the bubbles come from the
 //     database's grid counts (cells) instead, so they are true counts; clicking one of those
 //     zooms in to it and searches there;
-//   * when the person moves the map, onMoved tells the page, which offers "Search this area".
-// Overlays (the Search this area button, notes) are passed as children.
+//   * when the person moves the map, onMoved tells the page, which offers "Search this area";
+//   * a drawn area (advanced search, 2026-11-19) is outlined; while drawing (draw), clicks drop
+//     points (click the first point, or double-click, to close the shape; then drag points), and
+//     on a touch screen one finger stroke draws the whole shape, closed when the finger lifts.
+//     onDraw reports every change; the page holds the shape and the Done / Cancel bar.
+// Overlays (the Search this area button, notes, the drawing bar) are passed as children.
+
+// stroke: drawn with a finger, whose many points have no handles to drag.
+export type DrawState = { points: LngLat[]; closed: boolean; stroke?: boolean };
 
 type Props = {
   places: MapMarkerEntity[];
@@ -42,11 +49,22 @@ type Props = {
   revealInset?: { right: number; bottom: number };
   onMoved?: (view: Box) => void;
   onSearchBox?: (box: Box) => void;
+  // The drawn area searched (outlined), and the shape being drawn (null: not drawing).
+  shape?: LngLat[] | null;
+  draw?: DrawState | null;
+  onDraw?: (state: DrawState) => void;
   className?: string;
   children?: ReactNode;
 };
 
 const SOURCE_ID = "sms-area";
+const DRAW_SOURCE = "sms-draw";
+const DRAW_FILL = "sms-draw-fill";
+const DRAW_LINE = "sms-draw-line";
+const DRAW_POINTS = "sms-draw-points";
+const DRAW_COLOR = "#1f4fbf"; // --link
+// A finger stroke keeps a point every few pixels, then is simplified to at most this many.
+const STROKE_POINTS = 60;
 const PINS_LAYER = "sms-area-pins";
 const BUBBLES_LAYER = "sms-area-bubbles";
 const WANT_COLOR = "#3b5bdb"; // --want, the blue flag
@@ -181,6 +199,67 @@ function toFeatures(places: MapMarkerEntity[], cells: AreaCell[] | null): GeoJSO
   };
 }
 
+
+// The shape for the map: while drawing, its line so far, its points (the first marked, to close
+// on) and, once closed, its fill; otherwise the drawn area searched, filled and outlined.
+function drawFeatures(draw: DrawState | null, shape: LngLat[] | null): GeoJSON.FeatureCollection {
+  const features: GeoJSON.Feature[] = [];
+  const pts = draw ? draw.points : shape ?? [];
+  const closed = draw ? draw.closed : pts.length >= 3;
+  if (closed && pts.length >= 3) {
+    features.push({ type: "Feature", properties: { kind: "fill" }, geometry: { type: "Polygon", coordinates: [[...pts, pts[0]]] } });
+  }
+  if (pts.length >= 2) {
+    features.push({
+      type: "Feature",
+      properties: { kind: "line", open: closed ? 0 : 1 },
+      geometry: { type: "LineString", coordinates: closed ? [...pts, pts[0]] : pts },
+    });
+  }
+  if (draw && !draw.stroke) {
+    pts.forEach((p, i) =>
+      features.push({ type: "Feature", properties: { kind: "point", i, first: i === 0 && !closed && pts.length >= 3 ? 1 : 0 }, geometry: { type: "Point", coordinates: p } })
+    );
+  }
+  return { type: "FeatureCollection", features };
+}
+
+// Fewer points along a finger's stroke, keeping its shape (Ramer-Douglas-Peucker on screen
+// pixels), with the tolerance raised until it fits in max points.
+function simplifyStroke(px: { x: number; y: number }[], max: number): number[] {
+  function keep(tol: number): number[] {
+    const kept = new Set<number>([0, px.length - 1]);
+    const stack: [number, number][] = [[0, px.length - 1]];
+    while (stack.length) {
+      const [a, b] = stack.pop()!;
+      let far = -1;
+      let farDist = tol;
+      const dx = px[b].x - px[a].x;
+      const dy = px[b].y - px[a].y;
+      const len = Math.hypot(dx, dy) || 1;
+      for (let i = a + 1; i < b; i++) {
+        const d = Math.abs(dy * px[i].x - dx * px[i].y + px[b].x * px[a].y - px[b].y * px[a].x) / len;
+        if (d > farDist) {
+          far = i;
+          farDist = d;
+        }
+      }
+      if (far >= 0) {
+        kept.add(far);
+        stack.push([a, far], [far, b]);
+      }
+    }
+    return [...kept].sort((x, y) => x - y);
+  }
+  let tol = 2;
+  let out = keep(tol);
+  while (out.length > max && tol < 400) {
+    tol *= 1.5;
+    out = keep(tol);
+  }
+  return out;
+}
+
 // Pins grow for the row the pointer is over, and more for the place whose panel is open.
 function pinSize(hoverId: string | null, selectedId: string | null): maplibregl.ExpressionSpecification {
   return ["case", ["==", ["get", "id"], selectedId ?? ""], 1.45, ["==", ["get", "id"], hoverId ?? ""], 1.3, 1];
@@ -203,6 +282,15 @@ function showsAbout(view: Box, area: Box): boolean {
   );
 }
 
+// Room around an area shown on the map. In Split view the map is as tall as the window but
+// starts below the filter bar, so until the page scrolls its bottom is off the screen: leave
+// that part out, so the whole area shows.
+function areaPadding(el: HTMLElement): PaddingOptions {
+  const box = el.getBoundingClientRect();
+  const hidden = Math.max(0, Math.min(box.height / 2, box.bottom - window.innerHeight));
+  return { top: 8, right: 8, bottom: 8 + hidden, left: 8 };
+}
+
 function areaBounds(area: Box): LngLatBoundsLike {
   return [
     [area.west, area.south],
@@ -210,7 +298,22 @@ function areaBounds(area: Box): LngLatBoundsLike {
   ];
 }
 
-export default function ResultsMap({ places, cells, area, highlightId, selectedId, onSelect, revealInset, onMoved, onSearchBox, className, children }: Props) {
+export default function ResultsMap({
+  places,
+  cells,
+  area,
+  highlightId,
+  selectedId,
+  onSelect,
+  revealInset,
+  onMoved,
+  onSearchBox,
+  shape,
+  draw,
+  onDraw,
+  className,
+  children,
+}: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const readyRef = useRef(false);
@@ -225,12 +328,16 @@ export default function ResultsMap({ places, cells, area, highlightId, selectedI
   const onSelectRef = useRef(onSelect);
   const onMovedRef = useRef(onMoved);
   const onSearchBoxRef = useRef(onSearchBox);
+  const drawRef = useRef<DrawState | null>(draw ?? null);
+  const shapeRef = useRef<LngLat[] | null>(shape ?? null);
+  const onDrawRef = useRef(onDraw);
 
   useEffect(() => {
     onSelectRef.current = onSelect;
     onMovedRef.current = onMoved;
     onSearchBoxRef.current = onSearchBox;
-  }, [onSelect, onMoved, onSearchBox]);
+    onDrawRef.current = onDraw;
+  }, [onSelect, onMoved, onSearchBox, onDraw]);
 
   // Map or Satellite: the last one picked in this browser.
   const [kind, setKind] = useState<MapKind>(loadMapKind);
@@ -260,7 +367,7 @@ export default function ResultsMap({ places, cells, area, highlightId, selectedI
     const map = new maplibregl.Map({
       container: containerRef.current,
       bounds: areaBounds(areaRef.current),
-      fitBoundsOptions: { padding: 8 },
+      fitBoundsOptions: { padding: areaPadding(containerRef.current) },
       maxZoom: MAX_BROWSE_ZOOM,
     });
     applyMapStyle(map, kindRef.current);
@@ -306,7 +413,7 @@ export default function ResultsMap({ places, cells, area, highlightId, selectedI
       }
       if (movedByPerson) {
         movedByPerson = false;
-        onMovedRef.current?.(boundsBox(map));
+        if (!drawRef.current) onMovedRef.current?.(boundsBox(map));
       }
     });
 
@@ -319,6 +426,23 @@ export default function ResultsMap({ places, cells, area, highlightId, selectedI
       await Promise.all([addPinImages(map, () => cancelled), document.fonts?.ready]);
       // A newer look arrived meanwhile: its own install adds them.
       if (cancelled || mine !== look || map.getSource(SOURCE_ID)) return;
+      // The drawn area under the pins; the points to drag over them (added below).
+      map.addSource(DRAW_SOURCE, { type: "geojson", data: drawFeatures(drawRef.current, shapeRef.current) });
+      map.addLayer({
+        id: DRAW_FILL,
+        type: "fill",
+        source: DRAW_SOURCE,
+        filter: ["==", ["get", "kind"], "fill"],
+        paint: { "fill-color": DRAW_COLOR, "fill-opacity": 0.1 },
+      });
+      map.addLayer({
+        id: DRAW_LINE,
+        type: "line",
+        source: DRAW_SOURCE,
+        filter: ["==", ["get", "kind"], "line"],
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: { "line-color": DRAW_COLOR, "line-width": 2.5 },
+      });
       map.addSource(SOURCE_ID, {
         type: "geojson",
         data: dataRef.current,
@@ -372,6 +496,18 @@ export default function ResultsMap({ places, cells, area, highlightId, selectedI
           "symbol-sort-key": ["get", "n"],
         },
       });
+      map.addLayer({
+        id: DRAW_POINTS,
+        type: "circle",
+        source: DRAW_SOURCE,
+        filter: ["==", ["get", "kind"], "point"],
+        paint: {
+          "circle-radius": ["case", ["==", ["get", "first"], 1], 9, 6],
+          "circle-color": "#ffffff",
+          "circle-stroke-color": DRAW_COLOR,
+          "circle-stroke-width": 3,
+        },
+      });
       readyRef.current = true;
     }
     map.on("style.load", () => {
@@ -381,11 +517,13 @@ export default function ResultsMap({ places, cells, area, highlightId, selectedI
     });
 
     map.on("click", PINS_LAYER, (event: MapLayerMouseEvent) => {
+      if (drawRef.current) return;
       const id = event.features?.[0]?.properties?.id as string | undefined;
       if (id) onSelectRef.current?.(id);
     });
 
     map.on("click", BUBBLES_LAYER, async (event: MapLayerMouseEvent) => {
+      if (drawRef.current) return;
       const feature = event.features?.[0] as MapGeoJSONFeature | undefined;
       if (!feature || feature.geometry.type !== "Point") return;
       const p = feature.properties ?? {};
@@ -414,12 +552,96 @@ export default function ResultsMap({ places, cells, area, highlightId, selectedI
 
     for (const layer of [PINS_LAYER, BUBBLES_LAYER]) {
       map.on("mouseenter", layer, () => {
-        map.getCanvas().style.cursor = "pointer";
+        if (!drawRef.current) map.getCanvas().style.cursor = "pointer";
       });
       map.on("mouseleave", layer, () => {
-        map.getCanvas().style.cursor = "";
+        if (!drawRef.current) map.getCanvas().style.cursor = "";
       });
     }
+
+    // ------------------------------------------------------------ drawing
+    // A click drops a point; on the first point (with 3 or more), or a double-click, it closes.
+    let lastTouchAt = 0;
+    const report = (state: DrawState) => onDrawRef.current?.(state);
+    map.on("click", (e: MapMouseEvent) => {
+      const d = drawRef.current;
+      if (!d || d.closed || Date.now() - lastTouchAt < 700) return;
+      if (d.points.length >= 3) {
+        const first = map.project(d.points[0]);
+        if (Math.hypot(first.x - e.point.x, first.y - e.point.y) < 14) {
+          report({ points: d.points, closed: true });
+          return;
+        }
+      }
+      if (d.points.length >= MAX_SHAPE_POINTS) return;
+      const last = d.points[d.points.length - 1];
+      if (last) {
+        const at = map.project(last);
+        if (Math.hypot(at.x - e.point.x, at.y - e.point.y) < 4) return;
+      }
+      report({ points: [...d.points, [e.lngLat.lng, e.lngLat.lat]], closed: false });
+    });
+    map.on("dblclick", (e: MapMouseEvent) => {
+      const d = drawRef.current;
+      if (!d) return;
+      e.preventDefault();
+      if (!d.closed && d.points.length >= 3) report({ points: d.points, closed: true });
+    });
+    // Once closed, a point can be dragged.
+    let dragging: number | null = null;
+    map.on("mousedown", DRAW_POINTS, (e: MapLayerMouseEvent) => {
+      const d = drawRef.current;
+      const i = e.features?.[0]?.properties?.i;
+      if (!d || !d.closed || typeof i !== "number") return;
+      e.preventDefault();
+      dragging = i;
+      map.dragPan.disable();
+    });
+    map.on("mousemove", (e: MapMouseEvent) => {
+      const d = drawRef.current;
+      if (dragging === null || !d) return;
+      const points = d.points.map((p, j) => (j === dragging ? ([e.lngLat.lng, e.lngLat.lat] as LngLat) : p));
+      report({ points, closed: true });
+    });
+    map.on("mouseup", () => {
+      if (dragging === null) return;
+      dragging = null;
+      map.dragPan.enable();
+    });
+    map.on("mouseenter", DRAW_POINTS, () => {
+      if (drawRef.current?.closed) map.getCanvas().style.cursor = "move";
+    });
+    map.on("mouseleave", DRAW_POINTS, () => {
+      if (drawRef.current?.closed) map.getCanvas().style.cursor = "";
+    });
+    // A touch screen: one finger draws the whole shape, which closes when it lifts.
+    let stroke: { px: { x: number; y: number }[]; at: LngLat[] } | null = null;
+    map.on("touchstart", (e: MapTouchEvent) => {
+      const d = drawRef.current;
+      if (!d || d.closed || e.points.length !== 1) return;
+      e.preventDefault();
+      map.dragPan.disable();
+      stroke = { px: [e.point], at: [[e.lngLat.lng, e.lngLat.lat]] };
+      report({ points: stroke.at, closed: false, stroke: true });
+    });
+    map.on("touchmove", (e: MapTouchEvent) => {
+      if (!stroke) return;
+      e.preventDefault();
+      const last = stroke.px[stroke.px.length - 1];
+      if (Math.hypot(last.x - e.point.x, last.y - e.point.y) < 6) return;
+      stroke.px.push(e.point);
+      stroke.at.push([e.lngLat.lng, e.lngLat.lat]);
+      report({ points: [...stroke.at], closed: false, stroke: true });
+    });
+    map.on("touchend", () => {
+      if (!stroke) return;
+      const s = stroke;
+      stroke = null;
+      lastTouchAt = Date.now();
+      map.dragPan.enable();
+      const kept = s.px.length >= 3 ? simplifyStroke(s.px, STROKE_POINTS).map((i) => s.at[i]) : [];
+      report(kept.length >= 3 ? { points: kept, closed: true, stroke: true } : { points: [], closed: false });
+    });
 
     mapRef.current = map;
     const resizeObserver = new ResizeObserver(() => map.resize());
@@ -436,6 +658,19 @@ export default function ResultsMap({ places, cells, area, highlightId, selectedI
     };
   }, []);
 
+  // The drawn area, or the shape being drawn: redraw it. While drawing, a crosshair, and no
+  // zoom on double-click (it closes the shape).
+  useEffect(() => {
+    drawRef.current = draw ?? null;
+    shapeRef.current = shape ?? null;
+    const map = mapRef.current;
+    if (!map) return;
+    if (draw) map.doubleClickZoom.disable();
+    else map.doubleClickZoom.enable();
+    map.getCanvas().style.cursor = draw && !draw.closed ? "crosshair" : "";
+    if (readyRef.current) (map.getSource(DRAW_SOURCE) as GeoJSONSource | undefined)?.setData(drawFeatures(draw ?? null, shape ?? null));
+  }, [draw, shape]);
+
   // New places or counts: redraw them.
   useEffect(() => {
     dataRef.current = toFeatures(places, cells);
@@ -451,7 +686,7 @@ export default function ResultsMap({ places, cells, area, highlightId, selectedI
     const map = mapRef.current;
     if (!map) return;
     if (showsAbout(boundsBox(map), area)) return;
-    const camera = map.cameraForBounds(areaBounds(area), { padding: 8 });
+    const camera = map.cameraForBounds(areaBounds(area), { padding: areaPadding(map.getContainer()) });
     if (camera) map.jumpTo({ center: camera.center, zoom: camera.zoom });
   }, [area]);
 

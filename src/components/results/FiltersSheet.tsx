@@ -58,9 +58,11 @@ type Props = {
   onApply: (patch: Partial<ResultsQuery>) => void;
   onLocked: () => void;
   onClose: () => void;
+  // Draw an area: the choices made here apply, then drawing starts on the map.
+  onDraw: (patch: Partial<ResultsQuery>) => void;
 };
 
-export default function FiltersSheet({ query, facets, signedIn, lists, countFor, onApply, onLocked, onClose }: Props) {
+export default function FiltersSheet({ query, facets, signedIn, lists, countFor, onApply, onLocked, onClose, onDraw }: Props) {
   const [kind, setKind] = useState<string | null>(query.kind);
   const [more, setMore] = useState<MoreFilters>(query.more);
   const [only, setOnly] = useState<Only[]>(query.only);
@@ -319,6 +321,20 @@ export default function FiltersSheet({ query, facets, signedIn, lists, countFor,
                   className="mt-2.5 h-[46px] w-full rounded-[10px] border border-[#dddddd] bg-white px-3 text-base text-zinc-950 placeholder:text-zinc-500 focus:border-zinc-500 focus:outline-none"
                 />
               </fieldset>
+
+              <div className="flex items-center justify-between gap-3 border-b border-[#f0f0f0] py-3.5">
+                <span className="text-base font-medium text-zinc-950">Search area</span>
+                <button
+                  type="button"
+                  onClick={() => onDraw({ kind, only, more })}
+                  className="inline-flex h-11 items-center gap-2 rounded-[10px] border border-[#dddddd] px-3.5 text-sm font-medium text-zinc-950"
+                >
+                  <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M12 5m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0M19 8m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0M5 11m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0M15 19m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0M6.5 9.5l3.5 -3M14 5.5l3 1.5M18.5 10l-2.5 7M13.5 17.5l-7 -5" />
+                  </svg>
+                  {more.area ? "Draw again" : "Draw an area"}
+                </button>
+              </div>
 
               <fieldset className="border-b border-[#f0f0f0] py-3">
                 <legend className={legend}>Chain or independent</legend>
