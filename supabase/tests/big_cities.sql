@@ -1,6 +1,6 @@
 -- Scenario checks for big cities opening on their busiest area (20261119000000_big_cities.sql):
--- refresh_locality_focus, the focus as a town's point in suggest_localities, and the 5-mile
--- cap on a town's own size in start_area.
+-- refresh_locality_focus, the focus as a town's point in suggest_localities (with a 1-mile size,
+-- 20261120000000_city_centers.sql), and the 5-mile cap on a town's own size in start_area.
 -- Run against a scratch database only: it inserts fixtures.
 \set ON_ERROR_STOP 1
 \set QUIET 1
@@ -57,12 +57,14 @@ insert into r select 'focus: worked out again from scratch (an old focus that no
   and (select focus is not null from localities where code = '4800001')
   and (select n = 1 from again);
 
--- suggest_localities hands back the focus as the point; other towns keep their own point.
-insert into r select 'suggestions: a big town''s point is its busiest spot',
-  (select miles(pt(lat, lng), pt(30.042, -96.957)) < 0.5 and radius_miles = 10
+-- suggest_localities hands back the focus as the point, and a mile as the size, so the map opens
+-- on the downtown; other towns keep their own point and size.
+insert into r select 'suggestions: a big town opens on a mile around its busiest spot',
+  (select miles(pt(lat, lng), pt(30.042, -96.957)) < 0.5 and radius_miles = 1
    from suggest_localities('bigtown', null, null, 1));
-insert into r select 'suggestions: a town without a focus keeps its own point',
-  (select lat = 31.00 and lng = -97.00 from suggest_localities('smallville', null, null, 1));
+insert into r select 'suggestions: a town without a focus keeps its own point and size',
+  (select lat = 31.00 and lng = -97.00 and radius_miles = 2 from suggest_localities('smallville', null, null, 1))
+  and (select radius_miles = 8 from suggest_localities('quiettown', null, null, 1));
 
 -- start_area: a town's own size counts up to 5 miles.
 insert into r select 'start: a town''s own size counts up to 5 miles (10 across)',
