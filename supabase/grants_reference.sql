@@ -400,3 +400,12 @@ REVOKE EXECUTE ON FUNCTION kinds_for_text(text) FROM PUBLIC, anon, authenticated
 -- role (postgres, via the session pooler) rather than through
 -- anon/authenticated/service_role, so these grants don't apply to it and
 -- shouldn't be extended to cover it.
+
+-- =============================================================================
+-- Big cities (20261119000000_big_cities.sql).
+--   refresh_locality_focus (works out large towns' busiest spots) is for the
+--   place-name list loader only. suggest_localities and start_area keep their
+--   grants.
+-- =============================================================================
+REVOKE EXECUTE ON FUNCTION refresh_locality_focus() FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION refresh_locality_focus() TO service_role;

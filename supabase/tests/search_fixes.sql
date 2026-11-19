@@ -81,7 +81,7 @@ insert into r select 'start_area: the n-th nearest open place, as before (closed
                                'SRID=4326;POINT(-77.13 38.93)'::geography) / 1609.34)::numeric, 2)::float);
 insert into r select 'start_area: limits as before (at least 1/3 mile, at most 25, the given radius, null off the map)',
   start_area(38.90, -77.10, 0, 1) = 0.33 and start_area(30.0, -90.0, 0, 6) = 25
-  and start_area(38.90, -77.10, 7.5, 1) = 7.5 and start_area(95, 0) is null and start_area(null, 0) is null;
+  and start_area(38.90, -77.10, 4.5, 1) = 4.5 and start_area(95, 0) is null and start_area(null, 0) is null;
 
 insert into r select 'kinds_for_text is internal; start_area is still open to the API roles',
   not has_function_privilege('anon', 'kinds_for_text(text)', 'execute')

@@ -36,9 +36,11 @@ type Suggestion = Omit<PickedLocation, "radiusMiles"> & {
 // The dropdowns under the box, styled like the What box's suggestions. Never a scrolling box
 // (8 suggestions at most fit): Safari drew a scrolling dropdown's frame over the results map but
 // left its text hidden behind the map and filter row, so the list looked empty (2026-11-16).
-// Above the filter row and the map's controls, like the What box's list.
+// Above the filter row and the map's controls, like the What box's list. Its own compositing
+// layer (translateZ, will-change): Safari still sometimes drew the list empty, or late, over
+// the map's WebGL canvas until something else made it redraw (2026-11-19).
 const LIST_CLASS =
-  "absolute left-0 right-0 top-full z-40 mt-2 min-w-[240px] overflow-hidden rounded-xl border border-line bg-white py-1 shadow-[0_8px_24px_rgba(0,0,0,0.12)]";
+  "absolute left-0 right-0 top-full z-40 mt-2 min-w-[240px] overflow-hidden rounded-xl border border-line bg-white py-1 shadow-[0_8px_24px_rgba(0,0,0,0.12)] [transform:translateZ(0)] will-change-transform";
 
 // Suggestions start after two characters, a short pause after the last keystroke.
 const MIN_CHARS = 2;

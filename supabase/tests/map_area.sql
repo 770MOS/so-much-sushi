@@ -120,8 +120,8 @@ insert into r select 'start: far enough for the n-th nearest place',
   and (select start_area(38.871, -77.131, 0, 5) > 4);
 insert into r select 'start: at least a third of a mile',
   (select start_area(38.871, -77.131, 0, 1) = 0.33);
-insert into r select 'start: at least the radius asked for (a town''s own size)',
-  (select start_area(38.871, -77.131, 6.5, 4) = 6.5);
+insert into r select 'start: at least the radius asked for (a town''s own size, up to 5 miles since 20261119000000)',
+  (select start_area(38.871, -77.131, 4.5, 4) = 4.5);
 insert into r select 'start: at most 25 miles, even when the places are far',
   (select start_area(30.0, -90.0, 0, 3) = 25);
 insert into r select 'start: a point off the map gives nothing',

@@ -78,6 +78,9 @@ function ListIcon() {
 // the search lives in the address (see src/lib/resultsQuery.ts); this page reads it, finds the
 // area to search when the address has none, runs the search and its counts, and shows List,
 // Split or Map. The map area is the search area: moving the map offers "Search this area".
+// Shown once a search has been out for a few seconds (useResults' slow).
+const STILL_SEARCHING = "Still searching… A big area takes longer the first time.";
+
 export default function ResultsPage() {
   const router = useRouter();
   const pathname = usePathname();
@@ -412,14 +415,30 @@ export default function ResultsPage() {
   // ------------------------------------------------------------------ results
   const list = (card: boolean) => (
     <>
-      {search.loading && !search.results ? (
-        <p className="px-6 py-10 text-center text-sm text-muted">Searching…</p>
+      {search.error && !search.loading ? (
+        <div className="flex flex-col items-center gap-3 px-6 py-10 text-center text-sm text-muted" role="alert">
+          <p>{search.error.message}</p>
+          <button
+            type="button"
+            onClick={search.retry}
+            className="rounded-full border border-line px-4 py-2 text-[15px] font-medium text-zinc-950 hover:bg-zinc-50"
+          >
+            Try again
+          </button>
+        </div>
+      ) : search.loading && !search.results ? (
+        <p className="px-6 py-10 text-center text-sm text-muted">{search.slow ? STILL_SEARCHING : "Searching…"}</p>
       ) : rows.length === 0 ? (
         <div className="px-6 py-10 text-center text-sm text-muted">
-          {search.error ?? "No places match. Try another kind, a larger map area, or turning a filter off."}
+          No places match. Try another kind, a larger map area, or turning a filter off.
         </div>
       ) : (
-        <ul ref={listRef} className={card ? "grid gap-3 px-4 py-3 md:px-6 lg:grid-cols-2" : ""} aria-busy={search.loading}>
+        // While a new search is out, the last answer stays (dimmed) so the page doesn't jump.
+        <ul
+          ref={listRef}
+          className={`${card ? "grid gap-3 px-4 py-3 md:px-6 lg:grid-cols-2" : ""} transition-opacity ${search.loading ? "opacity-40" : ""}`}
+          aria-busy={search.loading}
+        >
           {rows.map((r) => (
             <ResultRow
               key={r.id}
@@ -475,8 +494,16 @@ export default function ResultsPage() {
   const header = (
     <div className="flex flex-col gap-0.5 px-5 pb-2 pt-3 md:px-6">
       <p className="text-[15px] text-zinc-950" aria-live="polite">
-        {search.loading && !search.results ? (
-          "Searching…"
+        {search.loading ? (
+          search.slow ? STILL_SEARCHING : "Searching…"
+        ) : search.error ? (
+          <>
+            <span className="font-medium">The search didn’t finish</span>
+            <span className="text-muted">
+              {query.q ? ` for “${query.q}”` : ""}
+              {whereWords}
+            </span>
+          </>
         ) : (
           <>
             <span className="font-medium">
@@ -610,9 +637,13 @@ export default function ResultsPage() {
               {map(
                 "h-[calc(100dvh-140px)] min-h-[480px] w-full",
                 <p className="absolute left-1/2 top-3 z-10 -translate-x-1/2 whitespace-nowrap rounded-full bg-white/95 px-4 py-2 text-sm text-zinc-950 shadow-[0_2px_10px_rgba(0,0,0,0.12)]">
-                  {search.loading && !search.results
-                    ? "Searching…"
-                    : `${(capped ? total : rows.length).toLocaleString("en-US")} ${placeWord(capped ? total : rows.length)}${whereWords}`}
+                  {search.loading
+                    ? search.slow
+                      ? "Still searching…"
+                      : "Searching…"
+                    : search.error
+                      ? "The search didn’t finish"
+                      : `${(capped ? total : rows.length).toLocaleString("en-US")} ${placeWord(capped ? total : rows.length)}${whereWords}`}
                 </p>,
                 "top-16"
               )}
