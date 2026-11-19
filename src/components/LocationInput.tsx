@@ -36,11 +36,17 @@ type Suggestion = Omit<PickedLocation, "radiusMiles"> & {
 // The dropdowns under the box, styled like the What box's suggestions. Never a scrolling box
 // (8 suggestions at most fit): Safari drew a scrolling dropdown's frame over the results map but
 // left its text hidden behind the map and filter row, so the list looked empty (2026-11-16).
-// Above the filter row and the map's controls, like the What box's list. Its own compositing
-// layer (translateZ, will-change): Safari still sometimes drew the list empty, or late, over
-// the map's WebGL canvas until something else made it redraw (2026-11-19).
+// Above the filter row and the map's controls, like the What box's list.
+// Safari 26 then drew the list's frame but not the words on its rows (button elements, laid out
+// with flexbox, in a clipped box on its own layer) until the window was redrawn, so suggestions
+// looked missing until you switched apps (2026-11-19). The rows are now plain list items (no
+// buttons, no flexbox) in a box that clips nothing and asks for no layer of its own. See
+// ROW_CLASS, and the What box's list, which had the same trouble.
 const LIST_CLASS =
-  "absolute left-0 right-0 top-full z-40 mt-2 min-w-[240px] overflow-hidden rounded-xl border border-line bg-white py-1 shadow-[0_8px_24px_rgba(0,0,0,0.12)] [transform:translateZ(0)] will-change-transform";
+  "absolute left-0 right-0 top-full z-40 mt-2 min-w-[240px] rounded-xl border border-line bg-white py-1 shadow-[0_8px_24px_rgba(0,0,0,0.12)]";
+// A row: clicked like a button (cursor-pointer also makes iPhone Safari send the click).
+const ROW_CLASS = "block min-h-10 cursor-pointer px-3 py-2 text-left text-[15px]";
+const ROW_ICON_CLASS = "grid min-h-10 cursor-pointer grid-cols-[auto_1fr] items-center gap-2 px-3 py-2 text-left text-[15px]";
 
 // Suggestions start after two characters, a short pause after the last keystroke.
 const MIN_CHARS = 2;
@@ -190,54 +196,48 @@ export default function LocationInput({
           <ul
             id={listId}
             role="listbox"
-            // Keep focus in the box while clicking: Safari doesn't focus a clicked button, so
-            // the box's blur would otherwise close the list before the click lands.
+            // Keep focus in the box while clicking: Safari doesn't focus a clicked row, so the
+            // box's blur would otherwise close the list before the click lands.
             onMouseDown={(e) => e.preventDefault()}
             className={LIST_CLASS}
           >
             {visibleSuggestions.map((s, i) => (
-              <li key={`${s.kind}-${s.label}-${i}`} id={optionId(i)} role="option" aria-selected={i === active}>
-                <button
-                  type="button"
-                  tabIndex={-1}
-                  onMouseEnter={() => setActive(i)}
-                  onClick={() => pick(s)}
-                  className={`flex min-h-10 w-full items-baseline gap-2 px-3 py-2 text-left text-[15px] text-zinc-950 ${
-                    i === active ? "bg-[#f3f6fd]" : ""
-                  }`}
-                >
-                  <span>{s.label}</span>
-                  {s.detail && <span className="text-[13px] text-muted">{s.detail}</span>}
-                </button>
+              <li
+                key={`${s.kind}-${s.label}-${i}`}
+                id={optionId(i)}
+                role="option"
+                aria-selected={i === active}
+                onMouseEnter={() => setActive(i)}
+                onClick={() => pick(s)}
+                className={`${ROW_CLASS} text-zinc-950 ${i === active ? "bg-[#f3f6fd]" : ""}`}
+              >
+                {s.label}
+                {s.detail && <span className="ml-2 text-[13px] text-muted">{s.detail}</span>}
               </li>
             ))}
           </ul>
         )}
         {showStartList && (
-          <div onMouseDown={(e) => e.preventDefault()} className={LIST_CLASS}>
-            <button
-              type="button"
-              onClick={selectCurrentLocation}
-              className="flex min-h-10 w-full items-center gap-2 px-3 py-2 text-left text-[15px] text-link hover:bg-[#f3f6fd]"
-            >
+          <div role="menu" aria-label="Places to search" onMouseDown={(e) => e.preventDefault()} className={LIST_CLASS}>
+            <div role="menuitem" onClick={selectCurrentLocation} className={`${ROW_ICON_CLASS} text-link hover:bg-[#f3f6fd]`}>
               <LocationPinIcon />
-              Use my location
-            </button>
+              <span>Use my location</span>
+            </div>
             {history.length > 0 && (
               <>
                 <p className="px-3 pb-1 pt-2 text-[13px] font-medium text-muted">
                   Recent places, kept on this device
                 </p>
                 {history.map((item) => (
-                  <button
+                  <div
                     key={item}
-                    type="button"
+                    role="menuitem"
                     onClick={() => selectHistoryItem(item)}
-                    className="flex min-h-10 w-full items-center gap-2 px-3 py-2 text-left text-[15px] text-zinc-950 hover:bg-[#f3f6fd]"
+                    className={`${ROW_ICON_CLASS} text-zinc-950 hover:bg-[#f3f6fd]`}
                   >
                     <HistoryIcon />
-                    {item}
-                  </button>
+                    <span>{item}</span>
+                  </div>
                 ))}
               </>
             )}

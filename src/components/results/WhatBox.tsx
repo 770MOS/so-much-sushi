@@ -140,8 +140,12 @@ export default function WhatBox({
 
   const optionId = (i: number) => `${listId}-option-${i}`;
   const inline = Boolean(listTarget);
-  const rowClass = (i: number) =>
-    `flex w-full items-center gap-3 text-left text-[15px] text-zinc-950 ${inline ? "min-h-14 px-4 py-2" : "min-h-12 px-3 py-1.5"} ${
+  // Rows are plain elements clicked like buttons, not button elements laid out with flexbox:
+  // Safari 26 drew those rows' words only once the window was redrawn, so the suggestions looked
+  // missing while typing (2026-11-19; see LocationInput's LIST_CLASS). cursor-pointer also makes
+  // iPhone Safari send the click.
+  const rowClass = (i: number, columns: string) =>
+    `grid ${columns} cursor-pointer items-center gap-3 text-left text-[15px] text-zinc-950 ${inline ? "min-h-14 px-4 py-2" : "min-h-12 px-3 py-1.5"} ${
       i === active ? "bg-[#f3f6fd]" : ""
     }`;
   const headingClass = inline ? "px-4 pb-1 pt-3 text-[13px] font-medium text-muted" : "px-3 pb-1 pt-2 text-[13px] font-medium text-muted";
@@ -152,23 +156,29 @@ export default function WhatBox({
       id={listId}
       role="listbox"
       aria-label="Suggestions"
-      // Keep focus in the box while clicking (Safari doesn't focus clicked buttons).
+      // Keep focus in the box while clicking (Safari doesn't focus a clicked row).
       onMouseDown={(e) => e.preventDefault()}
       className={
         inline
           ? "bg-white py-1"
-          : "absolute left-0 right-0 top-full z-40 mt-2 min-w-[300px] overflow-hidden rounded-xl border border-line bg-white py-1 shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
+          : "absolute left-0 right-0 top-full z-40 mt-2 min-w-[300px] rounded-xl border border-line bg-white py-1 shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
       }
     >
       {kinds.length > 0 && <p className={headingClass}>Kinds of places</p>}
       {kinds.map((k, i) => {
         const n = nearbyCount(facets, k.path);
         return (
-          <div key={k.path} id={optionId(i)} role="option" aria-selected={i === active}>
-            <button type="button" tabIndex={-1} onMouseEnter={() => setActive(i)} onClick={() => choose(k)} className={rowClass(i)}>
-              <span className="flex-1 font-medium text-link">{k.label}</span>
-              {n !== null && <span className="text-[13px] text-muted">{n.toLocaleString("en-US")} nearby</span>}
-            </button>
+          <div
+            key={k.path}
+            id={optionId(i)}
+            role="option"
+            aria-selected={i === active}
+            onMouseEnter={() => setActive(i)}
+            onClick={() => choose(k)}
+            className={rowClass(i, "grid-cols-[1fr_auto]")}
+          >
+            <span className="font-medium text-link">{k.label}</span>
+            <span className="text-[13px] text-muted">{n !== null ? `${n.toLocaleString("en-US")} nearby` : ""}</span>
           </div>
         );
       })}
@@ -176,29 +186,40 @@ export default function WhatBox({
       {places.map((p, j) => {
         const i = kinds.length + j;
         return (
-          <div key={p.place_id} id={optionId(i)} role="option" aria-selected={i === active}>
-            <button type="button" tabIndex={-1} onMouseEnter={() => setActive(i)} onClick={() => choose(p)} className={rowClass(i)}>
-              <span className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate">{p.label}</span>
-                {p.address && <span className="truncate text-[13px] text-muted">{p.address}</span>}
-              </span>
-              {p.miles !== null && <span className="shrink-0 text-[13px] text-muted">{Number(p.miles).toFixed(1)} mi</span>}
-            </button>
+          <div
+            key={p.place_id}
+            id={optionId(i)}
+            role="option"
+            aria-selected={i === active}
+            onMouseEnter={() => setActive(i)}
+            onClick={() => choose(p)}
+            className={rowClass(i, "grid-cols-[minmax(0,1fr)_auto]")}
+          >
+            <span className="min-w-0">
+              <span className="block truncate">{p.label}</span>
+              {p.address && <span className="block truncate text-[13px] text-muted">{p.address}</span>}
+            </span>
+            <span className="text-[13px] text-muted">{p.miles !== null ? `${Number(p.miles).toFixed(1)} mi` : ""}</span>
           </div>
         );
       })}
       {(() => {
         const i = options.length - 1;
         return (
-          <div id={optionId(i)} role="option" aria-selected={i === active} className="border-t border-line">
-            <button type="button" tabIndex={-1} onMouseEnter={() => setActive(i)} onClick={() => choose(options[i])} className={rowClass(i)}>
-              <span className="text-muted">
-                <SearchIcon />
-              </span>
-              <span>
-                Search for “<span className="font-medium">{query}</span>”
-              </span>
-            </button>
+          <div
+            id={optionId(i)}
+            role="option"
+            aria-selected={i === active}
+            onMouseEnter={() => setActive(i)}
+            onClick={() => choose(options[i])}
+            className={`border-t border-line ${rowClass(i, "grid-cols-[auto_1fr]")}`}
+          >
+            <span className="text-muted">
+              <SearchIcon />
+            </span>
+            <span>
+              Search for “<span className="font-medium">{query}</span>”
+            </span>
           </div>
         );
       })()}
