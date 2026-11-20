@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/admin";
 import { takenFromB, UUID } from "@/lib/adminPlace";
+import { GROUP } from "./groups";
 
 function ids(formData: FormData, key: string): number[] {
   return formData
@@ -35,6 +36,23 @@ async function decideMerges(formData: FormData, accept: boolean) {
   });
   if (error) back(formData, `Could not save: ${error.message}`);
   back(formData, accept ? `Merged ${data}.` : `Marked ${data} as different places.`);
+}
+
+// One batch of a whole group, accepted or declined. The page calls this again until the group
+// is empty, showing the count as it goes (a group can hold thousands of merges).
+export async function decideGroupBatch(group: string, accept: boolean): Promise<{ decided: number; left: number; error?: string }> {
+  const { db, email } = await requireAdmin();
+  if (!GROUP[group]) return { decided: 0, left: 0, error: "Unknown group." };
+  const { data, error } = await db.rpc("admin_decide_review_group", {
+    p_group: group,
+    p_accept: accept,
+    p_decided_by: email,
+    p_limit: 100,
+  });
+  if (error) return { decided: 0, left: 0, error: error.message };
+  const res = data as { decided: number; left: number };
+  if (res.left === 0) revalidatePath("/admin", "layout");
+  return { decided: Number(res.decided), left: Number(res.left) };
 }
 
 export async function mergeSelected(formData: FormData) {

@@ -1,5 +1,8 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/admin";
+import GroupDecision from "@/components/admin/GroupDecision";
+import { ADVICE_LABEL, GROUP, GROUPS, type Advice, type GroupInfo, type GroupKind, type GroupRow } from "./groups";
 import { place, websiteHost } from "@/lib/adminFormat";
 import Compare from "@/components/admin/Compare";
 import SelectAll from "@/components/admin/SelectAll";
@@ -18,6 +21,13 @@ import type { MergeRow, PinReportRow, PlaceRequestRow, SourceChangeRow, TagCount
 import { metersText, PIN_HOW_SHORT, placedBy } from "@/lib/pins";
 
 const TAG_PAGE = 200;
+const ITEM_PAGE = 50;
+
+const ADVICE_CHIP: Record<Advice, string> = {
+  accept: "border-emerald-200 bg-emerald-50 text-emerald-800",
+  look: "border-amber-200 bg-amber-50 text-amber-900",
+  decline: "border-rose-200 bg-rose-50 text-rose-800",
+};
 
 const th = "whitespace-nowrap border-b border-l border-neutral-200 px-3 py-2 text-left font-medium text-neutral-600 first:border-l-0";
 const td = "border-b border-l border-neutral-100 px-3 py-2 align-top first:border-l-0";
@@ -66,23 +76,48 @@ export default async function ReviewQueue({
             : "merges";
   const tag = one(params.tag) ?? null;
   const notice = one(params.notice);
+  const kind: GroupKind | null = type === "merges" ? "duplicates" : type === "changes" ? "changes" : null;
+  const groupKey = one(params.group) ?? null;
+  const info: GroupInfo | null = groupKey && kind && GROUP[groupKey]?.kind === kind ? GROUP[groupKey] : null;
+  const page = Math.max(1, Math.floor(Number(one(params.page)) || 1));
 
-  const [mergesRes, countsRes, changesRes, requestsRes, pinsRes] = await Promise.all([
-    db.rpc("admin_pending_merges"),
+  // Possible duplicates and source changes come in groups (counts and examples only); the
+  // items load for the one group being looked at, a page at a time.
+  const [groupsRes, countsRes, requestsRes, pinsRes, itemsRes] = await Promise.all([
+    db.rpc("admin_review_groups"),
     db.rpc("admin_pending_tag_counts"),
-    db.rpc("admin_pending_source_changes"),
     db.rpc("admin_pending_place_requests"),
     db.rpc("admin_pending_pin_reports"),
+    info
+      ? db.rpc(info.kind === "duplicates" ? "admin_review_duplicates" : "admin_review_changes", {
+          p_group: info.key,
+          p_limit: ITEM_PAGE,
+          p_offset: (page - 1) * ITEM_PAGE,
+        })
+      : Promise.resolve({ data: [], error: null }),
   ]);
-  if (pinsRes.error) throw new Error(pinsRes.error.message);
+  for (const res of [groupsRes, countsRes, requestsRes, pinsRes, itemsRes]) if (res.error) throw new Error(res.error.message);
   const pins = (pinsRes.data ?? []) as PinReportRow[];
-  if (mergesRes.error) throw new Error(mergesRes.error.message);
-  if (countsRes.error) throw new Error(countsRes.error.message);
-  if (changesRes.error) throw new Error(changesRes.error.message);
-  if (requestsRes.error) throw new Error(requestsRes.error.message);
   const requests = (requestsRes.data ?? []) as PlaceRequestRow[];
-  const changes = (changesRes.data ?? []) as SourceChangeRow[];
-  const merges = (mergesRes.data ?? []) as MergeRow[];
+  const groupRows = ((groupsRes.data ?? []) as GroupRow[]).map((g) => ({ ...g, items: Number(g.items) }));
+  const inGroup = new Map(groupRows.map((g) => [g.review_group, g]));
+  const duplicateTotal = groupRows.filter((g) => g.kind === "duplicates").reduce((n, g) => n + g.items, 0);
+  const changeTotal = groupRows.filter((g) => g.kind === "changes").reduce((n, g) => n + g.items, 0);
+  const merges = (info?.kind === "duplicates" ? itemsRes.data ?? [] : []) as (MergeRow & { total: number })[];
+  const changes = (info?.kind === "changes" ? itemsRes.data ?? [] : []) as (SourceChangeRow & { total: number })[];
+  const itemTotal = Number((merges[0] ?? changes[0])?.total ?? 0);
+  const pages = Math.max(1, Math.ceil(itemTotal / ITEM_PAGE));
+  // After deciding the last items on a later page, go back a page.
+  if (info && page > 1 && itemTotal === 0 && (inGroup.get(info.key)?.items ?? 0) > 0) {
+    redirect(`/admin/review?type=${type}&group=${info.key}${notice ? `&notice=${encodeURIComponent(notice)}` : ""}`);
+  }
+  // Groups listed in our order; any the page doesn't know yet go last.
+  const listed = (k: GroupKind) => [
+    ...GROUPS.filter((g) => g.kind === k && inGroup.has(g.key)),
+    ...groupRows
+      .filter((g) => g.kind === k && !GROUP[g.review_group])
+      .map((g): GroupInfo => ({ key: g.review_group, kind: k, title: g.review_group, advice: "look", why: "" })),
+  ];
   const counts = ((countsRes.data ?? []) as TagCount[]).map((c) => ({ ...c, pending: Number(c.pending) }));
   const tagTotal = counts.reduce((sum, c) => sum + c.pending, 0);
 
@@ -96,13 +131,12 @@ export default async function ReviewQueue({
   const here =
     type === "tags"
       ? `/admin/review?type=tags${tag ? `&tag=${encodeURIComponent(tag)}` : ""}`
-      : type === "changes"
-        ? "/admin/review?type=changes"
-        : type === "requests"
-          ? "/admin/review?type=requests"
-          : type === "pins"
-            ? "/admin/review?type=pins"
-            : "/admin/review";
+      : type === "requests"
+        ? "/admin/review?type=requests"
+        : type === "pins"
+          ? "/admin/review?type=pins"
+          : `/admin/review?type=${type}${info ? `&group=${info.key}${page > 1 ? `&page=${page}` : ""}` : ""}`;
+  const groupLink = (key: string, p = 1) => `/admin/review?type=${type}&group=${key}${p > 1 ? `&page=${p}` : ""}`;
   const tab = (active: boolean) =>
     `flex min-h-11 items-center gap-2 rounded-lg border px-3 text-[13px] ${
       active ? "border-neutral-900 bg-neutral-900 text-white" : "border-neutral-300 bg-white hover:bg-neutral-50"
@@ -113,13 +147,13 @@ export default async function ReviewQueue({
       <div className="flex flex-wrap items-center gap-2 border-b border-neutral-200 px-4 py-2.5">
         <h1 className="mr-2 text-base font-semibold">Review queue</h1>
         <Link href="/admin/review" className={tab(type === "merges")}>
-          Possible duplicates <span className="font-mono text-xs">{merges.length}</span>
+          Possible duplicates <span className="font-mono text-xs">{duplicateTotal.toLocaleString("en-US")}</span>
         </Link>
         <Link href="/admin/review?type=tags" className={tab(type === "tags")}>
           Tag suggestions <span className="font-mono text-xs">{tagTotal}</span>
         </Link>
         <Link href="/admin/review?type=changes" className={tab(type === "changes")}>
-          Source changes <span className="font-mono text-xs">{changes.length}</span>
+          Source changes <span className="font-mono text-xs">{changeTotal.toLocaleString("en-US")}</span>
         </Link>
         <Link href="/admin/review?type=requests" className={tab(type === "requests")}>
           Place requests <span className="font-mono text-xs">{requests.length}</span>
@@ -135,7 +169,52 @@ export default async function ReviewQueue({
         </p>
       )}
 
-      {type === "pins" ? (
+      {kind && !info ? (
+        listed(kind).length === 0 ? (
+          <p className="px-4 py-10 text-neutral-600">{kind === "duplicates" ? "No possible duplicates are waiting." : "No changes from source loads are waiting."}</p>
+        ) : (
+          <>
+            <p className="border-b border-neutral-200 bg-neutral-50 px-4 py-2 text-xs text-neutral-600">
+              Sorted into groups of the same kind. Decide a whole group at once, or open it to go through it one by one (deciding a few
+              one by one first, then the rest together, works too).{kind === "duplicates" ? " Every merge can be undone from the place’s page." : ""}
+            </p>
+            <ul>
+              {listed(kind).map((g) => {
+                const row = inGroup.get(g.key)!;
+                return (
+                  <li key={g.key} className="flex flex-col gap-3 border-b border-neutral-200 px-4 py-4 lg:flex-row lg:items-start">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h2 className="font-medium">
+                          <Link href={groupLink(g.key)} className="underline decoration-neutral-300 hover:text-orange-700">
+                            {g.title}
+                          </Link>
+                        </h2>
+                        <span className={`rounded-full border px-2 py-0.5 text-xs ${ADVICE_CHIP[g.advice]}`}>{ADVICE_LABEL[g.advice]}</span>
+                      </div>
+                      {g.why && <p className="mt-1 max-w-3xl text-[13px] text-neutral-600">{g.why}</p>}
+                      <ul className="mt-1.5 flex flex-col gap-0.5 text-xs text-neutral-500">
+                        {row.examples.map((x, i) => (
+                          <li key={i} className="truncate">{x}</li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div className="flex flex-col gap-2 lg:items-end">
+                      <div className="flex items-baseline gap-3">
+                        <span className="font-mono text-lg">{row.items.toLocaleString("en-US")}</span>
+                        <Link href={groupLink(g.key)} className="inline-flex min-h-11 items-center text-[13px] underline hover:text-orange-700">
+                          Go through them
+                        </Link>
+                      </div>
+                      <GroupDecision group={g.key} kind={kind} count={row.items} title={g.title} />
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </>
+        )
+      ) : type === "pins" ? (
         pins.length === 0 ? (
           <p className="px-4 py-10 text-neutral-600">No pin reports are waiting.</p>
         ) : (
@@ -278,9 +357,11 @@ export default async function ReviewQueue({
             </div>
           </form>
         )
-      ) : type === "changes" ? (
-        changes.length === 0 ? (
-          <p className="px-4 py-10 text-neutral-600">No changes from source loads are waiting.</p>
+      ) : type === "changes" && info ? (
+        <>
+        <GroupHeader info={info} count={inGroup.get(info.key)?.items ?? 0} back="/admin/review?type=changes" />
+        {changes.length === 0 ? (
+          <p className="px-4 py-10 text-neutral-600">None left in this group.</p>
         ) : (
           <form>
             <input type="hidden" name="return" value={here} />
@@ -333,11 +414,15 @@ export default async function ReviewQueue({
                 </tbody>
               </table>
             </div>
+            <Pager page={page} pages={pages} total={itemTotal} link={(p) => groupLink(info.key, p)} />
           </form>
-        )
-      ) : type === "merges" ? (
-        merges.length === 0 ? (
-          <p className="px-4 py-10 text-neutral-600">No possible duplicates are waiting.</p>
+        )}
+        </>
+      ) : type === "merges" && info ? (
+        <>
+        <GroupHeader info={info} count={inGroup.get(info.key)?.items ?? 0} back="/admin/review" />
+        {merges.length === 0 ? (
+          <p className="px-4 py-10 text-neutral-600">None left in this group.</p>
         ) : (
           <form>
             <input type="hidden" name="return" value={here} />
@@ -403,8 +488,10 @@ export default async function ReviewQueue({
                 </tbody>
               </table>
             </div>
+            <Pager page={page} pages={pages} total={itemTotal} link={(p) => groupLink(info.key, p)} />
           </form>
-        )
+        )}
+        </>
       ) : (
         <div className="flex flex-1 flex-col sm:flex-row">
           <nav aria-label="Suggested tags" className="border-b border-neutral-200 p-2 sm:w-60 sm:shrink-0 sm:border-b-0 sm:border-r">
@@ -488,5 +575,39 @@ export default async function ReviewQueue({
         </div>
       )}
     </>
+  );
+}
+
+function GroupHeader({ info, count, back }: { info: GroupInfo; count: number; back: string }) {
+  return (
+    <div className="flex flex-col gap-2 border-b border-neutral-200 px-4 py-3">
+      <Link href={back} className="inline-flex min-h-11 w-fit items-center text-[13px] underline hover:text-orange-700">
+        All {info.kind === "duplicates" ? "duplicate" : "change"} groups
+      </Link>
+      <div className="flex flex-wrap items-center gap-2">
+        <h2 className="text-base font-semibold">{info.title}</h2>
+        <span className={`rounded-full border px-2 py-0.5 text-xs ${ADVICE_CHIP[info.advice]}`}>{ADVICE_LABEL[info.advice]}</span>
+        <span className="font-mono text-sm text-neutral-600">{count.toLocaleString("en-US")} waiting</span>
+      </div>
+      {info.why && <p className="max-w-3xl text-[13px] text-neutral-600">{info.why}</p>}
+      <GroupDecision group={info.key} kind={info.kind} count={count} title={info.title} />
+    </div>
+  );
+}
+
+function Pager({ page, pages, total, link }: { page: number; pages: number; total: number; link: (p: number) => string }) {
+  if (pages <= 1) return null;
+  const btn = "inline-flex min-h-11 items-center rounded-lg border border-neutral-300 px-3 hover:bg-neutral-50";
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-[13px] text-neutral-600">
+      <span>
+        {((page - 1) * ITEM_PAGE + 1).toLocaleString("en-US")} to {Math.min(page * ITEM_PAGE, total).toLocaleString("en-US")} of {total.toLocaleString("en-US")}
+      </span>
+      <span className="flex items-center gap-2">
+        {page > 1 && <Link href={link(page - 1)} className={btn}>Previous</Link>}
+        <span>Page {page} of {pages.toLocaleString("en-US")}</span>
+        {page < pages && <Link href={link(page + 1)} className={btn}>Next</Link>}
+      </span>
+    </div>
   );
 }
