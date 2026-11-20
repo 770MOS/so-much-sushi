@@ -234,9 +234,11 @@ class Db:
 
 def refresh_chains(db):
     """Work out the chain names again (10 or more open places with a name; see
-    20261121000000_advanced_filters.sql), so search's Chain or independent filter keeps up."""
+    20261121000000_advanced_filters.sql), so search's Chain or independent filter keeps up,
+    and the admin State and Town menus' counts (20261122000000_admin_places_at_scale.sql)."""
     n = db.one("SELECT public.refresh_chain_names()")[0]
     notice("Chains", f"{n:,} names with 10 or more open places")
+    db.one("SELECT public.refresh_place_counts()")
 
 
 def load_by_state(records_for, source_code, release, run_license, states):
@@ -335,3 +337,4 @@ def load(records, source_code, release, scope, run_license):
                                     if k not in ("build", "finished_at")))
     n = rest.call("POST", "/rpc/refresh_chain_names", {})
     notice("Chains", f"{n:,} names with 10 or more open places")
+    rest.call("POST", "/rpc/refresh_place_counts", {})

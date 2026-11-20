@@ -42,7 +42,9 @@ exception when others then insert into r values ('main category refused as a tag
 do $$ begin perform admin_update_place((select id from entities where name = 'Sushi Den'), '{"merged_into":"x"}', 'me');
   insert into r values ('unknown field refused', false);
 exception when others then insert into r values ('unknown field refused', true); end $$;
-insert into r select 'filters list towns with their state', jsonb_array_length(admin_place_filters()->'towns') = 2;
+insert into r select 'filters list the towns of the state given', admin_place_filters('VA')->'towns' = '[{"state": "VA", "value": "Arlington", "count": 3}]'::jsonb
+  and admin_place_filters()->'towns' = '[]'::jsonb
+  and admin_place_filters()->'states' = '[{"value": "MD", "count": 1}, {"value": "VA", "count": 3}]'::jsonb;
 
 -- access
 insert into r select 'admin functions closed to the public',

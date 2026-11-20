@@ -440,3 +440,18 @@ REVOKE ALL ON TABLE chain_names FROM anon, authenticated;
 GRANT ALL ON TABLE chain_names TO service_role;
 REVOKE EXECUTE ON FUNCTION refresh_chain_names() FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION refresh_chain_names() TO service_role;
+
+-- =============================================================================
+-- Admin All places at national scale (20261122000000_admin_places_at_scale.sql).
+--   admin_search_places and admin_place_filters keep their service-role-only
+--   grants (admin_place_filters was dropped and created again). place_counts
+--   (the State and Town menus' counts) and refresh_place_counts are for the
+--   admin and the source loaders only; track_place_sources is a trigger
+--   function (keeps entities.no_source) and is not callable through the API.
+-- =============================================================================
+REVOKE EXECUTE ON FUNCTION admin_search_places(text, text, text, text, text, text[], text, boolean, boolean, integer, integer, text),
+  admin_place_filters(text), refresh_place_counts(), track_place_sources() FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION admin_search_places(text, text, text, text, text, text[], text, boolean, boolean, integer, integer, text),
+  admin_place_filters(text), refresh_place_counts() TO service_role;
+REVOKE ALL ON TABLE place_counts FROM anon, authenticated;
+GRANT ALL ON TABLE place_counts TO service_role;

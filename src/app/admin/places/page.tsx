@@ -9,6 +9,10 @@ import TagChecklist from "@/components/admin/TagChecklist";
 import { bulkEdit } from "./actions";
 
 const PAGE = 50;
+// The database counts matches up to 10,000; a total of 10001 means "more than 10,000".
+const COUNT_CAP = 10000;
+// Bulk edits of every match work on up to this many places.
+const BULK_MAX = 5000;
 
 type PlaceRow = {
   id: string; name: string; address: string | null; city: string | null; state: string | null;
@@ -17,7 +21,6 @@ type PlaceRow = {
   added_by_hand: boolean; source_records: number; last_checked: string | null;
 };
 type Option = { value: string; count: number };
-type Town = { state: string | null; value: string; count: number };
 
 const th = "whitespace-nowrap border-b border-l border-neutral-200 px-3 py-2 text-left font-medium text-neutral-600 first:border-l-0";
 const td = "border-b border-l border-neutral-100 px-3 py-2 align-top first:border-l-0";
@@ -59,7 +62,7 @@ export default async function AllPlaces({
 
   const [categories, filtersRes, placesRes] = await Promise.all([
     loadCategories(db),
-    db.rpc("admin_place_filters", { p_state: null }),
+    db.rpc("admin_place_filters", { p_state: state ?? null }),
     db.rpc("admin_search_places", {
       p_q: q ?? null, p_state: state ?? null, p_city: city ?? null, p_zip: zip ?? null,
       p_main: main ?? null, p_tags: tags.length ? tags : null, p_status: status ?? null,
@@ -70,10 +73,12 @@ export default async function AllPlaces({
   ]);
   if (filtersRes.error) throw new Error(filtersRes.error.message);
   if (placesRes.error) throw new Error(placesRes.error.message);
-  const filters = filtersRes.data as { states: Option[]; cities: Option[]; towns?: Town[] };
+  const filters = filtersRes.data as { states: Option[]; towns?: Option[] };
   const rows = (placesRes.data ?? []) as PlaceRow[];
   const total = rows.length ? Number(rows[0].total) : 0;
+  const capped = total > COUNT_CAP;
   const pages = Math.max(1, Math.ceil(total / PAGE));
+  const hasNext = capped ? rows.length === PAGE : page < pages;
 
   const pageLink = (n: number) => {
     const sp = new URLSearchParams();
@@ -98,7 +103,7 @@ export default async function AllPlaces({
         </label>
         <StateTownSelect
           states={filters.states}
-          towns={filters.towns ?? []}
+          towns={(filters.towns ?? []).map(({ value, count }) => ({ value, count }))}
           state={state}
           city={city}
           controlClass={control}
@@ -218,11 +223,16 @@ export default async function AllPlaces({
               Note (optional)
               <input name="b_note" placeholder="Why" className={`${control} w-48`} />
             </label>
-            {total > rows.length && (
+            {total > rows.length && total <= BULK_MAX && (
               <label className="flex min-h-11 cursor-pointer items-center gap-2 self-end text-[13px]">
                 <input type="checkbox" name="scope" value="all" className="h-4 w-4 accent-neutral-900" />
                 All {total.toLocaleString("en-US")} matching, not just this page
               </label>
+            )}
+            {total > BULK_MAX && (
+              <p className="flex min-h-11 max-w-56 items-center self-end text-xs text-neutral-500">
+                To change every match at once, narrow the filters to {BULK_MAX.toLocaleString("en-US")} places or fewer.
+              </p>
             )}
             <button className="min-h-11 cursor-pointer self-end rounded-lg bg-neutral-900 px-3.5 text-[13px] font-medium text-white hover:bg-neutral-700">Apply to selected</button>
           </div>
@@ -281,13 +291,13 @@ export default async function AllPlaces({
 
       <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-neutral-200 px-4 py-2 text-xs text-neutral-600">
         <span>
-          {total.toLocaleString("en-US")} {total === 1 ? "place" : "places"}
-          {total > 0 ? ` · showing ${((page - 1) * PAGE + 1).toLocaleString("en-US")} to ${Math.min(page * PAGE, total).toLocaleString("en-US")}` : ""}
+          {capped ? `More than ${COUNT_CAP.toLocaleString("en-US")} places` : `${total.toLocaleString("en-US")} ${total === 1 ? "place" : "places"}`}
+          {rows.length > 0 ? ` · showing ${((page - 1) * PAGE + 1).toLocaleString("en-US")} to ${((page - 1) * PAGE + rows.length).toLocaleString("en-US")}` : ""}
         </span>
         <span className="flex items-center gap-2">
           {page > 1 && <Link href={pageLink(page - 1)} className="inline-flex min-h-11 items-center rounded-lg border border-neutral-300 px-3 hover:bg-neutral-50">Previous</Link>}
-          <span>Page {page} of {pages.toLocaleString("en-US")}</span>
-          {page < pages && <Link href={pageLink(page + 1)} className="inline-flex min-h-11 items-center rounded-lg border border-neutral-300 px-3 hover:bg-neutral-50">Next</Link>}
+          <span>{capped ? `Page ${page.toLocaleString("en-US")}` : `Page ${page} of ${pages.toLocaleString("en-US")}`}</span>
+          {hasNext && <Link href={pageLink(page + 1)} className="inline-flex min-h-11 items-center rounded-lg border border-neutral-300 px-3 hover:bg-neutral-50">Next</Link>}
         </span>
       </div>
     </>
