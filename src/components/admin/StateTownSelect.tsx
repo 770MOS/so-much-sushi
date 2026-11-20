@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useRef, useState } from "react";
+import { townsInState } from "@/app/admin/places/actions";
 
 type Option = { value: string; count: number };
-type Town = { state: string | null; value: string; count: number };
 
-// State and Town dropdowns for the All places filter. Picking a state narrows the
-// town list straight away; a town that is not in the new state is cleared.
+// State and Town dropdowns for the All places filter. The towns come with the page for the
+// state in the address; picking another state loads its towns (every state's towns at once
+// would be 35,000 names). A town that is not in the new state is cleared.
 export default function StateTownSelect({
   states,
   towns,
@@ -16,7 +17,7 @@ export default function StateTownSelect({
   labelClass,
 }: {
   states: Option[];
-  towns: Town[];
+  towns: Option[];
   state?: string;
   city?: string;
   controlClass: string;
@@ -24,29 +25,34 @@ export default function StateTownSelect({
 }) {
   const [chosenState, setChosenState] = useState(state ?? "");
   const [chosenCity, setChosenCity] = useState(city ?? "");
+  const [options, setOptions] = useState<Option[]>(towns);
+  const [loading, setLoading] = useState(false);
+  const asked = useRef(state ?? "");
 
-  const options = useMemo(() => {
-    if (chosenState) return towns.filter((t) => t.state === chosenState).map(({ value, count }) => ({ value, count }));
-    // No state chosen: one entry per town name, counts added across states.
-    const merged = new Map<string, number>();
-    for (const t of towns) merged.set(t.value, (merged.get(t.value) ?? 0) + t.count);
-    return [...merged].map(([value, count]) => ({ value, count })).sort((a, b) => a.value.localeCompare(b.value));
-  }, [towns, chosenState]);
+  async function pickState(next: string) {
+    setChosenState(next);
+    asked.current = next;
+    if (!next) {
+      setOptions([]);
+      setChosenCity("");
+      return;
+    }
+    setLoading(true);
+    const found = await townsInState(next).catch(() => [] as Option[]);
+    if (asked.current !== next) return; // another state was picked meanwhile
+    setOptions(found);
+    setLoading(false);
+    setChosenCity((c) => (c && found.some((t) => t.value === c) ? c : ""));
+  }
+
+  // A town in the address without a state (an older link) still shows as chosen.
+  const shown = chosenCity && !options.some((t) => t.value === chosenCity) ? [{ value: chosenCity, count: 0 }, ...options] : options;
 
   return (
     <>
       <label className={labelClass}>
         State
-        <select
-          name="state"
-          value={chosenState}
-          className={controlClass}
-          onChange={(e) => {
-            const next = e.target.value;
-            setChosenState(next);
-            if (next && chosenCity && !towns.some((t) => t.state === next && t.value === chosenCity)) setChosenCity("");
-          }}
-        >
+        <select name="state" value={chosenState} className={controlClass} onChange={(e) => pickState(e.target.value)}>
           <option value="">Any</option>
           {states.map((s) => (
             <option key={s.value} value={s.value}>
@@ -57,11 +63,17 @@ export default function StateTownSelect({
       </label>
       <label className={labelClass}>
         Town or city
-        <select name="city" value={chosenCity} onChange={(e) => setChosenCity(e.target.value)} className={`${controlClass} max-w-48`}>
-          <option value="">{chosenState ? `Any in ${chosenState}` : "Any"}</option>
-          {options.map((c) => (
+        <select
+          name="city"
+          value={chosenCity}
+          onChange={(e) => setChosenCity(e.target.value)}
+          disabled={loading || (!chosenState && !chosenCity)}
+          className={`${controlClass} max-w-48 disabled:text-neutral-400`}
+        >
+          <option value="">{loading ? "Loading towns…" : chosenState ? `Any in ${chosenState}` : "Pick a state first"}</option>
+          {shown.map((c) => (
             <option key={c.value} value={c.value}>
-              {c.value} ({c.count.toLocaleString("en-US")})
+              {c.count ? `${c.value} (${c.count.toLocaleString("en-US")})` : c.value}
             </option>
           ))}
         </select>

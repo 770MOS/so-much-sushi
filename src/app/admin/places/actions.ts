@@ -165,6 +165,15 @@ export async function approvePlaceRequest(prev: AddPlaceState, formData: FormDat
   redirect(`/admin/review?type=requests&notice=${encodeURIComponent(notice)}`);
 }
 
+// The All places Town menu for a state, when another state is picked.
+export async function townsInState(state: string): Promise<{ value: string; count: number }[]> {
+  const { db } = await requireAdmin();
+  if (!/^[A-Z]{2}$/.test(state)) return [];
+  const { data, error } = await db.rpc("admin_place_filters", { p_state: state });
+  if (error) throw new Error(error.message);
+  return ((data as { towns?: { value: string; count: number }[] }).towns ?? []).map(({ value, count }) => ({ value, count }));
+}
+
 type BulkResult = { places_changed: number; fields_changed: number; places_with_tag_changes: number; skipped_merged: number };
 
 // Bulk edit from the All places list: the ticked rows, or every place matching the filters.
