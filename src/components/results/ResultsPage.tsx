@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabase/client";
 import SearchForm from "@/components/results/SearchForm";
 import FilterBar, { SortMenu } from "@/components/results/FilterBar";
 import FiltersSheet from "@/components/results/FiltersSheet";
+import type { DrawState } from "@/components/results/ResultsMap";
 import AllFiltersPanel, { type ListOption } from "@/components/results/AllFiltersPanel";
 import MoreChips from "@/components/results/MoreChips";
 import ResultRow from "@/components/results/ResultRow";
@@ -22,11 +23,14 @@ import {
   boxContains,
   boxParam,
   boxTooLarge,
+  DRAWN_AREA_LABEL,
   MAP_AREA_LABEL,
   moreArg,
   parseResultsQuery,
   resultsHref,
   sameBox,
+  shapeBox,
+  shapeCenter,
   type Box,
   type ResultsQuery,
 } from "@/lib/resultsQuery";
@@ -105,6 +109,9 @@ export default function ResultsPage() {
   const [panelOpen, setPanelOpen] = useState(false);
   // The person's own lists, for "On one of your lists" (not Want to try, which has its own).
   const [lists, setLists] = useState<ListOption[]>([]);
+  // Drawing an area on the map (null: not drawing), and how many places the shape holds.
+  const [draw, setDraw] = useState<DrawState | null>(null);
+  const [drawCount, setDrawCount] = useState<{ key: string; n: number | null } | null>(null);
   const [hoverId, setHoverId] = useState<string | null>(null);
   const [locating, setLocating] = useState(false);
   const [placeError, setPlaceError] = useState<string | null>(null);
@@ -198,7 +205,10 @@ export default function ResultsPage() {
 
   // Coming back to the results page later in this session returns to this search's area.
   useEffect(() => {
-    if (area && point) setLastSearchArea({ b: area, lat: point.lat, lng: point.lng, where: query.where });
+    // A drawn area isn't kept: coming back opens on the box around it, as a map area.
+    if (area && point) {
+      setLastSearchArea({ b: area, lat: point.lat, lng: point.lng, where: query.where === DRAWN_AREA_LABEL ? MAP_AREA_LABEL : query.where });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [areaKey, point?.lat, point?.lng, query.where]);
 
@@ -305,12 +315,13 @@ export default function ResultsPage() {
   // chain or independent, website, phone, closed places): the panel and the filters sheet.
   const countFor = useCallback(
     async (q: ResultsQuery): Promise<Facets | null> => {
-      if (!area) return null;
+      const box = q.b ?? area;
+      if (!box) return null;
       const { data, error } = await supabase.rpc("area_facets", {
-        west: area.west,
-        south: area.south,
-        east: area.east,
-        north: area.north,
+        west: box.west,
+        south: box.south,
+        east: box.east,
+        north: box.north,
         type_key: typeForPath(q.kind),
         cuisine_path: q.kind && q.kind.includes(".") ? q.kind : null,
         name_query: q.q.trim() || null,
@@ -373,7 +384,7 @@ export default function ResultsPage() {
     const coords = await geo.requestLocation();
     if (!coords) return;
     const b = await startArea(supabase, coords);
-    const next = { ...query, lat: coords.lat, lng: coords.lng, b, where: CURRENT_LOCATION_LABEL };
+    const next = { ...query, lat: coords.lat, lng: coords.lng, b, where: CURRENT_LOCATION_LABEL, more: { ...query.more, area: null } };
     pushResults(resultsHref(next));
     reverseGeocode(coords).then((label) => {
       if (label && window.location.search.includes(`lat=${coords.lat.toFixed(5)}`)) {
@@ -390,14 +401,73 @@ export default function ResultsPage() {
     const typed = query.lat !== null && query.lng !== null ? { lat: query.lat, lng: query.lng } : null;
     const keep = typed !== null && query.where !== MAP_AREA_LABEL && boxContains(view, typed);
     const from = keep && typed ? typed : boxCenter(view);
-    pushResults(resultsHref({ ...query, b: view, lat: from.lat, lng: from.lng, where: keep ? query.where : MAP_AREA_LABEL }));
+    const drawn = query.where === DRAWN_AREA_LABEL;
+    pushResults(
+      resultsHref({
+        ...query,
+        b: view,
+        lat: from.lat,
+        lng: from.lng,
+        where: keep && !drawn ? query.where : MAP_AREA_LABEL,
+        more: { ...query.more, area: null },
+      })
+    );
+  }
+
+  // ------------------------------------------------------------------ drawing an area
+  // Starts drawing on the map: the filters close, and the map shows (Map view on a phone; Split
+  // on a computer if the list was showing alone).
+  // patch: choices to apply on the way (the phone's filters sheet), in the same change.
+  const startDraw = useCallback(
+    (patch: Partial<ResultsQuery> = {}) => {
+      setPanelOpen(false);
+      setFiltersOpen(false);
+      const view = isDesktop === false && query.view !== "map" ? "map" : isDesktop && query.view === "list" ? "split" : null;
+      if (view || Object.keys(patch).length) update({ ...patch, ...(view ? { view } : {}) });
+      setDraw({ points: [], closed: false });
+    },
+    [isDesktop, query.view, update]
+  );
+  const drawKey = draw && draw.closed ? JSON.stringify(draw.points) : null;
+  const drawBox = draw && draw.closed && draw.points.length >= 3 ? shapeBox(draw.points) : null;
+  const drawTooLarge = drawBox ? boxTooLarge(drawBox) : false;
+  useEffect(() => {
+    if (!drawKey || !draw || drawTooLarge) return;
+    let cancelled = false;
+    const points = draw.points;
+    const t = setTimeout(() => {
+      countFor({ ...query, b: shapeBox(points), more: { ...query.more, area: points } }).then((f) => {
+        if (!cancelled) setDrawCount({ key: drawKey, n: f?.total ?? null });
+      });
+    }, 250);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+    // The shape is captured through drawKey; the other filters through paramsText.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drawKey, drawTooLarge, paramsText]);
+  const shownDrawCount = drawCount && drawCount.key === drawKey ? drawCount.n : null;
+  function finishDraw() {
+    if (!draw || !draw.closed || draw.points.length < 3 || drawTooLarge) return;
+    const points = draw.points;
+    const b = shapeBox(points);
+    const typed = query.lat !== null && query.lng !== null ? { lat: query.lat, lng: query.lng } : null;
+    const from = typed && boxContains(b, typed) ? typed : shapeCenter(points);
+    pushResults(resultsHref({ ...query, b, lat: from.lat, lng: from.lng, where: DRAWN_AREA_LABEL, more: { ...query.more, area: points } }));
+    setDraw(null);
   }
   const movedView = moved && moved.areaKey === areaKey && !sameBox(moved.view, area) ? moved.view : null;
 
   const total = search.total;
   const capped = search.capped;
   const placeWord = (n: number) => (n === 1 ? "place" : "places");
-  const whereWords = !query.where || query.where === MAP_AREA_LABEL ? " in this map area" : ` near ${query.where}`;
+  const whereWords =
+    !query.where || query.where === MAP_AREA_LABEL
+      ? " in this map area"
+      : query.where === DRAWN_AREA_LABEL
+        ? " in your drawn area"
+        : ` near ${query.where}`;
   const approximate = approxArea !== null && approxArea === areaKey;
   const closeSearch = useCallback(() => setSearching(false), []);
 
@@ -405,8 +475,8 @@ export default function ResultsPage() {
   const summaryTitle = query.q ? `“${query.q}”` : query.kind ? kindName(query.kind) : "Search places to eat and drink";
   const summaryWhere = needsArea
     ? "Pick a town, or use your location"
-    : !query.where || query.where === MAP_AREA_LABEL
-      ? "Map area"
+    : !query.where || query.where === MAP_AREA_LABEL || query.where === DRAWN_AREA_LABEL
+      ? query.where === DRAWN_AREA_LABEL ? "Drawn area" : "Map area"
       : approximate
         ? `Around ${query.where}`
         : `Near ${query.where}`;
@@ -608,6 +678,83 @@ export default function ResultsPage() {
       </button>
     );
 
+  // While drawing: what to do, how many places the shape holds, and Start over / Cancel / Done.
+  const touch = isDesktop === false;
+  const drawBar = draw && (
+    <>
+      <div
+        role="region"
+        aria-label="Drawing an area"
+        className={`absolute z-10 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-[14px] bg-white py-2 pl-4 pr-2 shadow-[0_2px_14px_rgba(0,0,0,0.18)] ${
+          touch ? "inset-x-2 top-2" : "left-1/2 top-3 max-w-[calc(100%-120px)] -translate-x-1/2"
+        }`}
+      >
+        <p className="min-w-0 flex-1 text-sm text-zinc-950" aria-live="polite">
+          {!draw.closed ? (
+            touch ? (
+              "Draw around the area with your finger"
+            ) : draw.points.length < 3 ? (
+              "Click to drop points around the part of town you mean."
+            ) : (
+              "Click the first point again, or double-click, to close the shape."
+            )
+          ) : drawTooLarge ? (
+            <span className="font-medium text-red-700">That area is too large to search. Draw a smaller one.</span>
+          ) : (
+            <>
+              <span className="font-medium">
+                {shownDrawCount === null ? "Counting…" : `${shownDrawCount.toLocaleString("en-US")} ${placeWord(shownDrawCount)} in your area.`}
+              </span>{" "}
+              {!touch && <span className="text-muted">Drag a point to change the shape.</span>}
+            </>
+          )}
+        </p>
+        {!touch && (
+          <div className="flex items-center gap-1.5">
+            {draw.points.length > 0 && (
+              <button type="button" onClick={() => setDraw({ points: [], closed: false })} className="h-10 rounded-[10px] border border-[#dddddd] px-3.5 text-sm font-medium text-zinc-950 hover:bg-zinc-50">
+                Start over
+              </button>
+            )}
+            <button type="button" onClick={() => setDraw(null)} className="h-10 rounded-[10px] px-3 text-sm font-medium text-zinc-950 hover:bg-zinc-100">
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={finishDraw}
+              disabled={!draw.closed || drawTooLarge}
+              className="h-10 rounded-[10px] bg-primary px-[18px] text-sm font-medium text-white hover:bg-primary-hover disabled:opacity-40"
+            >
+              Done
+            </button>
+          </div>
+        )}
+        {touch && (
+          <button type="button" aria-label="Cancel drawing" onClick={() => setDraw(null)} className="flex h-11 w-11 items-center justify-center rounded-[10px] text-zinc-950">
+            <svg viewBox="0 0 24 24" width={22} height={22} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden="true">
+              <path d="M18 6l-12 12M6 6l12 12" />
+            </svg>
+          </button>
+        )}
+      </div>
+      {touch && draw.closed && (
+        <div className="absolute inset-x-0 bottom-0 z-10 flex gap-2.5 rounded-t-[20px] bg-white px-4 pb-7 pt-4 shadow-[0_-4px_18px_rgba(0,0,0,0.14)]">
+          <button type="button" onClick={() => setDraw({ points: [], closed: false })} className="h-[52px] flex-1 rounded-xl border border-[#dddddd] text-base font-medium text-zinc-950">
+            Start over
+          </button>
+          <button
+            type="button"
+            onClick={finishDraw}
+            disabled={drawTooLarge}
+            className="h-[52px] flex-[1.3] rounded-xl bg-primary text-base font-medium text-white disabled:opacity-40"
+          >
+            Done
+          </button>
+        </div>
+      )}
+    </>
+  );
+
   const map = (className: string, overlays: ReactNode, buttonTop = "top-3") => (
     <ResultsMap
       places={markers}
@@ -619,10 +766,13 @@ export default function ResultsPage() {
       revealInset={isDesktop ? { right: 440, bottom: 0 } : { right: 0, bottom: Math.round((typeof window === "undefined" ? 800 : window.innerHeight) * 0.46) }}
       onMoved={onMoved}
       onSearchBox={searchBox}
+      shape={query.more.area}
+      draw={draw}
+      onDraw={setDraw}
       className={className}
     >
-      {overlays}
-      {searchHereButton(buttonTop)}
+      {draw ? drawBar : overlays}
+      {!draw && searchHereButton(buttonTop)}
       {approximate && !movedView && (
         <p className="absolute left-3 top-3 z-10 rounded-full bg-white/95 px-3 py-1.5 text-xs text-muted shadow-[0_2px_8px_rgba(0,0,0,0.12)]">
           Approximate, from your internet connection
@@ -658,6 +808,7 @@ export default function ResultsPage() {
           onApply={update}
           onLocked={() => setJoinOpen(true)}
           onClose={() => setFiltersOpen(false)}
+          onDraw={startDraw}
         />
       )}
 
@@ -674,14 +825,14 @@ export default function ResultsPage() {
               {list(false)}
             </>
           )}
-          <button
+          {!draw && <button
             type="button"
             onClick={() => update({ view: showMapOnPhone(query.view) ? "list" : "map" })}
             className={`fixed ${phoneMap || !userId ? "bottom-6" : "bottom-[92px]"} left-1/2 z-10 inline-flex h-12 -translate-x-1/2 items-center gap-2 rounded-full bg-primary px-5 text-[15px] font-medium text-white shadow-[0_4px_14px_rgba(0,0,0,0.25)]`}
           >
             {showMapOnPhone(query.view) ? <ListIcon /> : <MapIcon />}
             {showMapOnPhone(query.view) ? "List" : "Map"}
-          </button>
+          </button>}
         </div>
       )}
 
@@ -700,6 +851,7 @@ export default function ResultsPage() {
               onChange={update}
               onLocked={() => setJoinOpen(true)}
               onClose={() => setPanelOpen(false)}
+              onDraw={() => startDraw()}
             />
           </section>
           {query.view === "list" ? (

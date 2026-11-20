@@ -5,6 +5,8 @@ import { HEART_PATH, THUMB_PATH } from "@/components/icons";
 import { typeForPath } from "@/lib/entityTypes";
 import {
   cuisinesOf,
+  DRAWN_AREA_LABEL,
+  MAP_AREA_LABEL,
   moreCount,
   NO_MORE,
   resultsHref,
@@ -19,7 +21,7 @@ import type { Facets } from "@/lib/searchTypes";
 // Filters button on a computer, in place of the list; the map stays. Every choice applies at
 // once (the address changes, the list and map follow), and every count is for the map area with
 // the other filters on (public.area_facets with counts). "Show N places" closes the panel.
-// Drawing an area on the map comes in step 3.
+// Draw an area closes it and starts drawing on the map (step 3).
 
 const FLAG_PATH = "M5 5a5 5 0 0 1 7 0a5 5 0 0 0 7 0v9a5 5 0 0 1 -7 0a5 5 0 0 0 -7 0v-9zM5 21v-7";
 const LOCK_PATH =
@@ -69,9 +71,13 @@ type Props = {
   onChange: (patch: Partial<ResultsQuery>) => void;
   onLocked: () => void;
   onClose: () => void;
+  onDraw: () => void;
 };
 
-export default function AllFiltersPanel({ query, facets, signedIn, lists, total, countFor, onChange, onLocked, onClose }: Props) {
+const AREA_ICON =
+  "M12 5m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0M19 8m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0M5 11m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0M15 19m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0M6.5 9.5l3.5 -3M14 5.5l3 1.5M18.5 10l-2.5 7M13.5 17.5l-7 -5";
+
+export default function AllFiltersPanel({ query, facets, signedIn, lists, total, countFor, onChange, onLocked, onClose, onDraw }: Props) {
   const key = resultsHref(query);
   const [counted, setCounted] = useState<{ key: string; facets: Facets | null } | null>(null);
   const [allCuisines, setAllCuisines] = useState(false);
@@ -344,6 +350,28 @@ export default function AllFiltersPanel({ query, facets, signedIn, lists, total,
           </div>
         </fieldset>
 
+        <fieldset className={section}>
+          <legend className={legend}>Search area</legend>
+          <div className="clear-both flex flex-wrap items-center gap-2.5">
+            <span className="inline-flex h-10 items-center rounded-[10px] bg-[#f5f5f5] px-3.5 text-sm text-zinc-950">
+              {m.area ? "Your drawn area" : "The map area"}
+            </span>
+            <button type="button" onClick={onDraw} className="inline-flex h-10 items-center gap-2 rounded-[10px] border border-[#dddddd] px-3.5 text-sm font-medium text-zinc-950 hover:border-zinc-400">
+              <Icon d={AREA_ICON} />
+              {m.area ? "Draw again" : "Draw an area"}
+            </button>
+            {m.area && (
+              <button
+                type="button"
+                onClick={() => onChange({ more: { ...m, area: null }, where: query.where === DRAWN_AREA_LABEL ? MAP_AREA_LABEL : query.where })}
+                className="h-10 px-1.5 text-sm font-medium text-zinc-950 underline"
+              >
+                Remove it
+              </button>
+            )}
+          </div>
+        </fieldset>
+
         <p className="py-4 pb-5 text-[13px] leading-normal text-zinc-500">
           Hours, price and things like outdoor seating come once we have that information for places.
         </p>
@@ -353,7 +381,9 @@ export default function AllFiltersPanel({ query, facets, signedIn, lists, total,
         <button
           type="button"
           disabled={active === 0}
-          onClick={() => onChange({ ...withCuisines(query, [], type), only: [], more: NO_MORE })}
+          onClick={() =>
+            onChange({ ...withCuisines(query, [], type), only: [], more: NO_MORE, where: query.where === DRAWN_AREA_LABEL ? MAP_AREA_LABEL : query.where })
+          }
           className="h-11 px-1 text-[15px] font-medium text-zinc-950 underline disabled:text-zinc-400 disabled:no-underline"
         >
           Clear all

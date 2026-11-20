@@ -1,6 +1,6 @@
 "use client";
 
-import { moreCount, NO_MORE, type MoreFilters, type ResultsQuery } from "@/lib/resultsQuery";
+import { DRAWN_AREA_LABEL, MAP_AREA_LABEL, moreCount, NO_MORE, type MoreFilters, type ResultsQuery } from "@/lib/resultsQuery";
 import type { ListOption } from "@/components/results/AllFiltersPanel";
 
 // The All filters panel's choices that aren't on the bar already, as chips under it, each with
@@ -17,7 +17,10 @@ export default function MoreChips({
   if (moreCount(query) === 0) return null;
   const m = query.more;
   const listName = m.list ? lists.find((l) => l.id === m.list)?.name : null;
+  // Taking the drawn area off leaves its box, as a map area.
+  const where = query.where === DRAWN_AREA_LABEL ? MAP_AREA_LABEL : query.where;
   const chips: { label: string; off: Partial<MoreFilters> }[] = [];
+  if (m.area) chips.push({ label: "Drawn area", off: { area: null } });
   if (m.street.trim()) chips.push({ label: `On ${m.street.trim()}`, off: { street: "" } });
   if (m.chain === "independent") chips.push({ label: "Independent", off: { chain: null } });
   if (m.chain === "chain") chips.push({ label: "Chains only", off: { chain: null } });
@@ -35,7 +38,7 @@ export default function MoreChips({
           <button
             type="button"
             aria-label={`Remove: ${chip.label}`}
-            onClick={() => onChange({ more: { ...m, ...chip.off } })}
+            onClick={() => onChange({ more: { ...m, ...chip.off }, ...(chip.off.area === null ? { where } : {}) })}
             className="flex h-7 w-7 items-center justify-center rounded-full text-muted hover:bg-zinc-200 hover:text-zinc-950"
           >
             <svg viewBox="0 0 24 24" width={14} height={14} fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" aria-hidden="true">
@@ -46,7 +49,7 @@ export default function MoreChips({
       ))}
       <button
         type="button"
-        onClick={() => onChange({ more: { ...NO_MORE, cuisines: m.cuisines } })}
+        onClick={() => onChange({ more: { ...NO_MORE, cuisines: m.cuisines }, where })}
         className="h-8 px-1.5 text-[13px] font-medium text-zinc-950 underline"
       >
         Clear all
