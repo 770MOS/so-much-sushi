@@ -455,3 +455,17 @@ GRANT EXECUTE ON FUNCTION admin_search_places(text, text, text, text, text, text
   admin_place_filters(text), refresh_place_counts() TO service_role;
 REVOKE ALL ON TABLE place_counts FROM anon, authenticated;
 GRANT ALL ON TABLE place_counts TO service_role;
+
+-- =============================================================================
+-- Review queue groups (20261123000000_review_groups.sql). The group list, the
+-- paged group listings, the one-pair lookup, the sorter and the group decision
+-- are for the admin (service role) only.
+-- =============================================================================
+REVOKE EXECUTE ON FUNCTION classify_review_items(), admin_review_groups(),
+  admin_review_duplicates(text, integer, integer), admin_review_changes(text, integer, integer),
+  admin_get_merge_proposal(bigint), admin_decide_review_group(text, boolean, text, integer)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION classify_review_items(), admin_review_groups(),
+  admin_review_duplicates(text, integer, integer), admin_review_changes(text, integer, integer),
+  admin_get_merge_proposal(bigint), admin_decide_review_group(text, boolean, text, integer)
+  TO service_role;
