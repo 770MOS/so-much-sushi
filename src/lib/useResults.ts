@@ -151,9 +151,22 @@ export function useResults(userId: string | null, args: ResultsArgs | null, want
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [needCells, key, supabase]);
 
-  // A heart or Want to try changed in a place panel: the list and map follow.
+  // A heart, Want to try or hide changed in a place panel: the list and map follow.
   useMarkChanges((change) => {
     if (change.from === "results") return;
+    if (change.hidden !== undefined && hiddenIds.has(change.id) !== change.hidden) {
+      const on = change.hidden;
+      setHiddenIds((prev) => {
+        const next = new Set(prev);
+        if (on) next.add(change.id);
+        else next.delete(change.id);
+        return next;
+      });
+      // Counted only for places in this search.
+      if (results?.some((r) => r.id === change.id)) {
+        setFacets((f) => (f ? { ...f, hidden: Math.max(0, f.hidden + (on ? 1 : -1)) } : f));
+      }
+    }
     if (change.starred !== undefined && starredIds.has(change.id) !== change.starred) {
       const on = change.starred;
       setStarredIds((prev) => {
@@ -205,6 +218,7 @@ export function useResults(userId: string | null, args: ResultsArgs | null, want
       return next;
     });
     setFacets((f) => (f ? { ...f, hidden: Math.max(0, f.hidden + (on ? -1 : 1)) } : f));
+    announceMark({ id: entityId, hidden: !on, from: "results" });
   }
 
   // Runs the same search again (after an error): back to "Searching…" until it answers.

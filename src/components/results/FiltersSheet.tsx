@@ -66,12 +66,13 @@ export default function FiltersSheet({ query, facets, signedIn, lists, countFor,
   const [kind, setKind] = useState<string | null>(query.kind);
   const [more, setMore] = useState<MoreFilters>(query.more);
   const [only, setOnly] = useState<Only[]>(query.only);
+  const [hidden, setHidden] = useState(query.hidden);
   const [allCuisines, setAllCuisines] = useState(false);
-  const [moreOpen, setMoreOpen] = useState(moreCount(query) > 0);
+  const [moreOpen, setMoreOpen] = useState(moreCount(query) > 0 || (signedIn && query.hidden));
   const [streetText, setStreetText] = useState("");
   const [counted, setCounted] = useState<{ key: string; facets: Facets | null } | null>(null);
 
-  const draft: ResultsQuery = { ...query, kind, more, only };
+  const draft: ResultsQuery = { ...query, kind, more, only, hidden };
   const key = resultsHref(draft);
   const type = typeForPath(kind);
   const picked = cuisinesOf(draft);
@@ -140,7 +141,7 @@ export default function FiltersSheet({ query, facets, signedIn, lists, countFor,
       ? [{ street: streetOn.toLowerCase(), label: streetOn, n: undefined as number | undefined }, ...streets]
       : streets;
   const chain = asked?.chain;
-  const moreOn = moreCount(draft) - (draft.more.list ? 1 : 0);
+  const moreOn = moreCount(draft) - (draft.more.list ? 1 : 0) + (signedIn && hidden ? 1 : 0);
 
   return (
     <div className="fixed inset-0 z-50 md:hidden" role="presentation">
@@ -326,7 +327,7 @@ export default function FiltersSheet({ query, facets, signedIn, lists, countFor,
                 <span className="text-base font-medium text-zinc-950">Search area</span>
                 <button
                   type="button"
-                  onClick={() => onDraw({ kind, only, more })}
+                  onClick={() => onDraw({ kind, only, more, hidden })}
                   className="inline-flex h-11 items-center gap-2 rounded-[10px] border border-[#dddddd] px-3.5 text-sm font-medium text-zinc-950"
                 >
                   <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -385,6 +386,14 @@ export default function FiltersSheet({ query, facets, signedIn, lists, countFor,
                       {n !== undefined && <span className="text-sm text-muted">{k === "closed" ? `+${n.toLocaleString("en-US")}` : n.toLocaleString("en-US")}</span>}
                     </label>
                   ))}
+                  {signedIn && (
+                    <label className="flex min-h-12 cursor-pointer items-center gap-3 text-base text-zinc-950">
+                      <input type="checkbox" checked={hidden} onChange={() => setHidden((h) => !h)} className="h-6 w-6 shrink-0 accent-zinc-950" />
+                      <span className="flex-1">Include places you hid</span>
+                      {/* Counted only while they're left out. */}
+                      {!hidden && shown && <span className="text-sm text-muted">+{shown.hidden.toLocaleString("en-US")}</span>}
+                    </label>
+                  )}
                 </div>
               </fieldset>
             </>
@@ -395,7 +404,7 @@ export default function FiltersSheet({ query, facets, signedIn, lists, countFor,
           <button
             type="button"
             onClick={() => {
-              onApply({ kind, only, more });
+              onApply({ kind, only, more, hidden });
               onClose();
             }}
             className="h-[52px] w-full rounded-xl bg-primary text-base font-medium text-white"

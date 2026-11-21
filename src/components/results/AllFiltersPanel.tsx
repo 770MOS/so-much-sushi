@@ -158,7 +158,8 @@ export default function AllFiltersPanel({ query, facets, signedIn, lists, total,
   const chainCounts = c?.chain;
   const anyChain = chainCounts ? chainCounts.chain + chainCounts.independent : undefined;
   const showTotal = c?.total ?? total;
-  const active = moreCount(query) + query.only.length + (picked.length ? 1 : 0);
+  const hiddenOn = signedIn && query.hidden;
+  const active = moreCount(query) + query.only.length + (picked.length ? 1 : 0) + (hiddenOn ? 1 : 0);
 
   const segment = (on: boolean) =>
     `h-10 flex-1 rounded-[9px] text-sm font-medium ${on ? "bg-primary text-white" : "text-muted hover:text-zinc-950"}`;
@@ -302,6 +303,14 @@ export default function AllFiltersPanel({ query, facets, signedIn, lists, total,
                 <span className="text-sm text-muted">{count === undefined ? "" : k === "closed" ? `+${n(count)}` : n(count)}</span>
               </label>
             ))}
+            {signedIn && (
+              <label className="flex min-h-[46px] cursor-pointer items-center gap-3 text-[15px] text-zinc-950">
+                <input type="checkbox" checked={query.hidden} onChange={() => onChange({ hidden: !query.hidden })} className="h-[22px] w-[22px] shrink-0 accent-zinc-950" />
+                <span className="flex-1">Include places you hid</span>
+                {/* Counted only while they're left out. */}
+                <span className="text-sm text-muted">{query.hidden || !shown ? "" : `+${n(shown.hidden)}`}</span>
+              </label>
+            )}
           </div>
         </fieldset>
 
@@ -382,7 +391,7 @@ export default function AllFiltersPanel({ query, facets, signedIn, lists, total,
           type="button"
           disabled={active === 0}
           onClick={() =>
-            onChange({ ...withCuisines(query, [], type), only: [], more: NO_MORE, where: query.where === DRAWN_AREA_LABEL ? MAP_AREA_LABEL : query.where })
+            onChange({ ...withCuisines(query, [], type), only: [], more: NO_MORE, hidden: false, where: query.where === DRAWN_AREA_LABEL ? MAP_AREA_LABEL : query.where })
           }
           className="h-11 px-1 text-[15px] font-medium text-zinc-950 underline disabled:text-zinc-400 disabled:no-underline"
         >

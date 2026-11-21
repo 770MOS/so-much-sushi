@@ -7,7 +7,7 @@ import { useResultsState } from "@/lib/resultsStore";
 import { announceMark, useMarkChanges } from "@/lib/placeMarks";
 import { formatPhone, phoneHref, websiteHost } from "@/lib/format";
 import { addressLines, milesBetween, placeKinds, sourcesLine, type PlaceDetail } from "@/lib/placeDetail";
-import { FavoriteIcon } from "@/components/icons";
+import { EyeOffIcon, FavoriteIcon } from "@/components/icons";
 import StatusBadge from "@/components/StatusBadge";
 import ShareButton from "@/components/ShareButton";
 import JoinNote from "@/components/results/JoinNote";
@@ -20,7 +20,9 @@ import { useRouter } from "next/navigation";
 // The details of one place (mocked 2026-11-10), shared by the side panel, the phone sheet and
 // the full place page so the three can't drift apart:
 //   name; kind ("Italian · Restaurants") with the distance from the search, when there is one;
-//   Favorite and Add to list (a lock and the join note for visitors); which friends have it as
+//   Favorite and Add to list (a lock and the join note for visitors); Hide for members, and a
+//   line saying so with Show again when the person hid it (2026-11-21: someone may send you a
+//   link to a place you hid); which friends have it as
 //   a favorite and which of the person's lists it's on; address with Directions, phone,
 //   website, hours; where the details come from; "Pin in the wrong spot" (admins move it,
 //   members suggest a spot: 2026-11-15); other edits and Report closed (soon); claiming (soon).
@@ -66,6 +68,7 @@ export default function PlaceBody({ place, layout, headingId }: { place: PlaceDe
   const { origin } = useResultsState();
   const [starred, setStarred] = useState(place.is_starred);
   const [want, setWant] = useState(place.is_want);
+  const [hidden, setHidden] = useState(place.is_hidden ?? false);
   const [lists, setLists] = useState(place.lists);
   const [joinOpen, setJoinOpen] = useState(false);
   const [pinOpen, setPinOpen] = useState(false);
@@ -75,9 +78,10 @@ export default function PlaceBody({ place, layout, headingId }: { place: PlaceDe
   const router = useRouter();
   const [busy, setBusy] = useState(false);
 
-  // A heart or Want to try changed elsewhere on the page (a result row): follow it.
+  // A heart, Want to try or hide changed elsewhere on the page (a result row): follow it.
   useMarkChanges((change) => {
     if (change.id !== place.id) return;
+    if (change.hidden !== undefined) setHidden(change.hidden);
     if (change.starred !== undefined) setStarred(change.starred);
     if (change.want !== undefined) setWant(change.want);
   });
@@ -103,6 +107,20 @@ export default function PlaceBody({ place, layout, headingId }: { place: PlaceDe
     if (error) return;
     setStarred(!on);
     announceMark({ id: place.id, starred: !on, from: "panel" });
+  }
+
+  async function toggleHide() {
+    if (!userId || busy) return;
+    setBusy(true);
+    const on = hidden;
+    const { error } = on
+      ? await supabase.from("hidden_entities").delete().eq("user_id", userId).eq("entity_id", place.id)
+      : await supabase.from("hidden_entities").insert({ user_id: userId, entity_id: place.id });
+    setBusy(false);
+    // Hiding a place that's hidden already (23505) leaves it as asked.
+    if (error && !(error.code === "23505" && !on)) return;
+    setHidden(!on);
+    announceMark({ id: place.id, hidden: !on, from: "panel" });
   }
 
   const Heading = layout === "page" ? "h1" : "h2";
@@ -134,6 +152,15 @@ export default function PlaceBody({ place, layout, headingId }: { place: PlaceDe
           </p>
         )}
         <StatusBadge status={place.status} />
+        {signedIn && hidden && (
+          <p className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 pt-0.5 text-sm text-muted">
+            <EyeOffIcon size={16} />
+            <span>You hid this place, so it’s left out of your search results.</span>
+            <button type="button" onClick={toggleHide} className="font-medium text-zinc-950 underline decoration-[#bbbbbb] underline-offset-2 hover:decoration-zinc-950">
+              Show again
+            </button>
+          </p>
+        )}
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -177,6 +204,20 @@ export default function PlaceBody({ place, layout, headingId }: { place: PlaceDe
             </svg>
             Call
           </a>
+        )}
+        {userId && (
+          <button
+            type="button"
+            onClick={toggleHide}
+            aria-pressed={hidden}
+            aria-label={hidden ? `Show ${place.name} in your results again` : `Hide ${place.name} from your results`}
+            className={`inline-flex h-[42px] items-center gap-1.5 rounded-[10px] border px-3.5 text-sm font-medium text-zinc-950 ${
+              hidden ? "border-primary bg-white" : "border-[#dddddd] bg-white hover:bg-zinc-50"
+            }`}
+          >
+            <EyeOffIcon active={hidden} size={18} />
+            {hidden ? "Hidden" : "Hide"}
+          </button>
         )}
         {layout === "page" && <ShareButton path={`/venue/${place.id}`} title={place.name} />}
       </div>

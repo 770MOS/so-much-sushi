@@ -8,18 +8,22 @@ import type { ListOption } from "@/components/results/AllFiltersPanel";
 export default function MoreChips({
   query,
   lists,
+  signedIn,
   onChange,
 }: {
   query: ResultsQuery;
   lists: ListOption[];
+  signedIn: boolean;
   onChange: (patch: Partial<ResultsQuery>) => void;
 }) {
-  if (moreCount(query) === 0) return null;
+  // Showing hidden places is a signed-in person's choice; it does nothing for a visitor.
+  const hiddenOn = signedIn && query.hidden;
+  if (moreCount(query) === 0 && !hiddenOn) return null;
   const m = query.more;
   const listName = m.list ? lists.find((l) => l.id === m.list)?.name : null;
   // Taking the drawn area off leaves its box, as a map area.
   const where = query.where === DRAWN_AREA_LABEL ? MAP_AREA_LABEL : query.where;
-  const chips: { label: string; off: Partial<MoreFilters> }[] = [];
+  const chips: { label: string; off: Partial<MoreFilters>; hidden?: boolean }[] = [];
   if (m.area) chips.push({ label: "Drawn area", off: { area: null } });
   if (m.street.trim()) chips.push({ label: `On ${m.street.trim()}`, off: { street: "" } });
   if (m.chain === "independent") chips.push({ label: "Independent", off: { chain: null } });
@@ -29,6 +33,7 @@ export default function MoreChips({
   if (m.closed) chips.push({ label: "Closed places too", off: { closed: false } });
   if (m.list) chips.push({ label: listName ? `On “${listName}”` : "On one of your lists", off: { list: null } });
   if (m.close && query.q.trim()) chips.push({ label: "Close spellings", off: { close: false } });
+  if (hiddenOn) chips.push({ label: "Hidden places too", off: {}, hidden: true });
 
   return (
     <div role="group" aria-label="Other filters on" className="flex flex-wrap items-center gap-2 border-b border-line px-4 pb-2.5 pt-0.5 md:px-6">
@@ -38,7 +43,9 @@ export default function MoreChips({
           <button
             type="button"
             aria-label={`Remove: ${chip.label}`}
-            onClick={() => onChange({ more: { ...m, ...chip.off }, ...(chip.off.area === null ? { where } : {}) })}
+            onClick={() =>
+              onChange(chip.hidden ? { hidden: false } : { more: { ...m, ...chip.off }, ...(chip.off.area === null ? { where } : {}) })
+            }
             className="flex h-7 w-7 items-center justify-center rounded-full text-muted hover:bg-zinc-200 hover:text-zinc-950"
           >
             <svg viewBox="0 0 24 24" width={14} height={14} fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" aria-hidden="true">
@@ -49,7 +56,7 @@ export default function MoreChips({
       ))}
       <button
         type="button"
-        onClick={() => onChange({ more: { ...NO_MORE, cuisines: m.cuisines }, where })}
+        onClick={() => onChange({ more: { ...NO_MORE, cuisines: m.cuisines }, where, hidden: false })}
         className="h-8 px-1.5 text-[13px] font-medium text-zinc-950 underline"
       >
         Clear all

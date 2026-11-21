@@ -606,10 +606,16 @@ export default function ResultsPage() {
             </button>
           </p>
         )}
-        {query.hidden && (
-          <button type="button" onClick={() => update({ hidden: false })} className="font-medium text-zinc-950 underline">
-            Leave out places you hid
-          </button>
+        {userId && query.hidden && (
+          <p>
+            <button type="button" onClick={() => update({ hidden: false })} className="font-medium text-zinc-950 underline">
+              Leave out places you hid
+            </button>
+            {" · "}
+            <Link href="/hidden" className="font-medium text-zinc-950 underline">
+              All your hidden places
+            </Link>
+          </p>
         )}
         <p>
           Can&apos;t find a place?{" "}
@@ -796,7 +802,7 @@ export default function ResultsPage() {
           onTogglePanel={isDesktop ? () => setPanelOpen((o) => !o) : undefined}
           panelOpen={panelOpen}
         />
-        <MoreChips query={query} lists={lists} onChange={update} />
+        <MoreChips query={query} lists={lists} signedIn={Boolean(userId)} onChange={update} />
       </div>
       {filtersOpen && (
         <FiltersSheet

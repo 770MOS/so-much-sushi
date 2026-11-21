@@ -108,6 +108,9 @@ export default function AccountMenu({ supabase, email, firstName, displayName, h
           <Link href="/settings" role="menuitem" onClick={close} className={itemClass}>
             Account settings
           </Link>
+          <Link href="/hidden" role="menuitem" onClick={close} className={itemClass}>
+            Hidden places
+          </Link>
           <Link href="/request#your-requests" role="menuitem" onClick={close} className={itemClass}>
             Your requests
           </Link>

@@ -21,6 +21,8 @@ export type PlaceDetail = {
   categories: { name: string; path: string }[]; // main category first
   is_starred: boolean;
   is_want: boolean;
+  // The viewer hid it. Missing from databases that predate 20261124000000_hidden_places.
+  is_hidden?: boolean;
   lists: { id: string; name: string }[]; // the viewer's other lists it's on
   friends: Recommender[]; // up to three, earliest first
   friends_count: number;

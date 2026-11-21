@@ -96,29 +96,32 @@ export function CrosshairIcon() {
   );
 }
 
-export function EyeOffIcon({ filled }: { filled: boolean }) {
+// Hide a place from your results: an eye with a line through it (Tabler's eye-off).
+// `active` is the darker state for a place you've already hidden.
+export function EyeOffIcon({ active = false, size = 22 }: { active?: boolean; size?: number }) {
   return (
     <svg
       viewBox="0 0 24 24"
-      width={20}
-      height={20}
+      width={size}
+      height={size}
       fill="none"
       stroke="currentColor"
-      strokeWidth={filled ? 2 : 1.5}
-      className={filled ? "text-zinc-800 dark:text-zinc-100" : "text-zinc-400"}
+      strokeWidth={active ? 2.1 : 1.8}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={active ? "text-zinc-900" : undefined}
+      aria-hidden="true"
     >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M3 3l18 18M10.58 10.58a2 2 0 102.83 2.83M9.88 4.24A9.1 9.1 0 0112 4c5 0 9 4.5 10.5 8-.6 1.36-1.5 2.7-2.6 3.85M6.4 6.4C4.13 7.86 2.44 9.94 1.5 12c1.02 2.28 2.7 4.24 4.76 5.6A9.15 9.15 0 0012 20c1.13 0 2.21-.18 3.22-.51"
-      />
+      <path d="M10.585 10.587a2 2 0 0 0 2.829 2.828" />
+      <path d="M16.681 16.673a8.717 8.717 0 0 1 -4.681 1.327c-3.6 0 -6.6 -2 -9 -6c1.272 -2.12 2.712 -3.678 4.32 -4.674m2.86 -1.146a9.055 9.055 0 0 1 1.82 -.18c3.6 0 6.6 2 9 6c-.666 1.11 -1.379 2.067 -2.138 2.87" />
+      <path d="M3 3l18 18" />
     </svg>
   );
 }
 
-// Password-visibility icons. Distinct from EyeOffIcon above (which takes a
-// `filled` prop tied to the hide-restaurant feature's muted/active color
-// semantics) - these are a plain two-state pair with no such distinction.
+// Password-visibility icons. Distinct from EyeOffIcon above (which takes an
+// `active` prop for the hide-a-place button's muted/active colours) - these
+// are a plain two-state pair with no such distinction.
 export function EyeIcon() {
   return (
     <svg viewBox="0 0 24 24" width={18} height={18} fill="none" stroke="currentColor" strokeWidth={1.5}>
