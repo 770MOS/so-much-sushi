@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import AddToListMenu from "@/components/AddToListMenu";
 import StatusBadge from "@/components/StatusBadge";
-import { FavoriteIcon, FriendsFavoriteIcon } from "@/components/icons";
+import { EyeOffIcon, FavoriteIcon, FriendsFavoriteIcon } from "@/components/icons";
 import type { Recommender, SearchResult } from "@/lib/searchTypes";
 
 // First names keep the line short ("Priya and Sam’s favorite"); the link goes to their page.
@@ -56,7 +56,9 @@ export function kindLabel(r: { categories: string[] | null }): string {
   return finer.length ? finer.join(", ") : cats[0] ?? "";
 }
 
-function RowMenu({ name, hidden, onToggleHide }: { name: string; hidden: boolean; onToggleHide: () => void }) {
+// The hide button: an eye with a line through it. One more tap in its small menu confirms,
+// because a hidden place drops out of the list.
+function HideMenu({ name, hidden, onToggleHide }: { name: string; hidden: boolean; onToggleHide: () => void }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -71,18 +73,17 @@ function RowMenu({ name, hidden, onToggleHide }: { name: string; hidden: boolean
     <div ref={ref} className="relative">
       <button
         type="button"
-        aria-label={`More for ${name}`}
+        aria-label={hidden ? `Show ${name} in your results again` : `Hide ${name} from your results`}
+        title={hidden ? "Show again" : "Hide"}
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
-        className="flex h-11 w-9 items-center justify-center rounded-lg text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900"
+        className="flex h-11 w-10 items-center justify-center rounded-lg text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900"
       >
-        <svg viewBox="0 0 24 24" width={20} height={20} fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" aria-hidden="true">
-          <path d="M5 12h.01M12 12h.01M19 12h.01" />
-        </svg>
+        <EyeOffIcon active={hidden} />
       </button>
       {open && (
-        <div role="menu" className="absolute right-0 z-20 mt-1 w-56 rounded-xl border border-line bg-white p-1 shadow-[0_8px_24px_rgba(0,0,0,0.12)]">
+        <div role="menu" className="absolute right-0 z-20 mt-1 min-w-24 rounded-xl border border-line bg-white p-1 shadow-[0_8px_24px_rgba(0,0,0,0.12)]">
           <button
             type="button"
             role="menuitem"
@@ -90,9 +91,9 @@ function RowMenu({ name, hidden, onToggleHide }: { name: string; hidden: boolean
               setOpen(false);
               onToggleHide();
             }}
-            className="flex min-h-11 w-full items-center rounded-lg px-3 text-left text-[15px] text-zinc-950 hover:bg-zinc-100"
+            className="flex min-h-11 w-full items-center whitespace-nowrap rounded-lg px-4 text-left text-[15px] text-zinc-950 hover:bg-zinc-100"
           >
-            {hidden ? "Show in results again" : "Hide from my results"}
+            {hidden ? "Show again" : "Hide"}
           </button>
         </div>
       )}
@@ -177,7 +178,7 @@ export default function ResultRow({ r, card, starred, hidden, userId, onToggleSt
           <FavoriteIcon filled={starred} size={22} />
         </button>
         {userId && <AddToListMenu userId={userId} entityId={r.id} />}
-        {userId && <RowMenu name={r.name} hidden={hidden} onToggleHide={onToggleHide} />}
+        {userId && <HideMenu name={r.name} hidden={hidden} onToggleHide={onToggleHide} />}
       </div>
     </li>
   );

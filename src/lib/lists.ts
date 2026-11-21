@@ -1,8 +1,9 @@
 import type { Recommender } from "@/lib/searchTypes";
 import type { Box } from "@/lib/resultsQuery";
 
-// Favorites, Lists and one list (build step 5). Types for public.my_favorites,
-// public.list_page and public.lists_overview, and small helpers the pages share.
+// Favorites, Lists and one list (build step 5). Types for public.my_favorites, public.my_hidden
+// (the Hidden places page), public.list_page and public.lists_overview, and small helpers the
+// pages share.
 
 // Who can see a list (decided 2026-11-12). Stored as private / friends / public.
 export type Visibility = "private" | "friends" | "public";

@@ -147,7 +147,8 @@ function CuisineMenu({ query, facets, kindName, onChange }: Pick<Props, "query" 
 export default function FilterBar({ query, facets, signedIn, kindName, onChange, onLocked, onOpenFilters, onTogglePanel, panelOpen }: Props) {
   const type = typeForPath(query.kind);
   const picked = cuisinesOf(query);
-  const more = moreCount(query);
+  // Showing places you hid is one of the panel's filters too.
+  const more = moreCount(query) + (signedIn && query.hidden ? 1 : 0);
   // A cuisine counts once: it is a type too.
   const active = (query.kind || picked.length ? 1 : 0) + (signedIn ? query.only.length : 0) + more;
 

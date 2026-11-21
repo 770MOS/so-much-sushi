@@ -145,6 +145,7 @@ export default function AccountHome() {
           </Link>
 
           <Group title="Places">
+            <Row href="/hidden" label="Hidden places" />
             <Row href="/request#your-requests" label="Your requests" />
             <Row href="/request" label="Request a place" />
           </Group>

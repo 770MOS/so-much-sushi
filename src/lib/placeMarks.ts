@@ -2,14 +2,15 @@
 
 import { useEffect, useRef } from "react";
 
-// A favorite or Want to try mark changed somewhere on the page (the place panel, a result
-// row), so other views of the same place can follow without asking the database again.
+// A favorite, Want to try or hidden mark changed somewhere on the page (the place panel, a
+// result row), so other views of the same place can follow without asking the database again.
 // from: which view made the change, so it can ignore its own announcement.
 // moved: an admin moved the place's pin, so maps showing it follow.
 export type MarkChange = {
   id: string;
   starred?: boolean;
   want?: boolean;
+  hidden?: boolean;
   moved?: { lat: number; lng: number };
   from?: "results" | "panel" | "lists";
 };
