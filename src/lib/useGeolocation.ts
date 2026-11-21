@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { Coords } from "@/lib/lastSearchCoords";
+import { noteUserLocation } from "@/lib/userLocation";
 
 export function useGeolocation(manualFallbackHint: string = "Please enter a location manually.") {
   const [locating, setLocating] = useState(false);
@@ -20,6 +21,8 @@ export function useGeolocation(manualFallbackHint: string = "Please enter a loca
       navigator.geolocation.getCurrentPosition(
         (position) => {
           setLocating(false);
+          // They've allowed it, so the maps show where they are (the blue dot).
+          noteUserLocation({ lat: position.coords.latitude, lng: position.coords.longitude, accuracy: position.coords.accuracy });
           resolve({ lat: position.coords.latitude, lng: position.coords.longitude });
         },
         (err) => {

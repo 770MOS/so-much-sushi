@@ -16,6 +16,7 @@ import {
   STARRED_COLOR,
   type MapMarkerEntity,
 } from "@/components/EntityMap";
+import { addUserLocation } from "@/components/mapUserLocation";
 import type { AreaCell } from "@/lib/searchTypes";
 import { MAX_SHAPE_POINTS, type Box, type LngLat } from "@/lib/resultsQuery";
 
@@ -28,6 +29,8 @@ import { MAX_SHAPE_POINTS, type Box, type LngLat } from "@/lib/resultsQuery";
 //     database's grid counts (cells) instead, so they are true counts; clicking one of those
 //     zooms in to it and searches there;
 //   * when the person moves the map, onMoved tells the page, which offers "Search this area";
+//   * a blue dot shows where the person is once they've allowed it, with a locate button under
+//     the zoom buttons (src/components/mapUserLocation.ts);
 //   * a drawn area (advanced search, 2026-11-19) is outlined; while drawing (draw), clicks drop
 //     points (click the first point, or double-click, to close the shape; then drag points), and
 //     on a touch screen one finger stroke draws the whole shape, closed when the finger lifts.
@@ -373,6 +376,14 @@ export default function ResultsMap({
     applyMapStyle(map, kindRef.current);
     appliedKindRef.current = kindRef.current;
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
+    // The blue dot. Its button moving the map to the person counts as their move, so the page
+    // offers "Search this area" there.
+    const removeUserLocation = addUserLocation(map, {
+      corner: "top-right",
+      beforeMove: () => {
+        movedByPerson = true;
+      },
+    });
 
     map.on("styleimagemissing", (e) => {
       const m = /^sms-b-(\d+)-(\d+)-(\d+)-(\d+)$/.exec(e.id);
@@ -653,6 +664,7 @@ export default function ResultsMap({
       readyRef.current = false;
       labelRef.current?.remove();
       labelRef.current = null;
+      removeUserLocation();
       map.remove();
       mapRef.current = null;
     };
