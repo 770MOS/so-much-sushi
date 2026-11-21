@@ -7,6 +7,7 @@ import type { GeoJSONSource, MapLayerMouseEvent, Offset } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { applyMapStyle, DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM, MAX_BROWSE_ZOOM, PIN_COLOR } from "@/lib/mapConfig";
 import { closedLabel } from "@/lib/entityStatus";
+import { addUserLocation } from "@/components/mapUserLocation";
 import type { EntityType } from "@/lib/entityTypes";
 
 export type MapMarkerEntity = {
@@ -410,6 +411,8 @@ export default function EntityMap({ entities, jumpTo, onBoundsChange, onToggleSt
     });
     applyMapStyle(map);
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-left");
+    // The blue dot for where the person is, with its locate button under the zoom buttons.
+    const removeUserLocation = addUserLocation(map, { corner: "top-left" });
 
     function emitBounds() {
       if (!onBoundsChangeRef.current) return;
@@ -503,6 +506,7 @@ export default function EntityMap({ entities, jumpTo, onBoundsChange, onToggleSt
       resizeObserver.disconnect();
       layerReadyRef.current = false;
       popupRef.current = null;
+      removeUserLocation();
       map.remove();
       mapRef.current = null;
     };
